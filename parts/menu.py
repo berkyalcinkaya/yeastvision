@@ -1,0 +1,87 @@
+from PyQt5.QtWidgets import QAction
+from disk import io
+
+def menubar(parent):
+    mainMenu = parent.menuBar()
+    fileMenu = mainMenu.addMenu("File")
+
+    loadIm = QAction("Load Image", parent)
+    fileMenu.addAction(loadIm)
+    loadMask = QAction("Load Mask", parent)
+    fileMenu.addAction(loadMask)
+    loadSessionFile = QAction("Load Session File", parent)
+    fileMenu.addAction(loadSessionFile)
+    loadByFileName = QAction("Load Channels from Dir", parent)
+    loadByFileName.triggered.connect(parent.loadByFileName)
+    fileMenu.addAction(loadByFileName)
+    loadMaskAndImage = QAction("Load Masks and Images Together", parent)
+    loadMaskAndImage.triggered.connect(parent.loadMasksAndImages)
+    fileMenu.addAction(loadMaskAndImage)
+    editMenu = mainMenu.addMenu("Edit")
+    addBlankMask = QAction("Add Blank Label", parent)
+    addBlankMask.triggered.connect(parent.addBlankMasks)
+    editMenu.addAction(addBlankMask)
+    removeAll = QAction("Clear All", parent)
+    removeAll.triggered.connect(parent.setEmptyDisplay)
+    editMenu.addAction(removeAll)
+
+    preMenu = mainMenu.addMenu("Preprocess")
+    medianFilter = QAction("Median Filter", parent)
+    medianFilter.triggered.connect(lambda: parent.runImageAction(parent.doMedian))
+    preMenu.addAction(medianFilter)
+    gaussFilter = QAction("Gaussian Filter", parent)
+    gaussFilter.triggered.connect(lambda: parent.runImageAction(parent.doGaussian))
+    preMenu.addAction(gaussFilter)
+    adaptHist = QAction("Adaptive Histogram Equalization", parent)
+    adaptHist.triggered.connect(lambda: parent.runImageAction(parent.doAdaptHist))
+    preMenu.addAction(adaptHist)
+    deflicker = QAction("Deflicker Time Series", parent)
+    deflicker.triggered.connect(lambda: parent.runImageAction(parent.doDeflicker))
+    preMenu.addAction(deflicker)
+    normalizeByImage = QAction("Min-Max Normalization (Per Image)", parent)
+    preMenu.addAction(normalizeByImage)
+    normalizeBySet = QAction("Min-Max Normalization (Per Set)", parent)
+    preMenu.addAction(normalizeBySet)
+    rescale = QAction("Rescale", parent)
+    # cannot add a threadd for rescale because of error with parent from other thread
+    rescale.triggered.connect(lambda: parent.doRescale())
+    preMenu.addAction(rescale)
+
+    exportMenu = mainMenu.addMenu("Export")
+    maskSave = QAction("Save Masks", parent)
+    maskSave.triggered.connect(parent.saveMasks)
+    exportMenu.addAction(maskSave)
+    overlaySave = QAction("Save Figure", parent)
+    overlaySave.triggered.connect(parent.saveFigure)
+    exportMenu.addAction(overlaySave)
+    dataSave = QAction("Export Cell Data", parent)
+    dataSave.triggered.connect(parent.saveCellData)
+    exportMenu.addAction(dataSave)
+    hmSave = QAction("Export Heatmaps", parent)
+    hmSave.triggered.connect(parent.saveHeatMaps)
+    exportMenu.addAction(hmSave)
+    lineageSave = QAction("Export Lineage Data")
+    lineageSave.triggered.connect(parent.saveLineageData)
+    exportMenu.addAction(lineageSave)
+
+    modelMenu = mainMenu.addMenu("Models")
+    trainModel = QAction("Train Model", parent)
+    trainModel.triggered.connect(parent.showTW)
+    modelMenu.addAction(trainModel)
+
+    loadCustom = QAction("Load Custom Model", parent)
+    loadCustom.triggered.connect(lambda: io.loadCustomModel(parent))
+    modelMenu.addAction(loadCustom)
+
+    evaluate = QAction("Evaluate Predictions", parent)
+    evaluate.triggered.connect(parent.evaluate)
+    modelMenu.addAction(evaluate)
+
+    plotMenu = mainMenu.addMenu("Plot")
+
+    getCellData = QAction("Update Cell Data", parent)
+    getCellData.triggered.connect(parent.updateCellData)
+    plotMenu.addAction(getCellData)
+
+
+    
