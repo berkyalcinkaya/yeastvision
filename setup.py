@@ -32,5 +32,6 @@ setup(
     author_email="berkyalcinkaya55@gmail.com",
     license = "BSD",
     packages = packages,
+    scripts = ["yeastvision/install_weights.py"],
     install_requires = requires
 )
