@@ -7,7 +7,8 @@ from models.utils import addMasks
 from models.artilife.budSeg.model import BudSeg
 from skimage.measure import label
 from skimage.morphology import remove_small_objects
-from models.artilife import track
+from track.track import track_obj, trackYeasts
+from track.cell import Cell, getBirthFrame, getCellData, getDeathFrame, getLifeData
 from models.utils import normalizeIm, produce_weight_path
 
 class Artilife(CustomCPWrapper):
@@ -59,7 +60,7 @@ class Artilife(CustomCPWrapper):
         self.tetraprobs = np.array(self.processProbability(self.tetraprobs), dtype = np.uint8)
 
         if self.params["Time Series"]:
-            newTetraMasks, newMasks = track.track_obj([im[:,:,0] for im in ims[tetraSlice]], self.masks[tetraSlice], self.tetraMasks[tetraSlice], False)
+            newTetraMasks, newMasks = track_obj([im[:,:,0] for im in ims[tetraSlice]], self.masks[tetraSlice], self.tetraMasks[tetraSlice], False)
             tetraSlice = slice(int(self.params["sporeStart"]), int(self.params["sporeStop"])-1)
         else:
             for tetraMask, cellMask in zip(self.tetraMasks, self.masks):
@@ -88,7 +89,7 @@ class Artilife(CustomCPWrapper):
         self.matprobs = np.array(self.processProbability(self.matprobs), dtype = np.uint8)
         
         if self.params["Time Series"]:
-            newMatMasks, newMasks = track.track_obj([im[:,:,0] for im in ims[matSlice]], self.masks[matSlice], self.matMasks[matSlice], True)
+            newMatMasks, newMasks = track_obj([im[:,:,0] for im in ims[matSlice]], self.masks[matSlice], self.matMasks[matSlice], True)
             matSlice = slice(int(self.params["matStart"]), int(self.params["matStop"])-1)
         else:
             newMasks = []
@@ -138,20 +139,20 @@ class Artilife(CustomCPWrapper):
         imsPadded = np.array([np.pad(im, 25, mode = "symmetric") for im in ims], dtype = np.uint16)
         masksPadded = np.array([np.pad(mask, 25) for mask in newMasks], dtype = np.uint16)
         
-        for cellVal in np.unique(cellData["labels"]):
-            cellVal = int(cellVal)
+        for val in cellData.index:
+            cellVal = int(val)+1
             if cellVal>0:
-                birthFrame =  cellData["birth"][cellVal-1]
+                birthFrame = cellData["birth"][cellVal-1]
                 
                 if birthFrame > 0:
-                    cell = track.Cell(masksPadded[birthFrame,:,:], cellVal)
+                    cell = Cell(masksPadded[birthFrame,:,:], cellVal)
                     r,c = cell.centroid
                     r,c = round(r), round(c)
                     index = 2 if birthFrame>1 else 1
                     budSlice = slice(birthFrame-index,birthFrame), slice(r-25,r+25), slice(c-25,c+25)
                     smallBuds = self.findSmallBud(imsPadded[budSlice], masksPadded[budSlice])
                     if np.any(smallBuds>0):
-                        birth = track.getBirthFrame(smallBuds, 1)
+                        birth = getBirthFrame(smallBuds, 1)
                         masksPadded[budSlice][smallBuds>0] = cellVal
         r,c = masksPadded[0].shape
         self.masks = masksPadded[:,25:r-25,25:c-25].astype(np.uint16)
@@ -176,8 +177,8 @@ class Artilife(CustomCPWrapper):
         model.masks = np.array(model.masks, dtype = np.uint16)
 
         if model.params["Time Series"]:
-            model.masks = track.trackYeasts(model.masks)
-            cellData = track.getCellLifeData(model.masks)
+            model.masks = trackYeasts(model.masks)
+            cellData = getLifeData(model.masks)
             model.addSmallCells(ims, cellData)
 
         if model.matSeg:

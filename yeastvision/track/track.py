@@ -395,7 +395,7 @@ def trackYeasts(ims):
         ISB = np.multiply(IS2,Iblank0B) # plt.imshow(ISB)
         
         newcells=np.unique(ISB)
-        newcells = newcells[1:len(bl_cells)]
+        newcells = newcells[1:len(newcells)]
         Iblank=Iblank0  # plt.imshow(Iblank)
         A=1;
         
