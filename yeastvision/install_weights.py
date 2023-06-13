@@ -4,7 +4,7 @@ import os
 from models.utils import MODEL_DIR
 from os.path import join
 
-if __name__ == "__main__":
+def do_install():
     current_directory = os.getcwd()
     folder_path = "yeastvision_weights.zip"
     models = [model for model in os.listdir(MODEL_DIR) if os.path.isdir(join(MODEL_DIR, model))]
@@ -39,6 +39,10 @@ if __name__ == "__main__":
 
     # Remove the unzipped folder
     shutil.rmtree(unzip_directory)
+
+
+if __name__ == "__main__":
+    do_install()
 
 
 

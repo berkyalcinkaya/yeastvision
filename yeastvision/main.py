@@ -2026,8 +2026,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.hasCellDataBox.setChecked(self.hasCellData())
         self.showMotherDaughtersButton.setEnabled(hasLineages)
         self.showLineageButton.setEnabled(hasLineages)
-        
-if __name__ == "__main__":
+
+def main():
     app = QApplication([])
     im_path = "test_phase.tif"
     mask_path = "test_mask.tif"
@@ -2036,7 +2036,11 @@ if __name__ == "__main__":
     window = MainWindow(mainThread, im_path, mask_path)
     window.show()
     toc = process_time()
-    app.exec_()
+    app.exec_()        
+
+if __name__ == "__main__":
+    main()
+
 
 
 
