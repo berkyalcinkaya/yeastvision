@@ -1,3 +1,5 @@
+build/
+dist/
 /yeastvision/models/artilife/budSeg/Bud_Seg.h5
 **/.tif
 .DS_Store
