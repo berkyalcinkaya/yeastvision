@@ -1,6 +1,6 @@
 import numpy as np
 from skimage.feature import blob_log as bl
-from flou.utils import draw_blobs, normalize_im
+from yeastvision.flou.utils import draw_blobs, normalize_im
 import math
 import numpy as np
 from skimage.draw import disk

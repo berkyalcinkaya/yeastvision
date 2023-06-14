@@ -2,10 +2,8 @@ import patchify
 import numpy as np
 from patchify import patchify, unpatchify
 import skimage
-import pathlib
-import os
 from skimage.morphology import disk, binary_erosion, binary_dilation
-import models
+import yeastvision.models as models
 from os.path import join
 from sklearn.decomposition import PCA
 from skimage.measure import regionprops

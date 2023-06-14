@@ -2,10 +2,10 @@ import pandas as pd
 import numpy as np
 from skimage.morphology import binary_dilation, binary_erosion, dilation, erosion, disk
 from skimage.measure import label, regionprops
-from models.unet import unet
-from track.cell import getBirthFrame, getLifeData
+from yeastvision.models.unet import unet
+from yeastvision.track.cell import getBirthFrame, getLifeData
 import matplotlib.pyplot as plt 
-from track.utils import normalize_dict_by_sum
+from yeastvision.track.utils import normalize_dict_by_sum
 from tqdm import tqdm
 
 def count_objects(labeledMask):

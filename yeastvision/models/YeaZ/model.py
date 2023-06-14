@@ -3,7 +3,7 @@ import numpy as np
 from skimage.exposure import equalize_adapthist
 from .segment import segment
 import skimage
-from models.model import Model as CustomModel
+from yeastvision.models.model import Model as CustomModel
 import matplotlib.pyplot as plt
 from .unet import unet
 

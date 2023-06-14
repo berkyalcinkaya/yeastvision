@@ -1,14 +1,9 @@
 from PyQt5 import QtGui, QtCore, QtWidgets
-from PyQt5.QtGui import QPainter, QPixmap
-from PyQt5.QtWidgets import QApplication, QRadioButton, QWidget, QDialog, QButtonGroup, QSlider, QStyle, QStyleOptionSlider, QGridLayout, QPushButton, QLabel, QLineEdit, QDialogButtonBox, QComboBox, QCheckBox
 import pyqtgraph as pg
-from pyqtgraph import functions as fn
 from pyqtgraph import Point
 import numpy as np
-import pathlib, os
 from skimage.morphology import disk, dilation, erosion
 from skimage.draw import line_aa
-import cv2
 from PIL import Image
 from PIL import ImageDraw as ID
 import math
@@ -57,6 +52,9 @@ class ImageDraw(pg.ImageItem):
                                  int(np.floor(kernel.shape[1]/2))]
     
     def mouseClickEvent(self, ev):
+        if not self.parent.imLoaded:
+            return
+        
         cellNum = self.parent.currMask[int(ev.pos().y()), int(ev.pos().x())]
         
         if ev.button() == QtCore.Qt.LeftButton and self.parent.maskOn:
@@ -67,7 +65,7 @@ class ImageDraw(pg.ImageItem):
         elif ev.button() == QtCore.Qt.RightButton and not self.parent.probOn and self.parent.maskOn:
             
             if self.parent.drawType != "":
-                if self.parent.maskData.isDummy:
+                if not self.parent.maskLoaded:
                     self.parent.loadMasks(self.parent.maskData.channels[self.parent.maskZ][0,:,:,:], 
                                       name = self.parent.channelSelect.currentText() + "-draw")
                 

@@ -26,7 +26,7 @@ from skimage.io import imread,imsave
 from skimage.measure import label
 from skimage.exposure import equalize_adapthist as ea
 from scipy.signal import medfilt2d
-from .utils import *
+from yeastvision.utils import *
 
 class Model():
     hyperparams = {"Threshold":0.50}

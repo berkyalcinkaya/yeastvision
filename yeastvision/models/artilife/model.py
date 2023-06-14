@@ -1,15 +1,15 @@
 import cv2
 from cv2 import merge, resize
 import numpy as np
-from models.cp import CustomCPWrapper
+from yeastvision.models.cp import CustomCPWrapper
 from skimage.measure import label
-from models.utils import addMasks
-from models.artilife.budSeg.model import BudSeg
+from yeastvision.odels.utils import addMasks
+from yeastvision.models.artilife.budSeg.model import BudSeg
 from skimage.measure import label
 from skimage.morphology import remove_small_objects
-from track.track import track_obj, trackYeasts
-from track.cell import Cell, getBirthFrame, getCellData, getDeathFrame, getLifeData
-from models.utils import normalizeIm, produce_weight_path
+from yeastvision.track.track import track_obj, trackYeasts
+from yeastvision.track.cell import Cell, getBirthFrame, getCellData, getDeathFrame, getLifeData
+from yeastvision.models.utils import normalizeIm, produce_weight_path
 
 class Artilife(CustomCPWrapper):
     hyperparams  = { 

@@ -2,8 +2,6 @@ from time import process_time
 tic = process_time()
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
-import models
-from enum import auto
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import (QApplication, QStyle, QMainWindow, QGroupBox, QPushButton, QDialog,
                             QDialogButtonBox, QLineEdit, QFormLayout, QMessageBox,QErrorMessage, QStatusBar, 
@@ -12,26 +10,26 @@ from PyQt5.QtCore import Qt
 import pyqtgraph as pg
 import numpy as np
 import matplotlib.pyplot as plt
-from parts.canvas import ImageDraw, ViewBoxNoRightDrag
-from parts.guiparts import *
-from parts.dialogs import *
-from track.track import track_to_cell, trackYeasts
-from track.data import LineageData
-from track.lineage import LineageConstruction
-from track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, getCellData, exportCellData, getHeatMaps, getDaughterMatrix
+from yeastvision.parts.canvas import ImageDraw, ViewBoxNoRightDrag
+from yeastvision.parts.guiparts import *
+from yeastvision.parts.dialogs import *
+from yeastvision.track.track import track_to_cell, trackYeasts
+from yeastvision.track.data import LineageData
+from yeastvision.track.lineage import LineageConstruction
+from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, getCellData, exportCellData, getHeatMaps, getDaughterMatrix
 import cv2
-from disk.reader import loadPkl, ImageData, MaskData
+from yeastvision.disk.reader import loadPkl, ImageData, MaskData
 import importlib
-import parts.menu as menu
-from models.utils import MODEL_DIR
+import yeastvision.parts.menu as menu
+from yeastvision.models.utils import MODEL_DIR
 import glob
 from os.path import join
 from datetime import datetime
 import pandas as pd
-import plot.plot as plot
-from flou.blob_detect import Blob
-from utils import *
-import ims as im_funcs
+import yeastvision.plot.plot as plot
+from yeastvision.flou.blob_detect import Blob
+from yeastvision.utils import *
+import yeastvision.ims as im_funcs
 import math
 import pickle
 from skimage.io import imread, imsave
@@ -474,6 +472,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.brushTypeSelect.setFocusPolicy(QtCore.Qt.NoFocus)
         self.brushTypeSelect.setEnabled(False)
         self.brushTypeSelect.setFixedWidth(90)
+        self.brushTypeSelect.setEnabled(False)
         self.l.addWidget(self.brushTypeSelect, rowspace+1,2,1,1)
 
         
@@ -1659,12 +1658,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelTypes = []
         dirs = [dir for dir in glob.glob(join(MODEL_DIR,"*")) if (os.path.isdir(dir) and "__" not in dir)]
         for dir in dirs:
+            print(dir)
             dirPath, dirName = os.path.split(dir)
 
             for dirFile in glob.glob(join(dir,"*")):
                 dirPath2, dirName2 = os.path.split(dirFile)
                 if dirName in dirName2:
-                    if "." not in dirFile or (dirFile.endswith("h5") or dirFile.endswith("hdf5")):
+                    if "." not in dirName2 or (dirFile.endswith("h5") or dirFile.endswith("hdf5")):
                         self.modelNames.append(os.path.split(dirFile)[1].split(".")[0])
                         self.modelTypes.append(dirName)
 
@@ -2028,6 +2028,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showLineageButton.setEnabled(hasLineages)
 
 def main():
+    print("running main")
     app = QApplication([])
     im_path = "test_phase.tif"
     mask_path = "test_mask.tif"

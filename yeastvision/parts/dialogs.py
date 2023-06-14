@@ -9,7 +9,7 @@ from PyQt5.QtCore import Qt
 import numpy as np
 import os
 import datetime
-from parts.guiparts import *
+from yeastvision.parts.guiparts import *
 
 class DirReaderDialog(QDialog):
     def __init__(self, dir, fnames):

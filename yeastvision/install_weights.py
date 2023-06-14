@@ -1,13 +1,14 @@
 import zipfile
 import shutil
 import os
-from models.utils import MODEL_DIR
+from yeastvision.models.utils import MODEL_DIR
 from os.path import join
 
 def do_install():
     current_directory = os.getcwd()
     folder_path = "yeastvision_weights.zip"
-    models = [model for model in os.listdir(MODEL_DIR) if os.path.isdir(join(MODEL_DIR, model))]
+    models = [model for model in os.listdir(MODEL_DIR) if os.path.isdir(join(MODEL_DIR, model)) and model != "__pycache__"]
+    print("Extracting weights for the following models", models)
 
     unzip_directory = os.path.join(current_directory, 'unzipped_files')
     os.makedirs(unzip_directory, exist_ok=True)
@@ -18,27 +19,34 @@ def do_install():
     # Move each file into a directory with the same name
     for root, dirs, files in os.walk(unzip_directory):
         for file_name in files:
-            # Get the name of the file without the extension
-            file_name_without_extension = os.path.splitext(file_name)[0]
+            print("found", file_name)
 
-            if file_name_without_extension == "bud_Seg":
-                destination_directory = join(MODEL_DIR, "artilife/budSeg")
+            if "._" not in file_name:
+                # Get the name of the file without the extension
+                file_name_without_extension = os.path.splitext(file_name)[0]
 
-            else:
-                destination_name = ""
-                for model in models:
-                    if model in file_name_without_extension:
-                        destination_name = model
-                        exit
-                destination_directory = join(MODEL_DIR, destination_directory)
+                if file_name_without_extension == "Bud_Seg":
+                    destination_directory = join(MODEL_DIR, "artilife/budSeg")
+                    print("\tocated BudSeg weights - moving to", destination_directory)
 
-            # Move the file into the destination directory
-            source_file_path = os.path.join(root, file_name)
-            destination_file_path = os.path.join(destination_directory, file_name)
-            shutil.move(source_file_path, destination_file_path)
+                else:
+                    destination_name = ""
+                    for model in models:
+                        if model in file_name_without_extension:
+                            destination_name = model
+                            print("\tfound", file_name, "belong to", model)
+                            exit
+                    destination_directory = join(MODEL_DIR, destination_name)
+
+                # Move the file into the destination directory
+                source_file_path = os.path.join(root, file_name)
+                destination_file_path = os.path.join(destination_directory, file_name)
+                print("\t", destination_file_path)
+                shutil.move(source_file_path, destination_file_path)
 
     # Remove the unzipped folder
     shutil.rmtree(unzip_directory)
+    print("FINISHED - removing", unzip_directory)
 
 
 if __name__ == "__main__":

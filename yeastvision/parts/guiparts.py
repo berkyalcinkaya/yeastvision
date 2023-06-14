@@ -5,9 +5,7 @@ from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, Q
                             QDialogButtonBox, QLineEdit, QFormLayout, QCheckBox,  QSpinBox, QLabel, 
                             QWidget, QComboBox, QGridLayout, QHBoxLayout)
 from PyQt5.QtCore import Qt
-import numpy as np
-import os
-import datetime
+
 
 class ReadOnlyCheckBox(QCheckBox):
     def __init__(self, parent=None):

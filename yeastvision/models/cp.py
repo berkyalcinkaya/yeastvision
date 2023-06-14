@@ -1,5 +1,5 @@
 from cellpose import models
-from models.model import Model as CustomModel
+from yeastvision.models.model import Model as CustomModel
 import cv2
 import numpy as np
 from cellpose.transforms import normalize99

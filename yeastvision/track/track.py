@@ -2,9 +2,9 @@ import numpy as np
 from skimage.measure import regionprops
 from skimage.morphology import thin, skeletonize, opening, dilation, erosion
 import statistics
-from track.utils import get_bbox_coords
+from yeastvision.track.utils import get_bbox_coords
 import statistics as stats
-from track.cell import getCellData
+from yeastvision.track.cell import getCellData
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 

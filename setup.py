@@ -18,25 +18,25 @@ requires = ["cellpose==2.1.0",
 "tqdm==4.65.0",
 "trackpy==0.5.0"]
 
-packages = ["yeastvision.plot", "yeastvision.track", "yeastvision.models", 
+packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision.models", 
             "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
             "yeastvision.models.artilife", "yeastvision.models.artilife.budSeg",
-            "yeastvision.models.matSeg", "yeastvision.models.tetradSeg"]
+            "yeastvision.models.matSeg", "yeastvision.models.tetradSeg", "yeastvision.models.budNET", 
+            "yeastvision.models.vacNET", "yeastvision.models.YeaZ"]
 
 setup(
     name = "yeastvision",
-    version = "0.1.2",
+    version = "0.1.0",
     description = "Deep learning-enabled image analysis of the yeast full life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/budNET_gui",
     author_email="berkyalcinkaya55@gmail.com",
     license = "BSD",
     packages = packages,
-    scripts = ["yeastvision/install_weights.py"],
     install_requires = requires,
     entry_points = {
         'console_scripts': [
-          'yeastvision = yeastvision.main:main',
+          'yeastvision = yeastvision.__main__:main',
           'install-weights = yeastvision.install_weights:do_install']
        }
 )

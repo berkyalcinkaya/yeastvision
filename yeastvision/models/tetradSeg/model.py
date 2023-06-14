@@ -1,4 +1,4 @@
-from models.cp import CustomCPWrapper
+from yeastvision.models.cp import CustomCPWrapper
 
 class TetradSeg(CustomCPWrapper):
     def __init__(self, params, weights):

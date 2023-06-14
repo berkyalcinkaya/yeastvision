@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QApplication, QRadioButton, QButtonGroup, QSlider, 
 import pyqtgraph as pg
 from pyqtgraph.dockarea.Dock import Dock
 from pyqtgraph.dockarea.DockArea import DockArea
-from plot.cell_table import TableModel
+from yeastvision.plot.cell_table import TableModel
 import numpy as np
 import pandas as pd
 

@@ -2,7 +2,7 @@ from skimage.measure import regionprops, regionprops_table
 from skimage.measure import shannon_entropy as shentr
 import numpy as np
 import pandas as pd
-from track.utils import normalize_im
+from yeastvision.track.utils import normalize_im
 from tqdm import tqdm
 
 class Cell():
