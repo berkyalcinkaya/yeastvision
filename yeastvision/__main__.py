@@ -207,6 +207,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if num>=0:
             try:
                 self.checkDataAvailibility()
+                # if self.pWindow:
+                #     self.
             except IndexError:
                 pass
         
@@ -852,6 +854,12 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.pWindow:
             self.pWindow.setData()
             self.pWindow.updatePlots()
+    
+    def updateCellTable(self):
+        if not self.pWindow:
+            return
+        # self.pWindow.table.model.setData(self.getCellDataAbbrev())
+        # self.pWindow.
     
 
     def hasCellData(self, i = None):
@@ -1560,7 +1568,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 importlib.import_module(self.getPkgString(modelName))
     
     def getPkgString(self, string):
-        return f"models.{string}.model"
+        return f"yeastvision.models.{string}.model"
 
     def getModelClass(self, modelName):
         module = importlib.import_module(self.getPkgString(modelName))

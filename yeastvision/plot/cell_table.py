@@ -78,5 +78,10 @@ class TableModel(QtCore.QAbstractTableModel):
             birth = int(self._data.iloc[value-1, self.columns["birth"]])
             self.main.showMotherDaughter(mother, value, birth)
         
+        if (new.column() in [self.columns["birth"], self.columns["death"]]):
+            self.parent.tIndex = int(self._data.iloc[new.row(), new.column()])
+            self.parent.drawMask()
+
+        
 
         
