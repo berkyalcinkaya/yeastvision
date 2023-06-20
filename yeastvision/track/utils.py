@@ -1,5 +1,6 @@
 from skimage.measure import regionprops
 import numpy as np
+import cv2
 
 def normalize_dict_by_sum(dict):
     sum = 0
@@ -79,3 +80,65 @@ def normalize_im(im, clip = True):
         return im.astype(np.float32)
     im_norm = (im - im.min()) / (im.max() - im.min())
     return im_norm.astype(np.float32)
+
+def avg_cell_size(Matmasks,nu,no_obj):
+    avg = [[[] for _ in range(nu)] for _ in range(no_obj.astype(int)+1)]
+    avg_cell = [0]*no_obj.astype(int)
+
+    for iv in range(1,no_obj.astype(int)+1):
+        for its in range(nu):
+            avg[iv-1][its] = np.average(Matmasks[0][its]==iv)
+        
+    for iv in range(1,no_obj.astype(int)+1):
+        count = 0
+        for its in range(nu):
+            if avg[iv-1][its] != 0:
+                count = count + 1
+        avg_cell[iv-1] = np.sum(avg[iv-1])/count
+        
+    return np.min(avg_cell), np.average(avg_cell), np.max(avg_cell)
+
+def get_wind_coord1(I3, cell_margin=20):
+    
+    # Get the dimensions of the input image
+    x_size, y_size = I3.shape
+    # If the input image contains non-zero pixels, find the bounding box of the wind object
+    if np.sum(I3) > 0:
+        # Threshold the image to create a binary image
+        _, binary_image = cv2.threshold(I3, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # Find the contours in the binary image
+        contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Loop over each contour to compute the centroid and bounding box
+        s_f = []
+        for contour in contours:
+            # Compute the centroid
+            M = cv2.moments(contour)
+            cx = int(M['m10'] / (M['m00'] + 1e-6))  # Add small epsilon to avoid division by zero
+            cy = int(M['m01'] / (M['m00'] + 1e-6)) 
+            # Get the bounding box coordinates
+            x, y, w, h = cv2.boundingRect(contour)
+            # Save the centroid and bounding box information
+            s_f.append({'Centroid': (cx, cy), 'BoundingBox': (x, y, w, h)})
+        # If there is at least one wind object, get the bounding box coordinates and margins
+        if s_f:
+            bbox = np.round(s_f[0]['BoundingBox'])
+            lower_x_limit = max(1, bbox[0]-cell_margin)
+            upper_x_limit = min(y_size, bbox[0]+bbox[2]+cell_margin)
+            lower_y_limit = max(1, bbox[1]-cell_margin)
+            upper_y_limit = min(x_size, bbox[1]+bbox[3]+cell_margin)
+            if upper_x_limit >= I3.shape[1]:
+                upper_x_limit = I3.shape[1]-1
+            if upper_y_limit >= I3.shape[0]:
+                upper_y_limit = I3.shape[0]-1
+            x_cn = range(lower_x_limit, upper_x_limit+1)
+            y_cn = range(lower_y_limit, upper_y_limit+1)
+        # If no wind object is found, raise an error
+        else:
+            print('empty or multiple object given - error')
+    # If the input image is all zero pixels, use the entire image as the bounding box
+    else:
+        x_cn = np.arange(1, y_size+1)
+        y_cn = np.arange(1, x_size+1)
+
+    return x_cn, y_cn

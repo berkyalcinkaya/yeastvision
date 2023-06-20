@@ -9,6 +9,29 @@ import matplotlib.pyplot as plt
 import cv2
 from cv2 import resize
 
+def showCellNums(mask):
+    "annotates the current plt figure with cell numbers"
+    #cell_vals = np.unique(mask[mask!=0]).astype(int)
+    cell_vals = np.unique(mask).astype(int)
+    cell_vals = np.delete(cell_vals, np.where(cell_vals == 0))
+
+    for val in cell_vals:
+        # print("cell val: " + str(val)) #test
+        x, y = getCenter(mask, val)
+        plt.annotate(str(val), xy=(x, y), ha='center', va='center')
+
+def getCenter(mask, cell_val):
+    '''
+    takes random points within a cell to estimate its center. Used to find the x,y coordinates where the cell number
+    annotation text should be displated
+    '''
+    y, x = (mask == cell_val).nonzero()
+    sample = np.random.choice(len(x), size=20, replace=True)
+    meanx = np.mean(x[sample])
+    meany = np.mean(y[sample])
+
+    return int(round(meanx)), int(round(meany))
+
 def rescaleByFactor(factor, ims):
     row, col = ims[0].shape
     newrow, newcol = int(row*factor), int(col*factor)
