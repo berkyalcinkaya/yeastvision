@@ -37,6 +37,7 @@ def check_torch_gpu(gpu_number = 0):
 
 def check_tf_gpu():
     gpus = tf.config.list_physical_devices('GPU')
+    
     if gpus:
         print("** TENSORFLOW installed and working. **")
     else:

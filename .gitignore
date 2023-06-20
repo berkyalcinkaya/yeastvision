@@ -1,5 +1,6 @@
 build/
 dist/
+yeastvision.egg-info/
 /yeastvision/models/artilife/budSeg/Bud_Seg.h5
 **/.tif
 .DS_Store
@@ -9,8 +10,7 @@ dist/
 **/.hdf5
 **/.h5
 /test
-*.ti
-*.txt
+*.tif
 /yeastvision/models/artilife/artilife
 /yeastvision/models/budNET/extra_weights
 /yeastvision/models/budNET/budNET.h5
