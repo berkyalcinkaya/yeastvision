@@ -40,6 +40,7 @@ def menubar(parent):
     preMenu.addAction(deflicker)
     normalizeByImage = QAction("Min-Max Normalization (Per Image)", parent)
     preMenu.addAction(normalizeByImage)
+    normalizeByImage.triggered.connect(lambda: parent.runImageAction(parent.doNormalizeBySet))
     normalizeBySet = QAction("Min-Max Normalization (Per Set)", parent)
     preMenu.addAction(normalizeBySet)
     rescale = QAction("Rescale", parent)
@@ -48,6 +49,9 @@ def menubar(parent):
     preMenu.addAction(rescale)
 
     exportMenu = mainMenu.addMenu("Export")
+    imSave = QAction("Save Images", parent)
+    imSave.triggered.connect(parent.saveIms)
+    exportMenu.addAction(imSave)
     maskSave = QAction("Save Masks", parent)
     maskSave.triggered.connect(parent.saveMasks)
     exportMenu.addAction(maskSave)

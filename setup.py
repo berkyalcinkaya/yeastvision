@@ -18,6 +18,15 @@ requires = ["cellpose==2.1.0",
 "tqdm==4.65.0",
 "trackpy==0.5.0"]
 
+try:
+    import torch
+    a = torch.ones(2, 3)
+    major_version, minor_version, _ = torch.__version__.split(".")
+    if major_version == "2" or int(minor_version) >= 12:
+        requires.remove("torch==1.12.1")
+except:
+    pass
+
 packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision.models", 
             "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
             "yeastvision.models.artilife", "yeastvision.models.artilife.budSeg",
@@ -29,7 +38,7 @@ setup(
     version = "0.1.1",
     description = "Deep learning-enabled image analysis of the yeast full life cycle",
     author = "Berk Yalcinkaya",
-    url = "https://github.com/berkyalcinkaya/budNET_gui",
+    url = "https://github.com/berkyalcinkaya/yeastvision",
     author_email="berkyalcinkaya55@gmail.com",
     license = "BSD",
     packages = packages,

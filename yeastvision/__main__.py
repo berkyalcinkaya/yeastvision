@@ -1,3 +1,4 @@
+import torch
 from time import process_time
 tic = process_time()
 import os
@@ -238,6 +239,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.emptying = True
             self.empyting = False
 
+
         self.setEmptyIms(initial = initial)
         self.setEmptyMasks(initial = initial)
         self.saveData()
@@ -258,7 +260,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if not initial:
             self.channelSelect.clear()
-        
+            self.brushTypeSelect.setEnabled(False)
+            self.brushTypeSelect.setCurrentIndex(-1)
+
     def setEmptyMasks(self, initial = False):
         self.firstMaskLoad = True
         self.maskLoaded = False
@@ -343,6 +347,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.maskZ = 0
     
     def addBlankMasks(self):
+        if not self.imLoaded:
+            self.showError("Load Images First")
+            return
         blankMasks = np.zeros_like(self.getCurrImSet())
         self.loadMasks(blankMasks, name = "Blank")
 
@@ -410,7 +417,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar.setStyleSheet(self.statusbarstyle)
         self.setStatusBar(self.statusBar)
-        self.gpuDisplayTorch = ReadOnlyCheckBox("gpu - torch")
+        self.gpuDisplayTorch = ReadOnlyCheckBox("gpu - torch  |  ")
         self.gpuDisplayTF= ReadOnlyCheckBox("gpu - tf")
         self.gpuDisplayTF.setFont(self.smallfont)
         self.gpuDisplayTorch.setFont(self.smallfont)
@@ -453,7 +460,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dataDisplay.setFont(self.smallfont)
         self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         self.updateDataDisplay()
-        self.l.addWidget(self.dataDisplay, rowspace-1,0,1,10)
+        self.l.addWidget(self.dataDisplay, rowspace-1,0,1,20)
 
         label = QLabel('Drawing:')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
@@ -826,6 +833,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.updateCellData(idx = z)
         
     def updateCellData(self, idx = None):
+        if not self.maskLoaded:
+            return
         self.toStatusBar("Updating Cell Data...")
         if idx:
             masks  = self.maskData.channels[idx][0,:,:,:]
@@ -945,6 +954,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def showError(self, message = ""):
         self.errorDialog = QtWidgets.QErrorMessage()
+        self.errorDialog.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding)
+        self.errorDialog.setFixedWidth(500)
         self.errorDialog.showMessage(message)
 
     def beginThread(self, worker):
@@ -1073,7 +1084,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 file = files[self.tIndex]
             else:
                 file = files[0]
-            dataString += f'{file}'
+            dataString += f'  |  {file}'
 
             if x!=None and y!=None and val!=None:
                 self.labelX, self.labelY = x,y
@@ -1350,7 +1361,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def getDaughters(self, cellNum):
         potentialDaughters = self.mother_daughters[self.maskZ][cellNum-1]
         daughters = list(np.where(potentialDaughters)[0]+1)
-        print(daughters)
         return daughters
         
     def drawContours(self):
@@ -1372,9 +1382,13 @@ class MainWindow(QtWidgets.QMainWindow):
             i+=1
 
     def getCurrImSet(self):
+        if not self.imLoaded:
+            return np.zeros((512,512))
         return self.imData.channels[self.imZ]
     
     def getCurrMaskSet(self):
+        if not self.maskLoaded:
+            return np.zeros((1,512,512))
         return self.maskData.channels[self.maskZ][0,:,:,:]
     
     def getCurrIm(self):
@@ -1666,7 +1680,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelTypes = []
         dirs = [dir for dir in glob.glob(join(MODEL_DIR,"*")) if (os.path.isdir(dir) and "__" not in dir)]
         for dir in dirs:
-            print(dir)
             dirPath, dirName = os.path.split(dir)
 
             for dirFile in glob.glob(join(dir,"*")):
@@ -1675,6 +1688,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     if "." not in dirName2 or (dirFile.endswith("h5") or dirFile.endswith("hdf5")):
                         self.modelNames.append(os.path.split(dirFile)[1].split(".")[0])
                         self.modelTypes.append(dirName)
+        if len(self.modelNames)==0:
+            self.showError("Weights Have Not Been Downloaded. Find the weights at https://drive.google.com/file/d/1J3R4JKILkQNM0Ap-MKxqv61oAxObSjBo/view?usp=drive_link. Then run install-weights in the same directory as the downloaded zip file.")
+
 
     def segment(self, modelClass, ims, params, weightPath, modelType):
         row, col = ims[0].shape
@@ -1775,7 +1791,19 @@ class MainWindow(QtWidgets.QMainWindow):
         files = self.imData.files[self.imZ]
         currName = self.channelSelect.currentText()
         newIms = im_funcs.do_adapt_hist(self.getCurrImSet())
-        self.addProcessedIms(newIms, files, currName+"-adaptHist")
+        self.addProcessedIms(newIms, files, currName+"-adaptHist", dtype = np.float32)
+    
+    def doNormalizeByIm(self):
+        files = self.imData.files[self.imZ]
+        currName = self.channelSelect.currentText()
+        newIms = [normalize_im(im) for im in self.getCurrImSet()]
+        self.addProcessedIms(newIms, files, currName+"-imNormalized", dtype = np.float32)
+    
+    def doNormalizeBySet(self):
+        files = self.imData.files[self.imZ]
+        currName = self.channelSelect.currentText()
+        newIms = normalize_im(self.getCurrImSet())
+        self.addProcessedIms(newIms, files, currName+"-setNormalized", dtype = np.float32)
 
     def doGaussian(self):
         files = self.imData.files[self.imZ]
@@ -1822,11 +1850,11 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             return
 
-    def addProcessedIms(self, newIms, files, name):
+    def addProcessedIms(self, newIms, files, name, dtype = np.uint16):
         head, _ = os.path.split(files[0])
         self.imData.dirs.append(head)
         self.imData.files.append(files)
-        self.loadImages(np.array(newIms), name = name)
+        self.loadImages(np.array(newIms, dtype = dtype), name = name)
 
     def runImageAction(self, imFunc):
         if not self.imLoaded:
@@ -1841,8 +1869,22 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def getCurrImDir(self):
         return self.imData.dirs[self.imZ]
+    
+    def saveIms(self):
+        if not self.imLoaded:
+            self.showError("No Images Loaded")
+            return
+        defaultFileName = join(self.getCurrImDir(), self.channelSelect.currentText().replace(" ", "") + ".tif")
+        path, _ = QFileDialog.getSaveFileName(self, 
+                            "save image as greyscale stack tif", 
+                            defaultFileName)
+        if path:
+            imsave(path, self.getCurrImSet().astype(np.uint16))
+    
 
     def saveMasks(self):
+        if not self.maskLoaded:
+            self.showError("No masks to save")
         defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", "") + ".tif")
         path, _ = QFileDialog.getSaveFileName(self, 
                             "save mask as greyscale stack tif (uint16)", 
@@ -1851,6 +1893,10 @@ class MainWindow(QtWidgets.QMainWindow):
             imsave(path, self.getCurrMaskSet().astype(np.uint16))
     
     def saveFigure(self):
+        if (not self.imLoaded):
+            self.showError("No Images Loaded")
+            return
+
         defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", "") + "-figure.tif")
         path, _ = QFileDialog.getSaveFileName(self, 
                             "save figure as stack tif (uint16)", 

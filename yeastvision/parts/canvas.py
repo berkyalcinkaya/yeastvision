@@ -97,15 +97,22 @@ class ImageDraw(pg.ImageItem):
 
     def mouseDragEvent(self, ev):
 
+
         if ev.button() == QtCore.Qt.LeftButton:
             self.parent.view.mouseDragEvent(ev)
             ev.ignore()
             return
         
+        if not self.parent.imLoaded:
+            return
+        
         # mask must be on for drawing
         if ev.button() ==  QtCore.Qt.RightButton and (self.parent.drawType == "Brush" or self.parent.drawType == "Eraser"):
             ev.accept()
-            self.colorNum = self.parent.selectedCells[0] if self.parent.selectedCells else self.colorNum
+            if self.parent.drawType == "Eraser":
+                self.colorNum = 0
+            else:
+                self.colorNum = self.parent.selectedCells[0] if self.parent.selectedCells else self.colorNum
             if self.parent.maskData.isDummy:
                 self.parent.loadMasks(self.parent.maskData.channels[self.parent.maskZ][0,:,:,:], 
                                       name = self.parent.channelSelect.currentText() + "-draw")
