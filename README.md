@@ -41,7 +41,7 @@ Next we need to remove the CPU version of torch:
 pip uninstall torch
 ~~~
 
-To install the GPU version of torch, follow the instructions [here](https://pytorch.org/get-started/locally/). The conda install is strongly recommended, and then choose the CUDA version that is supported by your GPU (newer GPUs may need newer CUDA versions > 10.2). For instance this command will install the 11.6 version on Linux and Windows (note the `torchvision` and `torchaudio` commands are removed because cellpose doesn't require them):
+To install the GPU version of torch, follow the instructions [here](https://pytorch.org/get-started/locally/). The conda install is strongly recommended, and then choose the CUDA version that is supported by your GPU (newer GPUs may need newer CUDA versions > 10.2). For instance this command will install the 11.6 version on Linux and Windows (note the `torchvision` and `torchaudio` commands are removed because yeastvision doesn't require them):
 ~~~
 conda install pytorch pytorch-cuda=11.6 -c pytorch -c nvidia
 ~~~
@@ -54,11 +54,11 @@ Info on how to install several older versions is available [here](https://pytorc
 
 After install you can check `conda list` for `pytorch`, and its version info should have `cuXX.X`, not `cpu`.
 
-# Run cellpose locally
+# Run yeastvision locally
 
 The quickest way to start is to open the GUI from a command line terminal. Activate the correct conda environment, then run:
 ~~~~
-`yeastvision`
+yeastvision
 ~~~~
 
 To get started, drop an image or directory of images into the GUI. 
