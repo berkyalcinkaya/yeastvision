@@ -265,7 +265,7 @@ def track_mating(mating_masks, visualize = False):
             showCellNums(Matmasks[0][its])
             plt.title(str(its+1))
             plt.show()
-    return Matmasks
+    return np.array(Matmasks, dtype = np.uint16)
 
 
 def correct_mat_tracks(Matmasks):
@@ -360,7 +360,7 @@ def correct_mat_tracks(Matmasks):
     # sav_path = r'C:\Users\shrey\OneDrive\Desktop\RA_Orlando_Lab\MAT_2_Py_transation\Correction Code\Saved Data\\'
     # name1 = sav_path + 'Corrected_MatSeg_2_Python'
     # np.save(name1, MATrack)
-    return MATrack
+    return np.array(MATrack, dtype = np.uint16)
 
 def merge(full_masks, Matmasks, visualize = False):
     #Corrected MATracking masks
