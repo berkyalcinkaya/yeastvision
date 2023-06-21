@@ -27,11 +27,17 @@ try:
 except:
     pass
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision.models", 
             "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
             "yeastvision.models.artilife", "yeastvision.models.artilife.budSeg",
             "yeastvision.models.matSeg", "yeastvision.models.tetradSeg", "yeastvision.models.budNET", 
             "yeastvision.models.vacNET", "yeastvision.models.YeaZ"]
+
+
+
 
 setup(
     name = "yeastvision",
