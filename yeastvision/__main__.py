@@ -35,6 +35,8 @@ import yeastvision.ims as im_funcs
 import math
 import pickle
 from skimage.io import imread, imsave
+from cellpose.metrics import average_precision
+from tqdm import tqdm
 
 class QHLine(QFrame):
     def __init__(self):
@@ -1720,17 +1722,48 @@ class MainWindow(QtWidgets.QMainWindow):
             self.loadMasks(output, name = f"{imName}_{modelType}")
         
     def evaluate(self):
-        params = {"By Pixels":True, "By Objects": True}
-        paramtypes = [bool, bool] 
-        labelSelects = ["Predicted", "Validation"]
+        if not self.maskLoaded:
+            return
+        params = {label: False for label in self.labelSelect.items()}
+        paramtypes = [bool] * len(params)
+        labelSelects = ["validation"]
         evalDlg = GeneralParamDialog(params, paramtypes, "Evaluate Predictions", self, labelSelects = labelSelects)
 
         if evalDlg.exec():
-            params = evalDlg.getData()
-        if params["By Pixels"]:
-            pixDf = None
-        if params["By Objects"]:
-            objDf = None
+            data = evalDlg.getData()
+            validationName = data[labelSelects[0]]
+            masksTrue = self.maskData.channels[self.labelSelect.items().index(validationName)][0,:,:,:]
+
+            toValidate = {}
+            for labelName in params:
+                if data[labelName]:
+                    toValidate[labelName] = (self.maskData.channels[self.labelSelect.items().index(labelName)][0,:,:,:])
+            
+            ious = [0.50, 0.75, 0.90]
+            statsDict = self.getStatsDict(masksTrue, toValidate, ious)
+            self.evalWindow = plot.EvalWindow(self,statsDict, ious)
+            self.evalWindow.show()
+    
+    def getStatsDict(self, validation, toValidate, ious):
+
+        validation = list(validation.copy())
+        statsDict = {"precision": [], "recall": [], "f1": [], "average_precision":[]}
+        for toValidateName, labels in tqdm(toValidate.items()):
+            ap, tp, fp, fn = average_precision(validation, list(labels))
+            precision = np.mean((tp + (tp+fp)), axis = 0)
+            recall = np.mean((tp+(tp+fn)), axis = 0)
+            f1 = np.mean(tp/(tp+0.5*(fp+fn)), axis = 0)
+            ap = np.mean(ap, axis = 0)
+            statsDict["precision"].append((toValidateName, precision))
+            statsDict["recall"].append((toValidateName, recall))
+            statsDict["f1"].append((toValidateName,f1))
+            statsDict["average_precision"].append((toValidateName, ap))
+        return statsDict        
+
+
+
+
+
     
     def getAllItems(self, combo):
         return [combo.itemText(i) for i in range(combo.count())]

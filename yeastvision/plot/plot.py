@@ -1,11 +1,13 @@
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import (QApplication, QRadioButton, QButtonGroup, QSlider, QStyle, QStyleOptionSlider, QMainWindow, QPushButton, QDialog,
                             QDialogButtonBox, QLineEdit, QFormLayout, QMessageBox,
-                             QFileDialog, QVBoxLayout, QCheckBox, QFrame, QSpinBox, QLabel, QWidget, QComboBox, QSizePolicy, QGridLayout, QHBoxLayout)
+                             QFileDialog, QVBoxLayout, QCheckBox, QFrame, QSpinBox, QLabel, QWidget, QComboBox, QTableWidget, QSizePolicy, QGridLayout, QHBoxLayout)
 import pyqtgraph as pg
 from pyqtgraph.dockarea.Dock import Dock
 from pyqtgraph.dockarea.DockArea import DockArea
 from yeastvision.plot.cell_table import TableModel
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -14,8 +16,74 @@ class CustomizePlot(QWidget):
         pass
 
 class EvalWindow(QWidget):
-    def __init__(self, parent, tableDfs):
-        pass
+    def __init__(self, parent, data_dict, IOUs):
+        '''
+        params
+        data_dict - key: name of the plot (precision, recall, F1, accuracy), values - list of tuple for each set of labels being 
+        evaluated where tup1 is the name and tup2 is data vs IOU score
+        '''
+        super(EvalWindow, self).__init__(parent)
+        self.setWindowTitle("Evaluation Window")
+
+        self.figure = plt.figure()
+        self.canvas = FigureCanvas(self.figure)
+        self.data = data_dict
+        print(self.data)
+
+        self.numPlots = len(data_dict)
+        self.evalNames = [n for n,_ in list(self.data.values())[0]]
+        self.numToEval = len(self.evalNames)
+        self.xVals = IOUs
+        print(IOUs)
+
+        # Create a table widget to display data
+        self.tableLayout = QVBoxLayout()
+        self.table_widgets = []
+
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)
+        #layout.addWidget(self.tableLayout)
+
+        self.setLayout(layout)
+
+        self.setData()
+        print("showing")
+        self.setGeometry(100,100,500,500)
+        self.show()
+
+    def setData(self):
+        i = 0
+        for plotType, data in self.data.items():
+            self.producePlot(data, plotType, i)
+            i+=1
+
+    
+    # def produceTable(self, title, data):
+    #     table_widget = QTableWidget()
+    #     table_widget.setColumnCount(self.numToEval)
+    #     table_widget.setRowCount(len(data[0]))
+
+    #     for col, line_data in enumerate(data):
+    #         for row, value in enumerate(line_data):
+    #             item = QTableWidgetItem(str(value))
+    #             table_widget.setItem(row, col, item)
+
+    #     return table_widgets
+
+    
+    def producePlot(self, datas, title, col):
+        ax = self.figure.add_subplot(2, 2, col + 1)
+        for name, data in datas:
+            ax.plot(self.xVals, data, 'o-', label = name)
+
+            if col == 0:
+                ax.legend()
+        ax.set_title(title)
+        plt.tight_layout()
+
+
+
 
 class PlotWindow(QWidget):
     def __init__(self, parent, propDict):
