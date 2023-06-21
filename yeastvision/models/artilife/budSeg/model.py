@@ -1,7 +1,7 @@
 from tensorflow.keras.models import load_model
 import glob
 import os
-from models.utils import prediction, normalizeIm, produce_weight_path
+from yeastvision.models.utils import prediction, normalizeIm, produce_weight_path
 
 
 class BudSeg():

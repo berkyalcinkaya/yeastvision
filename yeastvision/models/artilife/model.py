@@ -3,7 +3,7 @@ from cv2 import merge, resize
 import numpy as np
 from yeastvision.models.cp import CustomCPWrapper
 from skimage.measure import label
-from yeastvision.odels.utils import addMasks
+from yeastvision.models.utils import addMasks
 from yeastvision.models.artilife.budSeg.model import BudSeg
 from skimage.measure import label
 from skimage.morphology import remove_small_objects
