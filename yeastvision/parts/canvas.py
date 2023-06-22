@@ -96,8 +96,6 @@ class ImageDraw(pg.ImageItem):
                 self.brushColorSelected = True
 
     def mouseDragEvent(self, ev):
-
-
         if ev.button() == QtCore.Qt.LeftButton:
             self.parent.view.mouseDragEvent(ev)
             ev.ignore()

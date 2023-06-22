@@ -30,6 +30,7 @@ class CustomCellpose(models.Cellpose):
         self.cp.model_type = model_type
         
         self.pretrained_size = models.size_model_path(model_type, self.torch)
+
         self.sz = models.SizeModel(device=self.device, pretrained_size=self.pretrained_size,
                             cp_model=self.cp)
         self.sz.model_type = model_type
@@ -55,6 +56,7 @@ class CustomCPWrapper(CustomModel):
             self.params["Mean Diameter"] = None
         
         self.model = CustomCellpose(pretrained_model=self.weights)
+        self.cpAlone = self.model.cp
     
     def processProbability(self, rawProb):
         return (np.clip(normalize99(rawProb.copy()), 0, 1) * 255).astype(np.uint8)

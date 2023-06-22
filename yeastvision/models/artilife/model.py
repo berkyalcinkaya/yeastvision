@@ -7,7 +7,7 @@ from yeastvision.models.utils import addMasks
 from yeastvision.models.artilife.budSeg.model import BudSeg
 from skimage.measure import label
 from skimage.morphology import remove_small_objects
-from yeastvision.track.track import track_obj, trackYeasts
+from yeastvision.track.track import trackYeasts
 from yeastvision.track.cell import Cell, getBirthFrame, getCellData, getDeathFrame, getLifeData
 from yeastvision.models.utils import normalizeIm, produce_weight_path
 
@@ -163,12 +163,22 @@ class Artilife(CustomCPWrapper):
         model = cls(params, weights)
         ims3D = [cv2.merge((im,im,im)) for im in ims]
         assert len(ims3D[0].shape)==3
+
+        if not params["Mean Diameter"]:
+            evaluator = model.cpAlone
+            model.masks, flows, _ = evaluator.eval(ims3D, 
+                                                    diameter = model.params["Mean Diameter"], 
+                                                    channels = [0, 0],
+                                                    cellprob_threshold = model.params["Flow Threshold"], 
+                                                    do_3D=False)
+        else:
+            evaluator = model.model
     
-        model.masks, flows, _, model.diams = model.model.eval(ims3D, 
-                                                diameter = model.params["Mean Diameter"], 
-                                                channels = [0, 0],
-                                                cellprob_threshold = model.params["Flow Threshold"], 
-                                                do_3D=False)
+            model.masks, flows, _, model.diams = evaluator.eval(ims3D, 
+                                                    diameter = model.params["Mean Diameter"], 
+                                                    channels = [0, 0],
+                                                    cellprob_threshold = model.params["Flow Threshold"], 
+                                                    do_3D=False)
         print("process probability")
         model.cellprobs = [flow[2] for flow in flows]
         model.cellprobs = np.array((model.processProbability(model.cellprobs)), dtype = np.uint8)

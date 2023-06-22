@@ -8,6 +8,10 @@ from skimage.morphology import thin, skeletonize, opening, dilation, erosion, sq
 from skimage.measure import regionprops, label
 from tqdm import tqdm
 
+def get_mating_data(mating, cells):
+    pass
+
+
 def track_mating(mating_masks, visualize = False):
     cell_margin = 20
     numbM = len(mating_masks)
@@ -367,7 +371,7 @@ def merge(full_masks, Matmasks, visualize = False):
     numbM = Matmasks[0].shape[0]
     no_obj = np.max(Matmasks[0, numbM-1, :, :])
     MATC = [[[] for _ in range(numbM)] for _ in range(1)]
-
+    new_tracks = np.zeros_like(Matmasks)
     print("Merging mating cells into cell mask")
     print("\t Loop 1/1")
     for cxell in tqdm(range(1,no_obj.astype(int)+1)):
@@ -451,12 +455,14 @@ def merge(full_masks, Matmasks, visualize = False):
                 I44 = np.zeros(I2.shape)
                 I44[bbox[0]:bbox[2], bbox[1]:bbox[3]] = IZ
                 pix = np.nonzero(I44)
-                I2[pix] = np.max(I2) + 1
-                
+                new_num = np.max(I2) + 1
+                I2[pix] = new_num
                 MATC[0][im_no] = I2
+                new_tracks[im_no][pix] = new_num
                 
                 if visualize:
                     plt.imshow(I2==np.max(I2))
                     plt.title('cxell: ' + str(cxell) + ', im_no: ' + str(im_no))
                     plt.show()
-    return MATC
+    return MATC, new_tracks
+

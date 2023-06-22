@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from yeastvision.parts.canvas import ImageDraw, ViewBoxNoRightDrag
 from yeastvision.parts.guiparts import *
+from yeastvision.parts.workers import SegmentWorker
 from yeastvision.parts.dialogs import *
 from yeastvision.track.track import track_to_cell, trackYeasts
 from yeastvision.track.data import LineageData
@@ -55,25 +56,16 @@ class QVLine(QFrame):
 class Worker(QtCore.QObject):
     '''Handles Multithreading'''
     finished = QtCore.pyqtSignal()
-    def __init__(self, parent, process, button = None, thread = None):
+    def __init__(self, parent, process, button = None):
         super(Worker,self).__init__()
         self.parent = parent
         self.process = process
         self.button = button
-        self.thread = thread
-        self.finished.connect(self.handleFinished)
         self.error = False
-
-    def handleFinished(self, error = False):
-        if self.button:
-            self.parent.activateButton(self.button)
-        self.parent.statusBar.clearMessage()
-        self.parent.closeThread(self.thread)
         
     def run(self):
         #try:
         self.process()
-        self.parent.updateDisplay()
         self.finished.emit()
         # except:
         #     self.error = True
@@ -228,6 +220,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._tIndex = num
         except AttributeError:
             self._tIndex = num
+    
+
+    def handleFinished(self, error = False):
+        if self.workers[-1].button:
+            self.activateButton(self.workers[-1].button)
+        self.closeThread(self.threads[-1])
     
     def setEmptyDisplay(self, initial = False):
         self.tIndex = 0
@@ -717,6 +715,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def updateModelNames(self):
         self.getModelNames()
+        self.modelChoose.clear()
         self.modelChoose.addItems(sorted(self.modelNames))
 
 
@@ -793,6 +792,7 @@ class MainWindow(QtWidgets.QMainWindow):
             cells = self.maskData.channels[cellIdx][0, :, :,:]
 
             worker = Worker(self, lambda: self.trackObj(self.maskZ, cells), self.trackObjButton)
+            worker.finished.connect(self.handleFinished)
 
             try:
                 self.beginThread(worker)
@@ -811,13 +811,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def trackButtonClick(self):
-        self.trackButton.setEnabled(False)
-        self.trackButton.setStyleSheet(self.stylePressed)
+        self.deactivateButton(self.trackButton)
 
         idxToTrack = self.maskZ
-        worker  = Worker(self, 
-                        lambda: self.track(idxToTrack),
-                        self.trackButton)
+        worker  = Worker(self, trackYeasts, idxToTrack)
+        worker.finished.connect(self.handleFinished)
+        
         try:
             self.beginThread(worker)
         except MemoryError:
@@ -1568,6 +1567,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 labels = None
             name = self.channelSelect.currentText() + "-blob_detection"
             worker = Worker(self, lambda: self.loadMasks(Blob.run(ims, thresh, minRadius, maxRadius, labels), name = name), self.segButton)
+            worker.finished.connect(self.handleFinished)
+
             try:
                 self.beginThread(worker)
             except MemoryError:
@@ -1687,7 +1688,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             for dirFile in glob.glob(join(dir,"*")):
                 dirPath2, dirName2 = os.path.split(dirFile)
-                if dirName in dirName2:
+                if dirName.lower() in dirName2.lower():
                     if "." not in dirName2 or (dirFile.endswith("h5") or dirFile.endswith("hdf5")):
                         self.modelNames.append(os.path.split(dirFile)[1].split(".")[0])
                         self.modelTypes.append(dirName)
@@ -1695,12 +1696,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.showError("Weights Have Not Been Downloaded. Find the weights at https://drive.google.com/file/d/1J3R4JKILkQNM0Ap-MKxqv61oAxObSjBo/view?usp=drive_link. Then run install-weights in the same directory as the downloaded zip file.")
 
 
-    def segment(self, modelClass, ims, params, weightPath, modelType):
-        row, col = ims[0].shape
-        newImTemplate = np.zeros((len(ims), row, col))
-        outputTup  = (newImTemplate, newImTemplate.copy())
+    def segment(self, output, modelClass, ims, params, weightPath, modelType):
+
         tStart, tStop = int(params["T Start"]), int(params["T Stop"])
-        output = modelClass.run(ims[tStart:tStop+1],params, weightPath)
+
 
         imName = params["Channel"]
 
@@ -1720,6 +1719,8 @@ class MainWindow(QtWidgets.QMainWindow):
             for i in [0,1]:
                 output[i][tStart:tStop+1]
             self.loadMasks(output, name = f"{imName}_{modelType}")
+        
+        self.activateButton(self.modelButton)
         
     def evaluate(self):
         if not self.maskLoaded:
@@ -1759,11 +1760,6 @@ class MainWindow(QtWidgets.QMainWindow):
             statsDict["f1"].append((toValidateName,f1))
             statsDict["average_precision"].append((toValidateName, ap))
         return statsDict        
-
-
-
-
-
     
     def getAllItems(self, combo):
         return [combo.itemText(i) for i in range(combo.count())]
@@ -1799,26 +1795,22 @@ class MainWindow(QtWidgets.QMainWindow):
 
         weightPath += modelClass.prefix
 
+        self.deactivateButton(self.modelButton)
         dlgCls = ArtilifeParamDialog if modelType == "artilife" else ModelParamDialog
         dlg = dlgCls(modelClass.hyperparams, modelClass.types, modelType, self)
         
         if dlg.exec():
-            self.modelButton.setEnabled(False)
-            self.modelButton.setStyleSheet(self.stylePressed)
             params = dlg.getData()
             channel = params["Channel"]
             channelIndex = self.channelSelect.findText(channel)
             ims = self.imData.channels[channelIndex]
-            worker = Worker(self,lambda: self.segment(modelClass,ims, params, weightPath, modelType), self.modelButton)
 
-            try:
-                self.beginThread(worker)
-            except MemoryError:
-                error_dialog  = QErrorMessage()
-                error_dialog.showMessage(f"Cannot Segment Until Other Processes are Finished")
-                self.activateButton(self.modelButton)
-                return
+            worker = SegmentWorker(self)
+            self.workers.append(worker)
+            worker.finished.connect(self.segment)
+            worker.run(modelClass,ims, params, weightPath, modelType)
         else:
+            self.activateButton(self.modelButton)
             return
 
     def doAdaptHist(self):
@@ -1889,13 +1881,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.imData.dirs.append(head)
         self.imData.files.append(files)
         self.loadImages(np.array(newIms, dtype = dtype), name = name)
-
-    def runImageAction(self, imFunc):
-        if not self.imLoaded:
-            return
-        self.toStatusBar("Running Preprocess Function...")
-        worker = Worker(self, imFunc)
-        self.beginThread(worker)
+    
+    def deactivateButton(self, button):
+        button.setEnabled(False)
+        button.setStyleSheet(self.stylePressed)
         
     def activateButton(self, button):
         button.setEnabled(True)

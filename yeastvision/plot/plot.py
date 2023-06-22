@@ -10,6 +10,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
 class CustomizePlot(QWidget):
     def __init__(self):
@@ -22,7 +23,7 @@ class EvalWindow(QWidget):
         data_dict - key: name of the plot (precision, recall, F1, accuracy), values - list of tuple for each set of labels being 
         evaluated where tup1 is the name and tup2 is data vs IOU score
         '''
-        super(EvalWindow, self).__init__(parent)
+        super(EvalWindow, self).__init__()
         self.setWindowTitle("Evaluation Window")
 
         self.figure = plt.figure()
@@ -40,16 +41,19 @@ class EvalWindow(QWidget):
         self.tableLayout = QVBoxLayout()
         self.table_widgets = []
 
+        self.toolbar = NavigationToolbar(self.canvas, self)
+
 
         layout = QVBoxLayout()
+        layout.addWidget(self.toolbar)
         layout.addWidget(self.canvas)
         #layout.addWidget(self.tableLayout)
 
         self.setLayout(layout)
 
         self.setData()
-        print("showing")
-        self.setGeometry(100,100,500,500)
+        self.setGeometry(400,400,500,500)
+        self.canvas.draw()
         self.show()
 
     def setData(self):
@@ -76,9 +80,13 @@ class EvalWindow(QWidget):
         ax = self.figure.add_subplot(2, 2, col + 1)
         for name, data in datas:
             ax.plot(self.xVals, data, 'o-', label = name)
+            ax.set_aspect('auto')
+            ax.set_xbound(lower = 0.45,upper = 1.05)
+            ax.set_xticks([0.5,0.6,0.7,0.8,0.9,1])
 
             if col == 0:
                 ax.legend()
+                ax.set_xlabel("IOU Matching Threshold")
         ax.set_title(title)
         plt.tight_layout()
 

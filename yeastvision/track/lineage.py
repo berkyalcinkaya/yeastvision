@@ -30,7 +30,6 @@ class LineageConstruction():
     
 
     
-    
     def shaveMasks(self):
         i = 0
         for cellmask, neckmask in zip(self.cellMasks, self.neckMasks):
