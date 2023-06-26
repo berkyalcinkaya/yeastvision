@@ -371,7 +371,7 @@ def merge(full_masks, Matmasks, visualize = False):
     numbM = Matmasks[0].shape[0]
     no_obj = np.max(Matmasks[0, numbM-1, :, :])
     MATC = [[[] for _ in range(numbM)] for _ in range(1)]
-    new_tracks = np.zeros_like(Matmasks)
+    new_tracks = np.zeros_like(Matmasks[0])
     print("Merging mating cells into cell mask")
     print("\t Loop 1/1")
     for cxell in tqdm(range(1,no_obj.astype(int)+1)):

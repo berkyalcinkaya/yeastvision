@@ -41,10 +41,12 @@ packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision
 
 setup(
     name = "yeastvision",
-    version = "0.1.1",
+    version = "0.1.4",
     description = "Deep learning-enabled image analysis of the yeast full life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author_email="berkyalcinkaya55@gmail.com",
     license = "BSD",
     packages = packages,
