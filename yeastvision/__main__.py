@@ -8,13 +8,13 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import (QApplication, QStyle, QMainWindow, QGroupBox, QPushButton, QDialog,
                             QDialogButtonBox, QLineEdit, QFormLayout, QMessageBox,QErrorMessage, QStatusBar, 
                              QFileDialog, QVBoxLayout, QCheckBox, QFrame, QSpinBox, QLabel, QWidget, QComboBox, QSizePolicy, QGridLayout)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread
 import pyqtgraph as pg
 import numpy as np
 import matplotlib.pyplot as plt
 from yeastvision.parts.canvas import ImageDraw, ViewBoxNoRightDrag
 from yeastvision.parts.guiparts import *
-from yeastvision.parts.workers import SegmentWorker
+from yeastvision.parts.workers import SegmentWorker, TrackWorker
 from yeastvision.parts.dialogs import *
 from yeastvision.track.track import track_to_cell, trackYeasts
 from yeastvision.track.data import LineageData
@@ -223,8 +223,6 @@ class MainWindow(QtWidgets.QMainWindow):
     
 
     def handleFinished(self, error = False):
-        if self.workers[-1].button:
-            self.activateButton(self.workers[-1].button)
         self.closeThread(self.threads[-1])
     
     def setEmptyDisplay(self, initial = False):
@@ -784,48 +782,46 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg  = GeneralParamDialog({}, [], f"Track {labelsToTrack}", self, labelSelects=["Cytoplasm Label"])
 
         if dlg.exec():
-            self.trackObjButton.setEnabled(False)
-            self.trackObjButton.setStyleSheet(self.stylePressed)
+            self.deactivateButton(self.trackObjButton)
             data = dlg.getData()
 
             cellIdx = self.labelSelect.findText(data["Cytoplasm Label"])
-            cells = self.maskData.channels[cellIdx][0, :, :,:]
+            cells = self.maskData.channels[cellIdx][0, :, :,:].copy()
+            obj = self.maskData.channels[self.maskZ][0, :, :,:].copy()
 
-            worker = Worker(self, lambda: self.trackObj(self.maskZ, cells), self.trackObjButton)
-            worker.finished.connect(self.handleFinished)
+            task = lambda: track_to_cell(obj, cells)
+            worker = TrackWorker(self, task, cellIdx)            
+            self.runLongTask(worker, worker.run, self.trackObjFinished, self.trackObjButton)
 
-            try:
-                self.beginThread(worker)
-            except MemoryError:
-                error_dialog  = QErrorMessage()
-                error_dialog.showMessage(f"Cannot Track Until Other Processes are Finished")
-                self.activateButton(self.trackObjButton)
-                return
         else:
             return
     
-    def trackObj(self, z, cells):
-        tracked = track_to_cell(self.maskData.channels[z][0, :, :,:], cells)
+    def trackObjFinished(self, tracked, z):
+        self.activateButton(self.trackObjButton)
         self.maskData.channels[z][0,:,:,:] = tracked
         self.updateCellData(idx = z)
+        self.handleFinished
+        self.maskZ = z
+        self.drawMask()
+    
+    def trackFinished(self, tracked, z):
+        self.activateButton(self.trackButton)
+        self.maskData.channels[z][0,:,:,:] = tracked
+        self.updateCellData(idx = z)
+        self.handleFinished()
+        self.maskZ = z
+        self.drawMask()
 
 
     def trackButtonClick(self):
         self.deactivateButton(self.trackButton)
 
         idxToTrack = self.maskZ
-        worker  = Worker(self, trackYeasts, idxToTrack)
-        worker.finished.connect(self.handleFinished)
-        
-        try:
-            self.beginThread(worker)
-        except MemoryError:
-            error_dialog  = QErrorMessage()
-            error_dialog.showMessage(f"Cannot Track Until Other Processes are Finished")
-            self.activateButton(self.trackButton)
-            return
-        self.maskZ = idxToTrack
-        self.drawMask()
+        cells = self.getCurrMaskSet().copy
+        task = lambda: trackYeasts(cells)
+        worker = TrackWorker(self, task, idxToTrack)            
+        self.runLongTask(worker, worker.run, self.trackFinished, self.trackButton)
+
     
     def track(self,z):
         currMasks = self.getCurrMaskSet()
@@ -960,18 +956,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.errorDialog.setFixedWidth(500)
         self.errorDialog.showMessage(message)
 
-    def beginThread(self, worker):
-        if len(self.threads)+1>self.idealThreadCount:
-            self.showError("Too Many Threads Running At This Time")
-            return
-        thread = QtCore.QThread(self) 
-        self.threads.append(thread)
-        self.workers.append(worker)
-        self.workers[-1].thread = thread
-        self.workers[-1].moveToThread(thread)
-        thread.started.connect(self.workers[-1].run)
-        self.threads[-1].start()
-        self.updateThreadDisplay()
 
     def closeThread(self, thread):
         index = self.threads.index(thread)
@@ -1721,6 +1705,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.loadMasks(output, name = f"{imName}_{modelType}")
         
         self.activateButton(self.modelButton)
+        self.handleFinished()
         
     def evaluate(self):
         if not self.maskLoaded:
@@ -1783,6 +1768,22 @@ class MainWindow(QtWidgets.QMainWindow):
             return f"{potentialName}-n"
         else:
             return potentialName
+    
+    def runLongTask(self, worker, task, finished, button):
+        if len(self.threads)+1>self.idealThreadCount:
+            self.showError("Too Many Threads Running At This Time")
+            self.activateButton(button)
+            return
+        
+        thread = QThread()
+        self.threads.append(thread)
+        thread.started.connect(task)
+        self.workers.append(worker)
+        worker.moveToThread(thread)
+        worker.finished.connect(finished)
+        thread.start()
+        self.updateThreadDisplay()
+
 
     def computeModels(self):
         weightName = self.modelChoose.currentText() 
@@ -1806,9 +1807,10 @@ class MainWindow(QtWidgets.QMainWindow):
             ims = self.imData.channels[channelIndex]
 
             worker = SegmentWorker(self)
-            self.workers.append(worker)
-            worker.finished.connect(self.segment)
-            worker.run(modelClass,ims, params, weightPath, modelType)
+            self.runLongTask(worker, 
+                             lambda: worker.run(modelClass,ims, params, weightPath, modelType),
+                             self.segment,
+                             self.modelButton)
         else:
             self.activateButton(self.modelButton)
             return
@@ -2042,7 +2044,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.imData.loadMultiChannel(fileIds, files)
 
     def closeEvent(self, event):
-        for thread in self.threads:
+        for thread in self.thread_workers:
             self.closeThread(thread)
         if self.pWindow:
             self.pWindow.close()

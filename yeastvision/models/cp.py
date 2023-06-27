@@ -57,6 +57,7 @@ class CustomCPWrapper(CustomModel):
         
         self.model = CustomCellpose(pretrained_model=self.weights)
         self.cpAlone = self.model.cp
+        
     
     def processProbability(self, rawProb):
         return (np.clip(normalize99(rawProb.copy()), 0, 1) * 255).astype(np.uint8)
@@ -88,7 +89,7 @@ class CustomCPWrapper(CustomModel):
                                                 channels = [0, 0],
                                                 cellprob_threshold = model.params["Flow Threshold"], 
                                                 do_3D=False)
-        probs = model.processProbability(flows)
-        model.cellprobs = [flow[2] for flow in probs]
+        model.cellprobs = [flow[2] for flow in flows]
+        model.cellprobs = np.array((model.processProbability(model.cellprobs)), dtype = np.uint8)
 
         return np.array(model.masks, dtype = np.uint16), np.array(model.cellprobs, dtype = np.float32)
