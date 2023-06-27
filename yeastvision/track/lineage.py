@@ -12,6 +12,88 @@ def count_objects(labeledMask):
     return np.count_nonzero(np.unique(labeledMask))
 
 
+class LineageData():
+    def __init__(self):
+        self.mothers = None
+        self.daughters = None
+        self.gametes = None
+        self.tetrads = None
+        self.data = None
+        self.populations = None
+    
+    def getLineages(self, cells, buds):
+        pass
+
+    def getGametes(self, cells, mating):
+        pass
+
+def get_gametes(skeleton, cyto, idx):
+    found_gametes = False
+    overlap = []
+    previous_overlaps = []
+    while (not found_gametes) and idx>=0:
+        mask = cyto[idx]
+        overlap = np.unique(mask[skeleton>0])
+        overlap = overlap[overlap!=0]
+
+        previous_overlaps.append(overlap)
+        found_gametes = len(overlap)==2
+        idx -=1
+    
+    if len(overlap)==0:
+        for previous_overlap in previous_overlaps:
+            if len(previous_overlap)>0:
+                overlap = previous_overlap
+                break
+
+    if len(overlap)>2:
+        overlap = overlap[0:2]
+    else:
+        overlap = np.append(overlap, [None, None])
+    return found_gametes, overlap
+
+def is_mating_cell(mat, cyto, cell):
+    return np.all(mat[cyto==cell]==cell)
+
+def compute_mating_lineage(tracked, cyto):
+
+    cellVals = np.unique(cyto)
+    cellVals = cellVals[cellVals!=0]
+
+    matingCells = np.unique(tracked)
+    matingCells = matingCells[matingCells!=0]
+
+    numCells = np.count_nonzero(matingCells)
+    
+    print("computing lineages for", numCells, "cells")
+    gamete_dict = {"cell":cellVals,
+                  "gamete1":[],
+                    "gamete2":[],
+                    "isMating":[],
+                    "foundGametes":[]}
+
+    for label in tqdm(cellVals):
+        isMating = label in matingCells
+        if isMating:
+            birth = getBirthFrame(tracked, label)
+            mat_birth_mask = (tracked[birth] == label).astype(np.uint8)
+            found_gametes, gametes = get_gametes(skeletonize(mat_birth_mask),
+                                                 cyto, birth-1)
+        else:
+            found_gametes = False
+            gametes = [None, None]
+        
+        gamete_dict["gamete1"].append(gametes[0])
+        gamete_dict["gamete2"].append(gametes[1])
+        gamete_dict["isMating"].append(isMating)
+        gamete_dict["foundGametes"].append(found_gametes)
+    
+    return gamete_dict
+
+gamete_dict = compute_mating_lineage(tracked, merged)
+    
+    
+
 class LineageConstruction():
     def __init__(self, segMasks, budMasks = None, backskip = 0, forwardskip = 0):
         self.cellMasks = segMasks 

@@ -464,5 +464,12 @@ def merge(full_masks, Matmasks, visualize = False):
                     plt.imshow(I2==np.max(I2))
                     plt.title('cxell: ' + str(cxell) + ', im_no: ' + str(im_no))
                     plt.show()
-    return MATC, new_tracks
+    
+    # correct for length
+    MATC[0].append(MATC[0][-1])
+    new_tracks_template= np.zeros((new_tracks.shape[0]+1, new_tracks.shape[1], new_tracks.shape[2]), dtype=np.uint16)
+    new_tracks_template[0:new_tracks.shape[0]] = new_tracks
+    new_tracks_template[-1] = new_tracks[-1]
+    return np.array(MATC[0], dtype = np.uint16), new_tracks_template
+
 
