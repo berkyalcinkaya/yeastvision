@@ -10,6 +10,7 @@ import numpy as np
 import os
 import datetime
 from yeastvision.parts.guiparts import *
+from yeastvision.plot.plot import PlotProperty
 
 class DirReaderDialog(QDialog):
     def __init__(self, dir, fnames):
@@ -673,7 +674,7 @@ class PlotWindowCustomize(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        self.setGeometry(100,100,850,400)
+        self.setGeometry(100,100,1000,450)
         self.setWindowTitle("Customize Plot Display")
         self.win = QWidget(self)
         self.l = QGridLayout()
@@ -682,7 +683,7 @@ class PlotWindowCustomize(QDialog):
         self.morphProps = self.parent.getCellDataLabelProps()
         self.trees = []
         self.boxes = {}
-        #self.produceParamTreeSingleCell()
+        self.produceParamTreeSingleCell()
         self.produceParamTreeIncludePopulations()
 
         QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
@@ -694,60 +695,75 @@ class PlotWindowCustomize(QDialog):
 
         self.win.show()
     
-    def getProps(self, populationName, propType):
+    def getProps(self, populationObj, propType):
         if propType == "morphology":
             return self.morphProps
         else:
-            i = self.parent.labelSelect.items().index(populationName)
-            return self.parent.getCellDataImProperties(i = i)
+            return [prop for prop in populationObj.properties if prop not in self.morphProps]
+
+    def produceParamTreeSingleCell(self):
+        populations = self.parent.getLabelsWithPopulationData()      
+        tree = self.produceTree()
+        self.trees.append(tree)
+        level1 = "single"
+        item = QTreeWidgetItem(tree, [level1])
+        item.setExpanded(True)
+
+        for level2 in populations:
+            setName = self.parent.getTimeSeriesDataName(level2)
+            item2 = QTreeWidgetItem(item, [setName])
+            item2.setExpanded(True)
+
+            for level3 in ["morphology", "pixel"]:
+                item3 = QTreeWidgetItem(item2, [level3])
+
+                for level4 in self.getProps(level2, level3):
+                    item4 = QTreeWidgetItem(item3, [level4])
+                    box = QCheckBox()
+                    tree.setItemWidget(item4, 1, box)
+                    self.boxes[PlotProperty(self.parent, "single", setName, level4)] = box
+        self.l.addWidget(tree, 0,0,2,1)
 
     def produceParamTreeIncludePopulations(self):
         populations = self.parent.getLabelsWithPopulationData()      
-        for i,level1 in enumerate(self.parent.plotTypes):
+        for i,level1 in enumerate(self.parent.populationPlotTypes):
             tree = self.produceTree()
             self.trees.append(tree)
             item = QTreeWidgetItem(tree, [level1])
             item.setExpanded(True)
 
             for level2 in populations:
-                item2 = QTreeWidgetItem(item, [level2])
+                setName = self.parent.getTimeSeriesDataName(level2)
+                item2 = QTreeWidgetItem(item, [setName])
                 item2.setExpanded(True)
 
-                for level3 in ["morphology", "pixel"]:
-                    item3 = QTreeWidgetItem(item2, [level3])
+                for level2a in level2.population_names:
+                    item2a = QTreeWidgetItem(item2, [level2a])
 
-                    for level4 in self.getProps(level2, level3):
-                        item4 = QTreeWidgetItem(item3, [level4])
-                        box = QCheckBox()
-                        tree.setItemWidget(item4, 1, box)
-                        self.boxes[f"{level1}-{level2}-{level4}"] = box
-            self.l.addWidget(tree, 0,i,2,1)
-    
-    def produceParamTreeSingleCell(self):
-        tree = self.produceTree()
-        self.trees.append(tree)
+                    for level3 in ["morphology", "pixel"]:
+                        item3 = QTreeWidgetItem(item2a, [level3])
 
-        item = QTreeWidgetItem(tree, ["single"])
+                        for level4 in self.getProps(level2, level3):
+                            item4 = QTreeWidgetItem(item3, [level4])
+                            box = QCheckBox()
+                            tree.setItemWidget(item4, 1, box)
+                            self.boxes[PlotProperty(self.parent, level1, setName, level4, populationName=level2a)] = box
+            self.l.addWidget(tree, 0,i+1,2,1)
 
-        for level2 in ["morphology", "pixel"]:
-            item2 = QTreeWidgetItem(item, [level2])
-
-            for level3 in self.props[level2]:
-                item3 = QTreeWidgetItem(item2, [level3])
-                box = QCheckBox()
-                tree.setItemWidget(item3, 1, box)
-                self.boxes[f"single-{level3}"] = box
-        tree.expandAll()
-        self.l.addWidget(tree,0,0,2,1)
-    
     def getData(self):
-        return [name for name, box in self.boxes.items() if box.isChecked()]
+        checked = [name for name, box in self.boxes.items() if box.isChecked()]
+        toPlotDict = {}
+        for plot in self.parent.plotTypes:
+            toPlotDict[plot] = [prop_obj for prop_obj in checked if plot in prop_obj.plotType]
+        return toPlotDict
+
     
     def produceTree(self):
         tree = QTreeWidget()
         tree.setColumnCount(2)
         tree.setHeaderHidden(True)
         tree.setMinimumHeight(300)
+        tree.setMinimumWidth(300)
         tree.header().setSectionResizeMode(QHeaderView.ResizeToContents)
         return tree
 

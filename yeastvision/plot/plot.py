@@ -6,15 +6,62 @@ import pyqtgraph as pg
 from pyqtgraph.dockarea.Dock import Dock
 from pyqtgraph.dockarea.DockArea import DockArea
 from yeastvision.plot.cell_table import TableModel
+from yeastvision.plot.types import SingleCellUpdatePlot, HeatMap, PopulationPlot
+from yeastvision.track.data import PopulationReplicate, Population
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
-class CustomizePlot(QWidget):
-    def __init__(self):
-        pass
+
+class PlotProperty():
+    def __init__(self, parent, plotType, setName, property, populationName = None):
+        self.parent = parent
+        self.plotType = plotType
+        self.labelIdx = self.getLabelIdx(setName)
+        self.prop = property
+        self.population = populationName
+    
+    def getPlotName(self):
+        labelName = self.getLabelName()
+        if self.populationName:
+            return "f{labelName}-{self.population}-{self.prop}"
+        else:
+            return "f{labelName}-{self.prop}"
+    
+    def getLabelIdx(self, setName):
+        return self.parent.labelSelect.items().index(setName)
+    
+    def getLabelName(self):
+        return self.labelSelect.items()[self.labelIdx]
+    
+    def get_timeseries_obj(self):
+        return self.parent.cellData[self.labelIdx]
+    
+    @staticmethod
+    def cluster_property(plot_property_list):
+        by_property = {}
+        for plot_property_obj in plot_property_list:
+            prop = plot_property_obj.prop
+            if prop not in by_property:
+                by_property[prop] = [plot_property_obj]
+            else:
+                by_property[prop].append(plot_property_obj)
+        return by_property
+
+    @staticmethod
+    def cluster_population(plot_property_list):
+        by_population = {}
+        for plot_property_obj in plot_property_list:
+            pop = plot_property_obj.population
+            if pop not in by_population:
+                by_population[pop] = [plot_property_obj]
+            else:
+                by_population[pop].append(plot_property_obj)
+        return by_population
+
+    
 
 class EvalWindow(QWidget):
     def __init__(self, parent, data_dict, IOUs):
@@ -101,121 +148,160 @@ class PlotWindow(QWidget):
         self.hLayout = QHBoxLayout()
         self.setLayout(self.hLayout)
         self.createTable()
-        self.propDict = propDict
         pg.setConfigOption('imageAxisOrder', 'row-major')
         self.cmap = pg.colormap.get("jet", source = 'matplotlib')
-
-        # print(propDict)
-        # print(propDict["single"])
-        self.singleCellPopulations = self.getSingleCellPopulations(propDict["single"]) if "single" in propDict else []
-        print(self.singleCellPopulations)
         self.setData()
-
-        self.hasPlots = bool(propDict)
-
+        
         self.propDict = propDict
-        if self.propDict:
+
+
+        if self.hasPlots():
             self.area = DockArea()
             self.hLayout.addWidget(self.area, 7)
             self.docks = {} # key = name of dock, value = (dock object, widget contained in dock)
-            
-            for plotType, props in self.propDict.items():
-                if props:
-
-                    # dock
-                    dockName = f"{plotType} plots"
-                    newDock = Dock(dockName, closable = True)
-                    dockLayout = DockArea()
-                    newDock.addWidget(dockLayout)
-                    self.docks[plotType] = (newDock, dockLayout)
-                    self.area.addDock(newDock, "bottom")
-
-                    for i, prop in enumerate(props):
-                        if i == 0:
-                            position = "bottom"
-                            relativeTo = None
-                        else:
-                            position = "above"
-                            plotRelativeTo = props[i-1]
-                            relativeTo = self.docks[f"{plotType} {plotRelativeTo}"][0]
-
-                        if "heatmap" in plotType:
-                            name = f'{prop}'
-                            imDock = Dock(name, closable = True)
-                            imData = self.getHeatMap(prop)
-                            view  = pg.PlotWidget(title = name)
-                            im = pg.ImageItem(colorMap = self.cmap)
-                            im.setImage(imData, autoLevels = True)
-                            view.addItem(im)
-                            imDock.addWidget(view)
-                            self.docks[f"{plotType} {prop}"] = (imDock,im)
-                            dockLayout.addDock(imDock, position, relativeTo)
-                        else:
-                            name = f"{prop}"
-                            plotDock = Dock(name, closable = True)
-                            newPlot = pg.PlotWidget(title=name)
-                            
-                            data = self.getData(plotType, prop)
-                            if type(data) is dict:
-                                newPlot.addLegend()
-                                i = 0
-                                for cellnum, dataset in data.items():
-                                    color = parent.cmaps[0][i][0:-1]
-                                    newPlot.plot(dataset, name = str(cellnum), pen = tuple(color))
-                                    i+=1
-                            else:
-                                newPlot.plot(data)
-
-                            self.docks[f"{plotType} {prop}"] = (plotDock,newPlot)
-
-                            plotDock.addWidget(newPlot)    
-                            dockLayout.addDock(plotDock, position, relativeTo)
-        if self.hasPlots:
+            if self.hasSingleCellPlots():
+                self.addSingleCellPlots()
+            if self.hasHeatmaps():
+                self.addHeatmaps()
+            if self.hasPopulationPlots():
+                self.addPopulationsPlots()
             self.setGeometry(500, 100, 1500, 1500)
     
-    def getSingleCellPopulations(self, singleCelProps):
-        return [prop.split("-")[0] for prop in singleCelProps]
+    def hasPlots(self):
+        return self.hasSingleCellPlots() or self.hasHeatmaps() or self.hasPopulationPlots()
+
+    def hasSingleCellPlots(self):
+        return "single" in self.propDict and self.propDict["single"]
+    
+    def hasMplPlots(self):
+        return self.hasPopulationPlots()
+    
+    def hasHeatmaps(self):
+        return "heatmap" in self.propDict and self.propDict["heatmap"]
+    
+    def hasPopulationPlots(self):
+        return "population" in self.propDict and self.propDict["population"]
+
+    def updateAll(self):
+        if self.hasSingleCellPlots():
+            self.updateSingleCellPlots()
+        if self.hasHeatmaps():
+            self.updateHeatMaps()
+        if self.hasPopulationPlots():
+            self.updatePopulationPlots
+
+    
+    def addSingleCellPlots(self):
+        self.singleCellPlots = []
+        single_cell_prop_obj = self.propDict["single"]
+        clustered_by_property = PlotProperty.cluster_property(single_cell_prop_obj)
+        for property in clustered_by_property:
+            timeseries = [prop.get_timeseries_obj() for prop in clustered_by_property[property]]
+            self.singleCellPlots.append(SingleCellUpdatePlot(self.parent, property, timeseries, self.parent.selectedCells))
+        
+ 
+        dockName = f"single plots"
+        newDock = Dock(dockName, closable = True)
+        dockLayout = DockArea()
+        newDock.addWidget(dockLayout)
+        self.area.addDock(newDock, "bottom")
+        
+
+        for i, plot in enumerate(self.singleCellPlots):
+            if i == 0:
+                position = "bottom"
+                relativeTo = None
+            else:
+                position = "above"
+                plotRelativeTo = self.singleCellPlots[i-1]
+                relativeTo = self.docks[plotRelativeTo]
+
+            name = f"{plot.property}"
+            plotDock = Dock(name, closable = True)
+            plotDock.addWidget(plot.getPlotWidget())
+            self.docks[plot] = (plotDock)
+  
+            dockLayout.addDock(plotDock, position, relativeTo)
+    
+    def addHeatmaps(self):
+        self.heatMaps = []
+        heatmap_prop_obj = self.propDict["heatmap"]
+        clustered_by_property = PlotProperty.cluster_property(heatmap_prop_obj)
+        for property, properties in clustered_by_property.items():
+            timeseries = [prop.get_timeseries_obj() for prop in properties]
+            populations = [prop.population for prop in properties]
+            for ts, population in zip(timeseries, populations):
+                self.heatMaps.append(HeatMap(self, property, population, ts))
+    
+        dockName = f"heatmaps"
+        newDock = Dock(dockName, closable = True)
+        dockLayout = DockArea()
+        newDock.addWidget(dockLayout)
+        self.area.addDock(newDock, "bottom")
+
+        for i, plot in enumerate(self.heatMaps):
+            if i == 0:
+                position = "bottom"
+                relativeTo = None
+            else:
+                position = "above"
+                plotRelativeTo = self.heatMaps[i-1]
+                relativeTo = self.docks[plotRelativeTo]
+
+            name = f"{plot.property}"
+            plotDock = Dock(name, closable = True)
+            plotDock.addWidget(plot.getPlotWidget())
+            self.docks[plot] = (plotDock)
+
+            dockLayout.addDock(plotDock, position, relativeTo)
+    
+    def addPopulationsPlots(self):
+        self.populationPlots = []
+        population_prop_obj = self.propDict["population"]
+        clustered_by_property = PlotProperty.cluster_property(population_prop_obj)
+        for property, properties in clustered_by_property.items():
+            timeseries = [prop.get_timeseries_obj() for prop in properties]
+            populations = [prop.population for prop in properties]
+            for ts, population in zip(timeseries, populations):
+                self.populationPlots.append(PopulationPlot(self, property, ts, population))
+    
+        dockName = f"population plots"
+        newDock = Dock(dockName, closable = True)
+        dockLayout = DockArea()
+        newDock.addWidget(dockLayout)
+        self.area.addDock(newDock, "bottom")
+
+        for i, plot in enumerate(self.populationPlots):
+            if i == 0:
+                position = "bottom"
+                relativeTo = None
+            else:
+                position = "above"
+                plotRelativeTo = self.populationPlots[i-1]
+                relativeTo = self.docks[plotRelativeTo]
+
+            name = f"{plot.property}"
+            plotDock = Dock(name, closable = True)
+            plotDock.addWidget(plot.getPlotWidget())
+            self.docks[plot] = (plotDock)
+
+            dockLayout.addDock(plotDock, position, relativeTo)
+    
+    def addMplPlots():
+        pass
 
     def updateSingleCellPlots(self):
-        for plotName, widgets in self.docks.items():
-            if " " in plotName:
-                s = plotName.split(" ")
-                plotType, prop = s[0], s[1]
-                if "single" in plotType:
-                    _, newPlot = widgets
-                    newPlot.clear()
-                    data = self.getData(plotType, prop) 
-
-                    if type(data) is dict:     
-                        newPlot.addLegend()
-                        i = 0
-                        for cellnum, dataset in data.items():
-                            color = self.parent.cmaps[0][i][0:-1]
-                            newPlot.plot(dataset, name = str(cellnum), pen = tuple(color))
-                            i+=1
-                    else:
-                        newPlot.plot(data)
+        for plot in self.singleCellPlots:
+            plot.update()
+        
 
     def updatePopulationPlots(self):
-        for plotName, widgets in self.docks.items():
-            if " " in plotName:
-                s = plotName.split(" ")
-                plotType, prop = s[0], s[1]
-                if "population" in plotType:
-                    _, im = widgets
-                    imData = self.getHeatMap(prop)
-                    im.setImage(imData, autoLevels = True)
+        for plot in self.populationPlots:
+            plot.update()
     
     def updateHeatMaps(self):
-        for plotName, widgets in self.docks.items():
-            if " " in plotName:
-                s = plotName.split(" ")
-                plotType, prop = s[0], s[1]
-                if "heatmap" in plotType:
-                    _, newPlot = widgets
-                    newPlot.clear()
-                    data = self.getData(plotType, prop)        
-                    newPlot.plot(data)
+        for plot in self.heatMaps:
+            plot.update()
 
     def setData(self):
         self.data = self.parent.getCellData()
@@ -227,41 +313,6 @@ class PlotWindow(QWidget):
             return idx
         except ValueError:
             return None
-
-    def getDataToUse(self, prop):
-        if self.data:
-            idx = self.getDataIdx(prop)
-            if idx is not None:
-                return self.data[idx]
-            else:
-                return None
-        else:
-            return None
-
-    def getData(self, cellType, property):
-        s = property.split("-")
-        population, property = s[0],"-".join(s[1:])
-        dataToUse = self.getDataToUse(population)
-        if type(dataToUse) is pd.core.frame.DataFrame:
-            if cellType == "population":
-                cellNum = "population"
-                data = (dataToUse.loc[dataToUse["labels"] == cellNum][property]).tolist()[0]
-            elif cellType == "single" and self.parent.selectedCells:
-                data = {}
-                for cellNum in self.parent.selectedCells:
-                    data[cellNum] = (dataToUse.loc[dataToUse["labels"] == cellNum][property]).tolist()[0]
-            elif cellType == "single" and not (self.parent.selectedCells):
-                data =  [0]*10
-            return data
-        else:
-            return [0]*10
-    
-    def getHeatMap(self, property):
-        dataToUse = self.getDataToUse("heatmap")
-        if type(dataToUse) is pd.core.frame.DataFrame:
-            return np.array(dataToUse[property][0:-1].to_list())
-        else:
-            return np.zeros((10,10))
 
     def updatePlots(self):
         self.updateSingleCellPlots()

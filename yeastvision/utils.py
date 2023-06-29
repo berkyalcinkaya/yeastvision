@@ -102,7 +102,7 @@ def enlarge_bud(bud_mask, footprint = None, kernel_size = 4):
         footprint = disk(kernel_size)
     return binary_dilation(bud_mask, footprint)
 
-def normalize_im(im, clip = True):
+def normalize_im(im_o, clip = True):
     """
     Normalizes a given image such that the values range between 0 and 1.     
     
@@ -119,12 +119,13 @@ def normalize_im(im, clip = True):
         Normalized image ranging from 0.0 to 1.0. Note that this is now
         a floating point image and not an unsigned integer array. 
     """ 
-    assert not np.any(np.isnan(im))
+    im = np.nan_to_num(im_o)
     if clip:
         im[im<0] = 0
     if im.max()==0:
         return im.astype(np.float32)
     im_norm = (im - im.min()) / (im.max() - im.min())
+    im_norm[np.isnan(im_o)] = np.nan
     return im_norm.astype(np.float32)
 
 def convertGreyToRGBA(im):

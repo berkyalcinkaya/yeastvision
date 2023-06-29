@@ -72,15 +72,22 @@ class TableModel(QtCore.QAbstractTableModel):
     def handleselect(self, new, previous):
         if previous.column() == -1:
             return
-        if (new.column() == self.columns["cell"] or new.column() == self.columns["mother"]) and self.hasLineages:
-            value = int(self._data.iloc[new.row(), new.column()])
-            mother = self._data.iloc[value-1, self.columns["mother"]]
+        
+
+
+        if (new.column() == self.columns["cell"] or new.column() == self.columns["mother"]):
+            value = self._data.iloc[new.row(), new.column()]
+            if value == np.NaN:
+                return
             birth = int(self._data.iloc[value-1, self.columns["birth"]])
-            self.main.showMotherDaughter(mother, value, birth)
+            self.main.tIndex = birth
+            self.main.selectCellFromNum(value)
+
         
         if (new.column() in [self.columns["birth"], self.columns["death"]]):
-            self.parent.tIndex = int(self._data.iloc[new.row(), new.column()])
-            self.parent.drawMask()
+            self.main.tIndex = int(self._data.iloc[new.row(), new.column()])
+            self.main.drawIm()
+            self.main.drawMask()
 
         
 

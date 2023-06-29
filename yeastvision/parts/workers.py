@@ -49,22 +49,22 @@ class SegmentWorker(QtCore.QObject):
     def run(self, modelClass,ims, params, weightPath, modelType):
         row, col = ims[0].shape
         newImTemplate = np.zeros((len(ims), row, col))
-        outputTup  = (newImTemplate, newImTemplate.copy())
         tStart, tStop = int(params["T Start"]), int(params["T Stop"])
 
         output = modelClass.run(ims[tStart:tStop+1],params, weightPath)
-        self.finished.emit(output, modelClass,ims, params, weightPath, modelType)
+        self.finished.emit(output, modelClass,newImTemplate, params, weightPath, modelType)
 
 class TrackWorker(QtCore.QObject):
     finished = QtCore.pyqtSignal(object, object)
 
     def __init__(self, parent, func, z):
+        super(TrackWorker,self).__init__()
         self.parent = parent
         self.trackfunc = func
-        self.z
+        self.z = z
     
-    def run(self, labels):
-        self.finished.emit(self.func(labels))
+    def run(self):
+        self.finished.emit(self.z, self.trackfunc())
 
 # class ImageWorker(QtCore.QObject):
 

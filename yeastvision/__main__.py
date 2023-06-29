@@ -17,7 +17,7 @@ from yeastvision.parts.guiparts import *
 from yeastvision.parts.workers import SegmentWorker, TrackWorker
 from yeastvision.parts.dialogs import *
 from yeastvision.track.track import track_to_cell, trackYeasts
-from yeastvision.track.data import LineageData
+from yeastvision.track.data import LineageData, TimeSeriesData
 from yeastvision.track.lineage import LineageConstruction
 from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, getCellData, exportCellData, getHeatMaps, getDaughterMatrix
 import cv2
@@ -224,6 +224,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def handleFinished(self, error = False):
         self.closeThread(self.threads[-1])
+        self.updateThreadDisplay()
     
     def setEmptyDisplay(self, initial = False):
         self.tIndex = 0
@@ -280,8 +281,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.maskZ = -1
         self.currMask = np.zeros((512,512), dtype = np.uint8)
         self.pg_mask.setImage(self.currMask, autolevels  =False, levels =[0,0], lut = self.maskColors)
+
+        
+
+
         self.cellData = [] 
-        self.lineageData = []
         self.mother_daughters = []
 
         if not initial:
@@ -334,8 +338,6 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.maskTypeSelect.checkMaskRemote()
 
-        self.lineageData.append(None)
-        self.mother_daughters.append(None)
         self.cellData.append(None)
         self.newData()
     
@@ -799,46 +801,51 @@ class MainWindow(QtWidgets.QMainWindow):
     def trackObjFinished(self, tracked, z):
         self.activateButton(self.trackObjButton)
         self.maskData.channels[z][0,:,:,:] = tracked
-        self.updateCellData(idx = z)
-        self.handleFinished
-        self.maskZ = z
-        self.drawMask()
-    
-    def trackFinished(self, tracked, z):
-        self.activateButton(self.trackButton)
-        self.maskData.channels[z][0,:,:,:] = tracked
+        contours = self.getCurrContourSet()
+        newContours = tracked.copy()
+        newContours[np.logical_not(contours>0)] = 0
+        self.maskData.contours[z] = newContours
         self.updateCellData(idx = z)
         self.handleFinished()
         self.maskZ = z
         self.drawMask()
+    
+    def trackFinished(self, z, tracked):
+        self.activateButton(self.trackButton)
+        self.handleFinished()
 
+        print(type(tracked))
+        if isinstance(tracked, np.ndarray):
+            self.maskData.channels[z][0,:,:,:] = tracked
+            contours = self.getCurrContourSet()
+            newContours = tracked.copy()
+            newContours[np.logical_not(contours>0)] = 0
+            self.maskData.contours[z] = newContours
+            self.updateCellData(idx = z)
+            self.maskZ = z
+            self.drawMask()
+        
 
     def trackButtonClick(self):
         self.deactivateButton(self.trackButton)
 
         idxToTrack = self.maskZ
-        cells = self.getCurrMaskSet().copy
+        cells = self.getCurrMaskSet().copy()
         task = lambda: trackYeasts(cells)
         worker = TrackWorker(self, task, idxToTrack)            
         self.runLongTask(worker, worker.run, self.trackFinished, self.trackButton)
 
-    
-    def track(self,z):
-        currMasks = self.getCurrMaskSet()
-        newMasks = trackYeasts(currMasks)
-        self.maskData.channels[z][0,:,:,:] = newMasks
-        self.cellData[z] = None
-        self.updateCellData(idx = z)
         
     def updateCellData(self, idx = None):
         if not self.maskLoaded:
             return
-        self.toStatusBar("Updating Cell Data...")
+  
         if idx:
             masks  = self.maskData.channels[idx][0,:,:,:]
         else:
             masks = self.getCurrMaskSet()
             idx = self.maskZ
+
     
         viableIms = []
         viableImNames = []
@@ -846,16 +853,14 @@ class MainWindow(QtWidgets.QMainWindow):
             if imChannel[0].shape == masks[0].shape and imChannel.shape[0] >= masks.shape[0]:
                 viableIms.append(imChannel)
                 viableImNames.append(self.channelSelect.itemText(i))
-        #try:
-        cellData = getCellData(masks, viableIms, viableImNames)    
-        # except:
-        #     self.showError("Error Getting Cell Data: Ensure Labels Have Been Tracked")    
-        #     return      
-                                                             
-        self.cellData[idx] = cellData
+
+        if self.cellData[idx] is not None:
+            self.cellData[idx].update_cell_data(masks, channels = viableIms, channel_names = viableImNames)
+        else:
+            self.cellData[idx] = TimeSeriesData(idx, masks, channels = viableIms, channel_names=viableImNames)
+
         self.statusBar.clearMessage()
         self.saveData()
-
         self.checkDataAvailibility()  
 
         if self.pWindow:
@@ -872,46 +877,34 @@ class MainWindow(QtWidgets.QMainWindow):
     def hasCellData(self, i = None):
         if type(i) is not int:
             i = self.maskZ
-        return (type(self.cellData[i]) is pd.core.frame.DataFrame)
+        return (isinstance(self.cellData[i], TimeSeriesData))
     
     def hasLineageData(self, i = None):
         if not i:
             i = self.maskZ
-        return ((type(self.lineageData[self.maskZ]) is pd.core.frame.DataFrame) 
-                and type(self.mother_daughters[self.maskZ]) is np.ndarray)
+        return isinstance(self.cellData[i], LineageData) and self.cellData[i].hasLineages()
     
     def getLabelsWithPopulationData(self):
-        return [population for i,population in enumerate(self.labelSelect.items()) if self.hasCellData(i = i)]
+        return [population for i,population in enumerate(self.cellData) if self.hasCellData(i = i)]
     
-
     def getCellData(self):
         if not self.maskLoaded or not self.hasCellData():
             return None
         else:
             return self.cellData
+    
+    def getTimeSeriesDataName(self, tsObj):
+        index = tsObj.i
+        return self.labelSelect.items()[index]
 
     def getCellDataAbbrev(self):
         if not self.maskLoaded:
             return pd.DataFrame.from_dict(self.cellDataFormat)
-        
         if not self.hasCellData():
-            if self.hasLineageData():
-                return self.lineageData[self.maskZ]
-            else:
-                return pd.DataFrame.from_dict(self.cellDataFormat)
-
+            return pd.DataFrame.from_dict(self.cellDataFormat)
         elif self.maskLoaded and self.hasCellData():
-            data = self.cellData[self.maskZ].copy()[0:-1]
-            columnsToKeep = ["labels", "birth", "death"]
-            for columnName in data.columns:
-                if columnName not in columnsToKeep:
-                    data = data.drop(columns = columnName)
-
-            if self.hasLineageData():
-                lD = self.lineageData[self.maskZ]
-                data["mother"], data["confidence"] = lD["mother"], lD["confidence"]
-            return data
-    
+            return self.cellData[self.maskZ].get_cell_info()
+        
     def getLineages(self):
         dlg = GeneralParamDialog({}, [], "Lineage Construction", self, labelSelects=["bud necks", "cells"])
         if dlg.exec_():
@@ -922,10 +915,19 @@ class MainWindow(QtWidgets.QMainWindow):
             cells = self.maskData.channels[cellI][0,:,:,:]
         else:
             return 
-        lng = LineageConstruction(cells, necks, backskip=0, forwardskip=5)
-        daughters, motherDF = lng.computeLineages()
-        self.mother_daughters[cellI] = daughters
-        self.lineageData[cellI] = motherDF
+        
+        
+        if isinstance(self.cellData[cellI], LineageData):
+            self.cellData[cellI].add_lineages(cells, necks)
+        else:
+            if isinstance(self.cellData[cellI], TimeSeriesData):
+                life = self.cellData[cellI].life_data
+                cell_data = self.cellData[cellI].cell_data
+            else:
+                life, cell_data = None, None
+
+            self.cellData[cellI] = LineageData(cellI, cells, necks, cell_data=cell_data, life_data=life)
+
         self.saveData()
         self.checkDataAvailibility()
     
@@ -996,16 +998,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pg_mask.image = image
         self.pg_mask.updateImage()
     
-
-    
-    def parseProperties(self):
-            if not self.toPlot:
-                return {}
-            else:
-                toPlotDict = {}
-                for plot in self.plotTypes:
-                    toPlotDict[plot] = ["-".join((prop.split("-")[1:])) for prop in self.toPlot if plot in prop.split("-")[0]]
-                return toPlotDict
         
         
     def buildPlotWindow(self):
@@ -1017,7 +1009,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.plotButton.setCheckState(False)
             return
         
-        self.pWindow = plot.PlotWindow(self, self.parseProperties())
+        self.pWindow = plot.PlotWindow(self, self.toPlot)
         self.pWindow.show()
     
         
@@ -1026,7 +1018,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.plotWindowOn:
             self.buildPlotWindow()   
-        else:
+        elif self.pWindow is not None:
             self.pWindow.close()
             self.pWindow = None
 
@@ -1345,7 +1337,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addSpecificContours(contour, [mother, daughter], [[255,0,0,255], [0,255,0,255]])
     
     def getDaughters(self, cellNum):
-        potentialDaughters = self.mother_daughters[self.maskZ][cellNum-1]
+        potentialDaughters = self.cellData[self.maskZ].daughters[cellNum-1]
         daughters = list(np.where(potentialDaughters)[0]+1)
         return daughters
         
@@ -1353,6 +1345,8 @@ class MainWindow(QtWidgets.QMainWindow):
         contour = self.getCurrContours().copy()
         color = np.array(self.goldColor)
         if self.selectedCells:
+            print(self.selectedCells)
+            print(self.selectedCellContourColors)
             for i, cell in enumerate(self.selectedCells):
                 color = self.selectedCellContourColors[i]
                 self.addSpecificContours(contour, [cell], [color])
@@ -1394,6 +1388,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def getCurrContours(self):
         maskData = self.maskData.contours
         return maskData[self.maskZ][self.tIndex,:,:]
+
+    def getCurrContourSet(self):
+        return self.maskData.contours[self.maskZ]
 
     def getCurrFrames(self):
         return (self.getCurrIm(), self.getCurrMask())
@@ -1455,30 +1452,36 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.selectedCellContourColors.append([255,0,0,255])
                 self.maskColors[num,:] = np.array(self.goldColor, dtype = np.uint8)
 
+        elif self.showMotherDaughters and self.hasLineageData:
+            self.deselectAllCells()
+            self.selectedCells.append(cellNum)
+            self.selectedCellContourColors.append([255,0,0,255])
+            self.maskColors[cellNum,:] = np.array(self.goldColor, dtype = np.uint8)
+            motherNum = self.getMotherFromLineageData(cellNum)
+            if motherNum:
+                print("selecting mother", motherNum, "for cell", cellNum)
+                if motherNum not in self.selectedCells:
+                    self.selectedCells.append(motherNum)
+                    self.selectedCellContourColors.append([0,255,0,255])
+                    self.maskColors[motherNum,:] = np.array(self.goldColor, dtype = np.uint8)
+                else:
+                    motherIdx = self.selectedCells.index(motherNum)
+                    self.selectedCellContourColors[motherIdx] = [0,255,0,255]
+        
         elif cellNum in self.selectedCells:
             self.deselectCell(cellNum)
+    
         else:
             self.selectedCells.append(cellNum)
             self.selectedCellContourColors.append([255,0,0,255])
             self.maskColors[cellNum,:] = np.array(self.goldColor, dtype = np.uint8)
-
-            if self.showMotherDaughters and self.hasLineageData:
-                motherNum = self.getMotherFromLineageData(cellNum)
-                if motherNum:
-                    print("selecting mother", motherNum, "for cell", cellNum)
-                    if motherNum not in self.selectedCells:
-                        self.selectedCells.append(motherNum)
-                        self.selectedCellContourColors.append([0,255,0,255])
-                        self.maskColors[motherNum,:] = np.array(self.goldColor, dtype = np.uint8)
-                    else:
-                        motherIdx = self.selectedCells.index(motherNum)
-                        self.selectedCellContourColors[motherIdx] = [0,255,0,255]
+        self.drawIm()
         self.drawMask() 
-        if self.pWindow and self.pWindow.hasPlots and self.labelSelect.currentText() in self.pWindow.singleCellPopulations:
+        if self.pWindow and self.pWindow.hasSingleCellPlots():
             self.pWindow.updateSingleCellPlots()
     
     def getMotherFromLineageData(self,cell):
-        ld = self.lineageData[self.maskZ]
+        ld = self.cellData[self.maskZ].mothers
         mother = ld["mother"].iloc[cell-1]
         if pd.notna(mother):
             return (int(mother))
@@ -1692,17 +1695,24 @@ class MainWindow(QtWidgets.QMainWindow):
             for labelName, outputTup in output.items():
                 if type(outputTup[0]) == np.ndarray:
                     counter += 1
-                    ims, prob = outputTup
+                    templates = []
                     for i in [0,1]:
-                        outputTup[i][tStart:tStop+1]
+                        template = np.zeros_like(ims, dtype = outputTup[i].dtype)
+                        template[tStart:tStop+1] = outputTup[i]
+                        templates.append(template)
+                    outputTup = (templates[0], templates[1])
                     self.loadMasks(outputTup, name = f"{imName}_{labelName}")
             if params["Time Series"]:
                 idx = self.maskZ - counter
                 self.updateCellData(idx = idx)
         else:
+            templates = []
             for i in [0,1]:
-                output[i][tStart:tStop+1]
-            self.loadMasks(output, name = f"{imName}_{modelType}")
+                template = np.zeros_like(ims, dtype = output[i].dtype)
+                template[tStart:tStop+1] = output[i]
+                templates.append(template)
+            outputTup = (templates[0], templates[1])
+            self.loadMasks(outputTup, name = f"{imName}_{modelType}_{tStart}-{tStop}")
         
         self.activateButton(self.modelButton)
         self.handleFinished()
@@ -1968,8 +1978,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
         labelName = self.labelSelect.items()[self.maskZ]
         labelFileName = labelName.replace(" ", "")
-        motherdata, daughterdata = self.lineageData[self.maskZ], self.mother_daughters[self.maskZ]
         if self.hasLineageData():
+            motherdata, daughterdata = self.cellData[self.maskZ].mothers, self.cellData[self.maskZ].daughters
             fname1= join(self.imData.dirs[self.imZ], labelFileName + "_mother_daughters.csv")
             fname2 = join(self.imData.dirs[self.imZ], labelFileName + "_daughter_array.csv.csv")
             path, _ = QFileDialog.getSaveFileName(self, 
@@ -1988,7 +1998,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         labelName = self.labelSelect.items()[self.maskZ]
         labelFileName = labelName.replace(" ", "")
-        if type(self.cellData[self.maskZ]) is pd.core.frame.DataFrame:
+        if self.hasCellData():
             data = getHeatMaps(self.cellData[self.maskZ])
             defaultFileName = join(self.imData.dirs[self.imZ], labelFileName + "_heatmaps.tif")
             path, _ = QFileDialog.getSaveFileName(self, 
@@ -2044,7 +2054,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.imData.loadMultiChannel(fileIds, files)
 
     def closeEvent(self, event):
-        for thread in self.thread_workers:
+        for thread in self.threads:
             self.closeThread(thread)
         if self.pWindow:
             self.pWindow.close()
@@ -2073,14 +2083,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 maskdata["Masks"] = ["Blank"]
             otherdata = {"Channels": self.channelSelect.items(),
                         "Labels": self.labelSelect.items()}
-            celldata = {"Cells": self.cellData,
-                        "Lineages": self.lineageData,
-                        "Daughters": self.mother_daughters}
+            celldata = {"Cells": self.cellData}
             i = 0
             for item in self.cellData:
-                if type(item) is pd.core.frame.DataFrame or type(item) is np.ndarray:
+                if isinstance(item, TimeSeriesData):
                     i+=1
-            print("Saving ", i, "valid dataframes")
+            print("Saving ", i, "valid cell data objects")
             data =  imdata | maskdata | otherdata | celldata
 
             try:

@@ -8,6 +8,7 @@ from yeastvision.models.artilife.budSeg.model import BudSeg
 from skimage.measure import label
 from skimage.morphology import remove_small_objects
 from yeastvision.track.track import trackYeasts
+from yeastvision.track.mat import get_mating_data
 from yeastvision.track.cell import Cell, getBirthFrame, getCellData, getDeathFrame, getLifeData
 from yeastvision.models.utils import normalizeIm, produce_weight_path
 
@@ -89,8 +90,8 @@ class Artilife(CustomCPWrapper):
         self.matprobs = np.array(self.processProbability(self.matprobs), dtype = np.uint8)
         
         if self.params["Time Series"]:
-            newMatMasks, newMasks = track_obj([im[:,:,0] for im in ims[matSlice]], self.masks[matSlice], self.matMasks[matSlice], True)
             matSlice = slice(int(self.params["matStart"]), int(self.params["matStop"])-1)
+            newMatMasks, newMasks = get_mating_data(self.matMasks[matSlice], self.masks[matSlice])
         else:
             newMasks = []
             for matMask, cellMask in zip(self.matMasks, self.masks):
@@ -139,7 +140,7 @@ class Artilife(CustomCPWrapper):
         imsPadded = np.array([np.pad(im, 25, mode = "symmetric") for im in ims], dtype = np.uint16)
         masksPadded = np.array([np.pad(mask, 25) for mask in newMasks], dtype = np.uint16)
         
-        for val in cellData.index:
+        for val in range(len(cellData["birth"])):
             cellVal = int(val)+1
             if cellVal>0:
                 birthFrame = cellData["birth"][cellVal-1]
@@ -190,6 +191,7 @@ class Artilife(CustomCPWrapper):
             model.masks = trackYeasts(model.masks)
             cellData = getLifeData(model.masks)
             model.addSmallCells(ims, cellData)
+            model.masks = trackYeasts(model.masks)
 
         if model.matSeg:
             print('add mating cell')

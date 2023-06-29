@@ -7,25 +7,39 @@ from yeastvision.track.cell import getBirthFrame, getLifeData
 import matplotlib.pyplot as plt 
 from yeastvision.track.utils import normalize_dict_by_sum
 from tqdm import tqdm
+from skimage.morphology import skeletonize
 
 def count_objects(labeledMask):
     return np.count_nonzero(np.unique(labeledMask))
 
+def get_daughters(tree, cell):
+    potentialDaughters = tree[cell-1]
+    daughters = list(np.where(potentialDaughters)[0]+1)
+    return daughters
 
-class LineageData():
-    def __init__(self):
-        self.mothers = None
-        self.daughters = None
-        self.gametes = None
-        self.tetrads = None
-        self.data = None
-        self.populations = None
+def has_daughters(tree, cell):
+    return np.any(tree[cell-1,:])   
+
     
-    def getLineages(self, cells, buds):
-        pass
+def get_generations(tree, initial_generation):
+    generations = [[]]
+    for val in initial_generation:
+        generations[0].append(val)
+        get_generations_recur(tree, 1, generations, 0, val)
+    print(generations)
+    return generations
 
-    def getGametes(self, cells, mating):
-        pass
+def get_generations_recur(tree, generation, generations, max_generation, cell):
+    if not has_daughters(tree, cell):
+        return 
+    
+    daughters = get_daughters(tree, cell)
+    if generation>=len(generations):
+        generations.append([])
+        max_generation = generation
+    for daughter in daughters:
+        generations[generation].append(daughter)
+        get_generations_recur(tree, generation+1, generations, max_generation, daughter)
 
 def get_gametes(skeleton, cyto, idx):
     found_gametes = False
@@ -66,7 +80,7 @@ def compute_mating_lineage(tracked, cyto):
     numCells = np.count_nonzero(matingCells)
     
     print("computing lineages for", numCells, "cells")
-    gamete_dict = {"cell":cellVals,
+    gamete_dict = {
                   "gamete1":[],
                     "gamete2":[],
                     "isMating":[],
@@ -88,11 +102,7 @@ def compute_mating_lineage(tracked, cyto):
         gamete_dict["isMating"].append(isMating)
         gamete_dict["foundGametes"].append(found_gametes)
     
-    return gamete_dict
-
-gamete_dict = compute_mating_lineage(tracked, merged)
-    
-    
+    return pd.DataFrame.from_dict(gamete_dict)
 
 class LineageConstruction():
     def __init__(self, segMasks, budMasks = None, backskip = 0, forwardskip = 0):
@@ -181,7 +191,7 @@ class LineageConstruction():
         motherDF = pd.DataFrame.from_dict(motherDict)
         #daughterDF = pd.DataFrame(data = daughterArray, index = cellVals, columns=cellVals)
         #motherDF = motherDF.set_index("cell")
-        return daughterArray, motherDF[["cell", "birth", "death", "mother", "confidence"]]
+        return daughterArray, motherDF[["birth", "death", "mother", "confidence"]]
     
     def getMother(self, cellNum):
         '''

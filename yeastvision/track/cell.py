@@ -2,7 +2,7 @@ from skimage.measure import regionprops, regionprops_table
 from skimage.measure import shannon_entropy as shentr
 import numpy as np
 import pandas as pd
-from yeastvision.track.utils import normalize_im
+from yeastvision.utils import normalize_im
 from tqdm import tqdm
 
 class Cell():
@@ -35,12 +35,12 @@ def concentration(label, intensity_im):
     return intensity_total(label, intensity_im)/np.sum(label)
 
 LABEL_PROPS = ["area", "eccentricity", "label", ]
-IM_PROPS = ["intensity_max", "intensity_min", "intensity_mean", ]
-EXTRA_IM_PROPS = [median, var, intensity_total, concentration, entropy]
+IM_PROPS = ["intensity_mean"]
+EXTRA_IM_PROPS = [ var, intensity_total, concentration]
 
 def getLifeData(labels):
     lifeData = {"birth":[], "death":[]}
-    for val in np.unique(labels)[1:]:
+    for val in tqdm(np.unique(labels)[1:]):
         lifeData["birth"].append(getBirthFrame(labels, val))
         lifeData["death"].append(getDeathFrame(labels, val))
     return lifeData
@@ -87,7 +87,7 @@ def getCellData(labels, intensity_ims = None, intensity_im_names = None):
     total_data = {"labels": total_labels} # dictionary storing cell data, to be converted to pd.df
     
     # add birth and death data
-    total_data = total_data | getLifeData(labels)
+    total_data = total_data #| getLifeData(labels)
 
     # determine whether or not to include image properties in call to regionprops_table
     if intensity_ims:
@@ -116,15 +116,15 @@ def getCellData(labels, intensity_ims = None, intensity_im_names = None):
         for label in total_labels:
             if label not in im_data["label"]:
                 for property in im_data:
-                    vals = [round(val, 3) for val in list(im_data[property])]
+                    vals = [round(val, 3) if val is not None else None for val in list(im_data[property])]
                     im_data[property] = vals
 
                     if property != "label":
                         # prevent index out of bound error
                         if label-1 < len(im_data[property]):
-                            im_data[property][label-1] = 0
+                            im_data[property][label-1] = None
                         else:
-                            im_data[property].append(0)
+                            im_data[property].append(None)
         
         for property in im_data:
             if property != "label":
@@ -136,24 +136,40 @@ def getCellData(labels, intensity_ims = None, intensity_im_names = None):
         
     if intensity_im_names:
         for property in im_data:
-            if "-" in property:
-                parts = property.split("-")
-                name, index = parts[0], int(parts[1])
-                newPropertyName = "-".join([name, intensity_im_names[index]])
+            isImProp = False
+            for prop in IM_PROPS+EXTRA_IM_PROPS:
+                try:
+                    prop = prop.__name__
+                except AttributeError:
+                    prop = str(prop)
+
+                if prop in property:
+                    isImProp = True
+                    break
+            if isImProp:
+                if "-" in property:
+                    idx = int(property.split("-")[-1])-1
+                else:
+                    idx = 0
+                newPropertyName = "-".join([intensity_im_names[idx], prop])
                 total_data[newPropertyName] = total_data[property]
                 del total_data[property]
+
+
+                
+
     
-    # get population average for each property
-    for property in total_data:
-        if property not in ["labels", "birth", "death"]:
-            property_array = np.array(total_data[property], dtype = np.float32) # rows are cells (axis 0), columns are time (axis 1)
-            property_array[property_array == 0.0] = np.nan
-            total_data[property].append(list(np.nanmean(property_array, axis = 0)))
-        elif property == "labels":
-            total_data["labels"] = list(total_data["labels"])
-            total_data["labels"].append("population")
-        else:
-            total_data[property].append(0)
+    # # get population average for each property
+    # for property in total_data:
+    #     if property not in ["labels", "birth", "death"]:
+    #         property_array = np.array(total_data[property], dtype = np.float32) # rows are cells (axis 0), columns are time (axis 1)
+    #         property_array[property_array == 0.0] = np.nan
+    #         total_data[property].append(list(np.nanmean(property_array, axis = 0)))
+    #     elif property == "labels":
+    #         total_data["labels"] = list(total_data["labels"])
+    #         total_data["labels"].append("population")
+    #     else:
+    #         total_data[property].append(0)
 
     df = pd.DataFrame.from_dict(total_data)
     return df

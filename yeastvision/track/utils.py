@@ -56,31 +56,6 @@ def get_bbox_coords(bool_im, cell_margin = 20):
     bbox = slice(max([0, r-cell_margin]), min([r_size, r+cell_margin])), slice(max([0, c-cell_margin]), min([c_size, c+cell_margin]))
     return bbox
 
-def normalize_im(im, clip = True):
-    """
-    Normalizes a given image such that the values range between 0 and 1.     
-    
-    Parameters
-    ---------- 
-    im : 2d-array
-        Image to be normalized.
-    clip: boolean
-        Whether or not to set im values <0 to 0
-        
-    Returns
-    -------
-    im_norm: 2d-array
-        Normalized image ranging from 0.0 to 1.0. Note that this is now
-        a floating point image and not an unsigned integer array. 
-    """ 
-    assert not np.any(np.isnan(im))
-    if clip:
-        im[im<0] = 0
-    if im.max()==0:
-        return im.astype(np.float32)
-    im_norm = (im - im.min()) / (im.max() - im.min())
-    return im_norm.astype(np.float32)
-
 def avg_cell_size(Matmasks,nu,no_obj):
     avg = [[[] for _ in range(nu)] for _ in range(no_obj.astype(int)+1)]
     avg_cell = [0]*no_obj.astype(int)

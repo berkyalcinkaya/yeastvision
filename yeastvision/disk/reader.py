@@ -27,7 +27,7 @@ def loadPkl(path, parent):
         parent.loadImages(ims[i], name = names[i])
 
     masks, contours,labels = data["Masks"], data["Contours"], data["Labels"]
-    cellData, lineageData, daughterData = data['Cells'], data["Lineages"], data["Daughters"]
+    cellData = data['Cells']
     for i in range(len(masks)):
         maskStack = masks[i]
         hasFloats = maskStack.shape[0]>1
@@ -38,8 +38,6 @@ def loadPkl(path, parent):
         parent.loadMasks(currMask, name = labels[i], contours = contours[i])
 
         parent.cellData[-1] = (cellData[i])
-        parent.lineageData[-1] = (lineageData[i])
-        parent.mother_daughters[-1] = daughterData[i]
     parent.checkDataAvailibility()
     parent.saveData()
 

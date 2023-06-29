@@ -9,7 +9,8 @@ from skimage.measure import regionprops, label
 from tqdm import tqdm
 
 def get_mating_data(mating, cells):
-    pass
+    mating_tracks = correct_mat_tracks(track_mating(mating))
+    return merge(cells, mating_tracks)
 
 
 def track_mating(mating_masks, visualize = False):
@@ -371,7 +372,7 @@ def merge(full_masks, Matmasks, visualize = False):
     numbM = Matmasks[0].shape[0]
     no_obj = np.max(Matmasks[0, numbM-1, :, :])
     MATC = [[[] for _ in range(numbM)] for _ in range(1)]
-    new_tracks = np.zeros_like(Matmasks[0])
+    new_tracks = np.zeros_like(Matmasks)
     print("Merging mating cells into cell mask")
     print("\t Loop 1/1")
     for cxell in tqdm(range(1,no_obj.astype(int)+1)):
@@ -464,12 +465,8 @@ def merge(full_masks, Matmasks, visualize = False):
                     plt.imshow(I2==np.max(I2))
                     plt.title('cxell: ' + str(cxell) + ', im_no: ' + str(im_no))
                     plt.show()
-    
-    # correct for length
     MATC[0].append(MATC[0][-1])
-    new_tracks_template= np.zeros((new_tracks.shape[0]+1, new_tracks.shape[1], new_tracks.shape[2]), dtype=np.uint16)
-    new_tracks_template[0:new_tracks.shape[0]] = new_tracks
-    new_tracks_template[-1] = new_tracks[-1]
-    return np.array(MATC[0], dtype = np.uint16), new_tracks_template
-
+    new_tracks = list(new_tracks)
+    new_tracks.append(new_tracks[-1])
+    return np.array(MATC[0], dtype = np.uint16), np.array(new_tracks, dtype = np.uint16)
 
