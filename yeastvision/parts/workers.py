@@ -31,43 +31,65 @@ import pandas as pd
 import yeastvision.plot.plot as plot
 from yeastvision.flou.blob_detect import Blob
 from yeastvision.utils import *
-import yeastvision.ims as im_funcs
+import yeastvision.ims.im_funcs as im_funcs
 import math
 import pickle
 from skimage.io import imread, imsave
 from cellpose.metrics import average_precision
 from tqdm import tqdm
+import time
+from PyQt5.QtCore import Qt, QThread, QMutex
 
 
 class SegmentWorker(QtCore.QObject):
     '''Handles Multithreading'''
     finished = QtCore.pyqtSignal(object, object, object, object, object, object)
-    def __init__(self, parent):
+    def __init__(self, modelClass,ims, params, weightPath, modelType):
         super(SegmentWorker,self).__init__()
-        self.parent = parent
-    
-    def run(self, modelClass,ims, params, weightPath, modelType):
-        row, col = ims[0].shape
-        newImTemplate = np.zeros((len(ims), row, col))
-        tStart, tStop = int(params["T Start"]), int(params["T Stop"])
+        self.mc = modelClass
+        self.ims = ims
+        self.params = params
+        self.weight = weightPath
+        self.mType = modelType
 
-        output = modelClass.run(ims[tStart:tStop+1],params, weightPath)
-        self.finished.emit(output, modelClass,newImTemplate, params, weightPath, modelType)
+    def run(self):
+        row, col = self.ims[0].shape
+        newImTemplate = np.zeros((len(self.ims), row, col))
+        tStart, tStop = int(self.params["T Start"]), int(self.params["T Stop"])
+
+        output = self.mc.run(self.ims[tStart:tStop+1],self.params, self.weight)
+        self.finished.emit(output, self.mc,newImTemplate, self.params, self.weight, self.mType)
 
 class TrackWorker(QtCore.QObject):
     finished = QtCore.pyqtSignal(object, object)
 
-    def __init__(self, parent, func, z):
+    def __init__(self, func, cells, z, obj = None):
         super(TrackWorker,self).__init__()
-        self.parent = parent
         self.trackfunc = func
         self.z = z
+        self.cells = cells
+        self.obj = obj
     
     def run(self):
-        self.finished.emit(self.z, self.trackfunc())
+        if self.obj is not None:
+            out =  self.trackfunc(self.obj, self.cells)
+        else:
+            out = self.trackfunc(self.cells)
+        self.finished.emit(self.z,out)
 
-# class ImageWorker(QtCore.QObject):
+class InterpolationWorker(QtCore.QObject):
+    finished = QtCore.pyqtSignal(object, object, object, object)
 
-#     finished = QtCore.pyqtSignal(object, object)
+    def __init__(self, ims, files, newname, func, outdtype, *args):
+        super(InterpolationWorker, self).__init__()
+        self.ims = ims
+        self.files = files
+        self.name = newname
+        self.func = func
+        self.funcargs = args
+        self.outtype = outdtype
 
-#     def __init__(self, parent, func, z):
+    def run(self):
+        out = self.func(self.ims, *self.funcargs)
+        self.finished.emit(out, self.files, self.name, self.outtype)
+

@@ -9,6 +9,94 @@ import pandas as pd
 from tqdm import tqdm
 from os.path import splitext, basename
 
+def get_channels_from_dir(dir, num_channels):
+    '''Loads images seperately by channel 
+    
+    Parameters
+    ----------
+    
+    dir: string 
+        The directory from which to load each set of channels. All files should be image files and should be named such that the first num_chhanels images below to distinct channel groups
+    
+    num_channels: int
+        Number of channels to load
+        
+    Returns
+    -------
+    
+    channels: a 4d Ndarray np.uint16 whose last dimension is the channels
+        Loaded image data. Has shape (num_ims/num_channels, test_im.shape[0], test_im.shape[1], num_channels)
+    
+    files: list[list[string]]
+        nested list structure containing all filepaths 
+    
+    names: list[string]
+        list of length num_channels of channel id strings obtained by splitting all letters after the last _ in filenames'''
+
+    all_files = sorted(glob.glob(os.path.join(dir, "*")))
+    num_ims = len(all_files)
+
+    if num_ims % num_channels != 0:
+        raise IndexError
+
+    test_im = imread(all_files[0])
+    im_shape = (num_ims/num_channels, test_im.shape[0], test_im.shape[1], num_channels)
+    channels = np.zeros(im_shape)
+    files = [[]*num_channels]
+    names = []
+    
+    for i in range(num_channels):
+        names.append(all_files[i].split("_")[-1])
+        for n in range(i,num_ims, num_channels):
+            channels[n,:,:,i] = imread(all_files[n])
+            files[i].append(all_files[n])
+
+    return channels, files, names
+
+def get_channel_files_from_dir(dir, num_channels):
+    '''Loads images seperately by channel 
+    
+    Parameters
+    ----------
+    
+    dir: string 
+        The directory from which to load each set of channels. All files should be image files and should be named such that the first num_chhanels images below to distinct channel groups
+    
+    num_channels: int
+        Number of channels to load
+        
+    Returns
+    -------
+    
+    channels: a 4d Ndarray np.uint16 whose last dimension is the channels
+        Loaded image data. Has shape (num_ims/num_channels, test_im.shape[0], test_im.shape[1], num_channels)
+    
+    files: list[list[string]]
+        nested list structure containing all filepaths 
+    
+    names: list[string]
+        list of length num_channels of channel id strings obtained by splitting all letters after the last _ in filenames'''
+
+    all_files = sorted(glob.glob(os.path.join(dir, "*")))
+    num_ims = len(all_files)
+
+    if num_ims % num_channels != 0:
+        raise IndexError
+
+    test_im = imread(all_files[0])
+    files = [[]*num_channels]
+    names = []
+    
+    for i in range(num_channels):
+        names.append(all_files[i].split("_")[-1])
+        for n in range(i,num_ims, num_channels):
+            files[i].append(all_files[n])
+
+    return files, names
+    
+
+
+
 def loadPkl(path, parent):
     '''data keys
     [Images, Saturation, Masks, Contours, Channels, Labels, Cells, Lineages]

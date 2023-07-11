@@ -1,10 +1,21 @@
 from PyQt5 import QtGui, QtCore
-
 from PyQt5.QtGui import QPainter
-from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton, QDialog,
-                            QDialogButtonBox, QLineEdit, QFormLayout, QCheckBox,  QSpinBox, QLabel, 
-                            QWidget, QComboBox, QGridLayout, QHBoxLayout)
+from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame)
 from PyQt5.QtCore import Qt
+
+
+class QHLine(QFrame):
+    def __init__(self):
+        super(QHLine, self).__init__()
+        self.setFrameShape(QFrame.HLine)
+        self.setFrameShadow(QFrame.Sunken)
+
+
+class QVLine(QFrame):
+    def __init__(self):
+        super(QVLine, self).__init__()
+        self.setFrameShape(QFrame.VLine)
+        self.setFrameShadow(QFrame.Sunken)
 
 
 class ReadOnlyCheckBox(QCheckBox):

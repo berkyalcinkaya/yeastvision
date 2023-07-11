@@ -8,13 +8,13 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import (QApplication, QStyle, QMainWindow, QGroupBox, QPushButton, QDialog,
                             QDialogButtonBox, QLineEdit, QFormLayout, QMessageBox,QErrorMessage, QStatusBar, 
                              QFileDialog, QVBoxLayout, QCheckBox, QFrame, QSpinBox, QLabel, QWidget, QComboBox, QSizePolicy, QGridLayout)
-from PyQt5.QtCore import Qt, QThread
+from PyQt5.QtCore import Qt, QThread, QMutex, pyqtSignal
 import pyqtgraph as pg
 import numpy as np
 import matplotlib.pyplot as plt
 from yeastvision.parts.canvas import ImageDraw, ViewBoxNoRightDrag
 from yeastvision.parts.guiparts import *
-from yeastvision.parts.workers import SegmentWorker, TrackWorker
+from yeastvision.parts.workers import SegmentWorker, TrackWorker, InterpolationWorker
 from yeastvision.parts.dialogs import *
 from yeastvision.track.track import track_to_cell, trackYeasts
 from yeastvision.track.data import LineageData, TimeSeriesData
@@ -32,50 +32,22 @@ import pandas as pd
 import yeastvision.plot.plot as plot
 from yeastvision.flou.blob_detect import Blob
 from yeastvision.utils import *
-import yeastvision.ims as im_funcs
+import yeastvision.ims.im_funcs as im_funcs
+from yeastvision.ims.interpolate import interpolate
 import math
 import pickle
 from skimage.io import imread, imsave
 from cellpose.metrics import average_precision
 from tqdm import tqdm
+from memory_profiler import profile
+from functools import partial
 
-class QHLine(QFrame):
-    def __init__(self):
-        super(QHLine, self).__init__()
-        self.setFrameShape(QFrame.HLine)
-        self.setFrameShadow(QFrame.Sunken)
-
-
-class QVLine(QFrame):
-    def __init__(self):
-        super(QVLine, self).__init__()
-        self.setFrameShape(QFrame.VLine)
-        self.setFrameShadow(QFrame.Sunken)
-
-
-class Worker(QtCore.QObject):
-    '''Handles Multithreading'''
-    finished = QtCore.pyqtSignal()
-    def __init__(self, parent, process, button = None):
-        super(Worker,self).__init__()
-        self.parent = parent
-        self.process = process
-        self.button = button
-        self.error = False
-        
-    def run(self):
-        #try:
-        self.process()
-        self.finished.emit()
-        # except:
-        #     self.error = True
-        #     self.finished.emit()
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, thread, imPaths = None, labelPaths = None):
         super(MainWindow, self).__init__()
         pg.setConfigOption('imageAxisOrder', 'row-major')
-        self.setGeometry(50, 50, 1000, 1000)
+        self.setGeometry(50, 50, 1300, 1300)
         self.setAcceptDrops(True)
 
         #self.idealThreadCount  = thread.idealThreadCount()//2
@@ -114,12 +86,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.l = QGridLayout()
         self.cwidget.setLayout(self.l)
         self.setCentralWidget(self.cwidget)
-        self.l.setSpacing(3)
+        self.l.setSpacing(1)
 
         self.win = pg.GraphicsLayoutWidget()
         self.mainViewRows = 30
-        self.mainViewCols  = 19
-        self.l.addWidget(self.win, 1,0, self.mainViewRows, self.mainViewCols)
+        self.mainViewCols  = 21
+        self.l.addWidget(self.win, 0,0, self.mainViewRows, self.mainViewCols)
         self.make_viewbox()
 
         self.labelX, self.labelY = None, None
@@ -394,6 +366,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def build_widgets(self):
         rowspace = self.mainViewRows
+        cspace = 2
         self.labelstyle = """QLabel{
                             color: white
                             } 
@@ -415,7 +388,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar = QStatusBar()
         self.statusBar.setFont(self.medfont)
-
         self.statusBar.setStyleSheet(self.statusbarstyle)
         self.setStatusBar(self.statusBar)
         self.gpuDisplayTorch = ReadOnlyCheckBox("gpu - torch  |  ")
@@ -447,11 +419,11 @@ class MainWindow(QtWidgets.QMainWindow):
             display.setStyleSheet(self.checkstyle)
             display.setChecked(False)
 
-        self.statusBarLayout.addWidget(self.cpuCoreDisplay, 0, 0, 1,1 )
-        self.statusBarLayout.addWidget(self.gpuDisplayTF, 0, 1, 1, 1)
-        self.statusBarLayout.addWidget(self.gpuDisplayTorch, 0, 2, 1, 1)
-        self.statusBarLayout.addWidget(self.hasLineageBox, 0,3,1,1)
-        self.statusBarLayout.addWidget(self.hasCellDataBox,0,4,1,1)
+        self.statusBarLayout.addWidget(self.cpuCoreDisplay, 0, 1, 1,1, alignment=(QtCore.Qt.AlignCenter))
+        self.statusBarLayout.addWidget(self.gpuDisplayTF, 0, 2, 1, 1)
+        self.statusBarLayout.addWidget(self.gpuDisplayTorch, 0, 3, 1, 1)
+        self.statusBarLayout.addWidget(self.hasLineageBox, 0,4,1,1)
+        self.statusBarLayout.addWidget(self.hasCellDataBox,0,5,1,1)
         self.statusBar.addPermanentWidget(self.statusBarWidget)
         
         self.dataDisplay = QLabel("")
@@ -461,17 +433,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dataDisplay.setFont(self.smallfont)
         self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         self.updateDataDisplay()
-        self.l.addWidget(self.dataDisplay, rowspace-1,0,1,20)
+        self.l.addWidget(self.dataDisplay, rowspace-1,cspace+1,1,20)
 
         label = QLabel('Drawing:')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
         label.setFont(self.boldfont)
-        self.l.addWidget(label, rowspace,0,1,5)
+        self.l.addWidget(label, rowspace,1,1,5)
 
         label = QLabel("Brush Type:")
         label.setStyleSheet(self.labelstyle)
         label.setFont(self.medfont)
-        self.l.addWidget(label,rowspace+1,0,1,2)
+        self.l.addWidget(label,rowspace+1,1,1,2)
         self.brushTypeSelect = QComboBox()
         self.brushTypeSelect.addItems(["Eraser", "Brush", "Outline"])
         self.brushTypeSelect.setCurrentIndex(-1)
@@ -483,13 +455,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.brushTypeSelect.setEnabled(False)
         self.brushTypeSelect.setFixedWidth(90)
         self.brushTypeSelect.setEnabled(False)
-        self.l.addWidget(self.brushTypeSelect, rowspace+1,2,1,1)
+        self.l.addWidget(self.brushTypeSelect, rowspace+1,3,1,1)
 
         
         label = QLabel("Brush Size")
         label.setStyleSheet(self.labelstyle)
         label.setFont(self.medfont)
-        self.l.addWidget(label, rowspace+2,0,1,2)
+        self.l.addWidget(label, rowspace+2,1,1,2)
         self.brush_size = 3
         self.brushSelect = QSpinBox()
         self.brushSelect.setMinimum(1)
@@ -501,78 +473,86 @@ class MainWindow(QtWidgets.QMainWindow):
         edit = self.brushSelect.lineEdit()
         edit.setFocusPolicy(QtCore.Qt.NoFocus)
         self.brushSelect.setEnabled(False)
-        self.l.addWidget(self.brushSelect, rowspace+2,2,1,1)
+        self.l.addWidget(self.brushSelect, rowspace+2,3,1,1)
 
         line = QVLine()
         line.setStyleSheet('color:white;')
-        self.l.addWidget(line, rowspace,3,6,1)
+        self.l.addWidget(line, rowspace,4,6,1)
 
         label = QLabel('Tracking')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
         label.setFont(self.boldfont)
-        self.l.addWidget(label, rowspace,4,1,4)
+        self.l.addWidget(label, rowspace,5,1,4)
 
         self.cellNumButton = QCheckBox("cell nums")
         self.cellNumButton.setStyleSheet(self.checkstyle)
         self.cellNumButton.setFont(self.medfont)
         self.cellNumButton.stateChanged.connect(self.toggleCellNums)
         self.cellNumButton.setEnabled(False)
-        self.l.addWidget(self.cellNumButton, rowspace+1, 4, 1,2)
+        self.l.addWidget(self.cellNumButton, rowspace+1, 5, 1,2)
 
         self.showLineageButton = QCheckBox("lineages")
         self.showLineageButton.setStyleSheet(self.checkstyle)
         self.showLineageButton.setFont(self.medfont)
         self.showLineageButton.stateChanged.connect(self.toggleLineages)
         self.showLineageButton.setEnabled(False)
-        self.l.addWidget(self.showLineageButton, rowspace+1, 6, 1,2)
+        self.l.addWidget(self.showLineageButton, rowspace+1, 7, 1,2)
 
         self.trackButton = QPushButton('track cells')
-        self.trackButton.setFixedWidth(90)
-        self.trackButton.setFixedHeight(20)
+        #self.trackButton.setFixedWidth(90)
+        #self.trackButton.setFixedHeight(20)
         self.trackButton.setStyleSheet(self.styleInactive)
         self.trackButton.setFont(self.medfont)
         self.trackButton.clicked.connect(self.trackButtonClick)
         self.trackButton.setEnabled(False)
         self.trackButton.setToolTip("Track current cell labels")
-        self.l.addWidget(self.trackButton, rowspace+2, 4,1,2)
+        self.l.addWidget(self.trackButton, rowspace+2, 5,1,2)
 
         self.trackObjButton = QPushButton('track to cell')
-        self.trackObjButton.setFixedWidth(90)
-        self.trackObjButton.setFixedHeight(20)
+        #self.trackObjButton.setFixedWidth(90)
+        #self.trackObjButton.setFixedHeight(20)
         self.trackObjButton.setFont(self.medfont)
         self.trackObjButton.setStyleSheet(self.styleInactive)
         self.trackObjButton.clicked.connect(self.trackObjButtonClick)
         self.trackObjButton.setEnabled(False)
         self.trackObjButton.setToolTip("Track current non-cytoplasmic label to a cellular label")
-        self.l.addWidget(self.trackObjButton, rowspace+2, 6,1,2)
+        self.l.addWidget(self.trackObjButton, rowspace+2, 7,1,2)
 
         self.lineageButton = QPushButton("get lineages")
         self.lineageButton.setStyleSheet(self.styleInactive)
-        self.lineageButton.setFixedWidth(90)
-        self.lineageButton.setFixedHeight(18)
+        #self.lineageButton.setFixedWidth(90)
+        #self.lineageButton.setFixedHeight(18)
         self.lineageButton.setFont(self.medfont)
         self.lineageButton.setToolTip("Use current budNET mask to assign lineages to a cellular label")
         self.lineageButton.setEnabled(False)
         self.showMotherDaughters = False
         self.showLineages = False
         self.lineageButton.clicked.connect(self.getLineages)
-        self.l.addWidget(self.lineageButton, rowspace+3, 4,1,2, Qt.AlignBottom)
+        self.l.addWidget(self.lineageButton, rowspace+3, 5,1,2, Qt.AlignBottom)
 
         self.showMotherDaughtersButton = QCheckBox("mother-daughters")
         self.showMotherDaughtersButton.setStyleSheet(self.checkstyle)
         self.showMotherDaughtersButton.setFont(self.medfont)
         self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
         self.showMotherDaughtersButton.setEnabled(False)
-        self.l.addWidget(self.showMotherDaughtersButton, rowspace+3, 6, 1,2)
+        self.l.addWidget(self.showMotherDaughtersButton, rowspace+3, 7, 1,2)
+
+        self.interpolateButton = QPushButton("Enhance Tracking Through Frame Interpolation")
+        self.interpolateButton.setStyleSheet(self.styleInactive)
+        self.interpolateButton.setFont(self.medfont)
+        self.interpolateButton.setEnabled(False)
+        self.interpolateButton.clicked.connect(self.interpolateButtonClicked)
+        self.l.addWidget(self.interpolateButton, rowspace+4, 5,1,4)
+
 
         line = QVLine()
         line.setStyleSheet('color:white;')
-        self.l.addWidget(line, rowspace,8,6,1)
+        self.l.addWidget(line, rowspace,9,6,1)
     
         label = QLabel('Segmentation')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
         label.setFont(self.boldfont)
-        self.l.addWidget(label, rowspace,9,1,5)
+        self.l.addWidget(label, rowspace,10,1,5)
         
         #----------UNETS-----------
         self.GB = QGroupBox("Unets")
@@ -585,7 +565,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelChoose = QComboBox()
         self.modelChoose.addItems(sorted(self.modelNames, key = lambda x: x[0]))
             #self.modelChoose.setItemChecked(i, False)
-        self.modelChoose.setFixedWidth(180)
+        #self.modelChoose.setFixedWidth(180)
         self.modelChoose.setStyleSheet(self.dropdowns)
         self.modelChoose.setFont(self.medfont)
         self.modelChoose.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -597,25 +577,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.GBLayout.addWidget(self.modelButton, 0,7,1,2)
         self.modelButton.setEnabled(False)
         self.modelButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.GB, rowspace+1,9,3,5, Qt.AlignTop | Qt.AlignHCenter)
+        self.l.addWidget(self.GB, rowspace+1,10,3,5, Qt.AlignTop | Qt.AlignHCenter)
 
         #------Flourescence Segmentation -----------pp-p-
         self.segButton = QPushButton(u'blob detection')
         self.segButton.setEnabled(False)
         self.segButton.clicked.connect(self.doFlou)
         self.segButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.segButton, rowspace+1+3,9,3,5, Qt.AlignTop | Qt.AlignLeft)
+        self.l.addWidget(self.segButton, rowspace+1+2,10,3,5, Qt.AlignTop | Qt.AlignLeft)
 
-        #-----------------------------------------------
+        #----------------------------------s-------------
 
         line = QVLine()
         line.setStyleSheet('color:white;')
-        self.l.addWidget(line, rowspace,14,6,1)
+        self.l.addWidget(line, rowspace,15,6,1)
 
         label = QLabel('Display')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
         label.setFont(self.boldfont)
-        self.l.addWidget(label, rowspace,15,1,5)
+        self.l.addWidget(label, rowspace,16,1,5)
 
         self.contourButton = QCheckBox("Show Contours")
         self.contourButton.setStyleSheet(self.checkstyle)
@@ -623,14 +603,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.contourButton.stateChanged.connect(self.toggleContours)
         self.contourButton.setShortcut(QtCore.Qt.Key_C)
         self.contourButton.setEnabled(False)
-        self.l.addWidget(self.contourButton, rowspace+1, 15,1,2)
+        self.l.addWidget(self.contourButton, rowspace+1, 16,1,2)
 
         self.plotButton = QCheckBox("Show Plot Window")
         self.plotButton.setStyleSheet(self.checkstyle)
         self.plotButton.setFont(self.medfont)
         self.plotButton.stateChanged.connect(self.togglePlotWindow)
         self.plotButton.setShortcut(QtCore.Qt.Key_P)
-        self.l.addWidget(self.plotButton, rowspace+1, 17, 1,2)
+        self.l.addWidget(self.plotButton, rowspace+1, 18, 1,2)
 
         self.channelSelect = QComboBox()
         self.channelSelect.setStyleSheet(self.dropdowns)
@@ -639,9 +619,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.currentIndexChanged.connect(self.channelSelectIndexChange)
         self.channelSelect.setEditable(True)
         self.channelSelect.editTextChanged.connect(self.channelSelectEdit)
-        self.channelSelect.setFixedWidth(120)
-        self.l.addWidget(self.channelSelect, rowspace+2,15,1,2)
+        self.channelSelect.setEnabled(False)
+        self.l.addWidget(self.channelSelect, rowspace+2,16,1,2)
         self.l.setAlignment(self.channelSelect, QtCore.Qt.AlignLeft)
+        self.channelSelect.setMinimumWidth(200)
+        self.channelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.channelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         setattr(self.channelSelect, "items", lambda: [self.channelSelect.itemText(i) for i in range(self.channelSelect.count())])
 
         self.labelSelect = QComboBox()
@@ -651,13 +634,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.labelSelect.currentIndexChanged.connect(self.labelSelectIndexChange)
         self.labelSelect.setEditable(True)
         self.labelSelect.editTextChanged.connect(self.labelSelectEdit)
-        self.labelSelect.setFixedWidth(120)
+        self.labelSelect.setMinimumWidth(200)
         self.labelSelect.setEnabled(False)
-        self.l.addWidget(self.labelSelect, rowspace+2,17,1,2)
+        
+        self.l.addWidget(self.labelSelect, rowspace+2,18,1,2)
         self.l.setAlignment(self.labelSelect, QtCore.Qt.AlignLeft)
         setattr(self.labelSelect, "items", lambda: [self.labelSelect.itemText(i) for i in range(self.labelSelect.count())])
+        self.labelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.labelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 
-        self.maskTypeSelect  = MaskTypeButtons(parent=self, row = rowspace+3, col = 15)
+        self.maskTypeSelect  = MaskTypeButtons(parent=self, row = rowspace+3, col = 16)
 
         # self.autoSaturationButton = QPushButton("Auto")
         # self.autoSaturationButton.setFixedWidth(45)
@@ -675,6 +661,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.saturationSlider.setFocusPolicy(QtCore.Qt.NoFocus)
         # self.saturationSlider.setEnabled(False)
         # self.l.addWidget(self.saturationSlider, rowspace+4, 22,1,3)
+        for i in range(self.mainViewRows):
+            self.l.setRowStretch(i, 10)
+
+        self.l.setColumnStretch(21,2)
+        self.l.setColumnStretch(0,2)
     
     def updateThreadDisplay(self):
         threadCount = len(self.threads)+1
@@ -702,6 +693,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelButton.setStyleSheet(self.styleUnpressed)
         self.segButton.setEnabled(True)
         self.segButton.setStyleSheet(self.styleUnpressed)
+        self.interpolateButton.setEnabled(True)
+        self.interpolateButton.setStyleSheet(self.styleUnpressed)
+        self.channelSelect.setEnabled(True)
     
     def toggleDrawing(self,b):
         if b:
@@ -787,34 +781,30 @@ class MainWindow(QtWidgets.QMainWindow):
             self.deactivateButton(self.trackObjButton)
             data = dlg.getData()
 
+
             cellIdx = self.labelSelect.findText(data["Cytoplasm Label"])
             cells = self.maskData.channels[cellIdx][0, :, :,:].copy()
             obj = self.maskData.channels[self.maskZ][0, :, :,:].copy()
 
-            task = lambda: track_to_cell(obj, cells)
-            worker = TrackWorker(self, task, cellIdx)            
-            self.runLongTask(worker, worker.run, self.trackObjFinished, self.trackObjButton)
+            task = partial(track_to_cell, obj, cells)
+            worker = TrackWorker(task, cells, cellIdx, obj)            
+            self.runLongTask(worker,self.trackObjFinished, self.trackObjButton)
 
         else:
             return
     
     def trackObjFinished(self, tracked, z):
-        self.activateButton(self.trackObjButton)
         self.maskData.channels[z][0,:,:,:] = tracked
         contours = self.getCurrContourSet()
         newContours = tracked.copy()
         newContours[np.logical_not(contours>0)] = 0
         self.maskData.contours[z] = newContours
         self.updateCellData(idx = z)
-        self.handleFinished()
         self.maskZ = z
         self.drawMask()
     
     def trackFinished(self, z, tracked):
-        self.activateButton(self.trackButton)
-        self.handleFinished()
 
-        print(type(tracked))
         if isinstance(tracked, np.ndarray):
             self.maskData.channels[z][0,:,:,:] = tracked
             contours = self.getCurrContourSet()
@@ -827,13 +817,13 @@ class MainWindow(QtWidgets.QMainWindow):
         
 
     def trackButtonClick(self):
-        self.deactivateButton(self.trackButton)
 
         idxToTrack = self.maskZ
         cells = self.getCurrMaskSet().copy()
-        task = lambda: trackYeasts(cells)
-        worker = TrackWorker(self, task, idxToTrack)            
-        self.runLongTask(worker, worker.run, self.trackFinished, self.trackButton)
+        task = trackYeasts
+        worker = TrackWorker(task, cells, idxToTrack)     
+    
+        self.runLongTask(worker,self.trackFinished, self.trackButton)
 
         
     def updateCellData(self, idx = None):
@@ -1714,9 +1704,6 @@ class MainWindow(QtWidgets.QMainWindow):
             outputTup = (templates[0], templates[1])
             self.loadMasks(outputTup, name = f"{imName}_{modelType}_{tStart}-{tStop}")
         
-        self.activateButton(self.modelButton)
-        self.handleFinished()
-        
     def evaluate(self):
         if not self.maskLoaded:
             return
@@ -1779,19 +1766,26 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             return potentialName
     
-    def runLongTask(self, worker, task, finished, button):
+    def runLongTask(self, worker, finished, button):
         if len(self.threads)+1>self.idealThreadCount:
             self.showError("Too Many Threads Running At This Time")
             self.activateButton(button)
             return
         
         thread = QThread()
-        self.threads.append(thread)
-        thread.started.connect(task)
+
         self.workers.append(worker)
+        self.threads.append(thread)
+
         worker.moveToThread(thread)
+        # Step 5: Connect signals and slots
+        thread.started.connect(worker.run)
         worker.finished.connect(finished)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(self.handleFinished)
         thread.start()
+        self.deactivateButton(button)
+        thread.finished.connect(lambda: self.activateButton(button))
         self.updateThreadDisplay()
 
 
@@ -1815,15 +1809,32 @@ class MainWindow(QtWidgets.QMainWindow):
             channel = params["Channel"]
             channelIndex = self.channelSelect.findText(channel)
             ims = self.imData.channels[channelIndex]
-
-            worker = SegmentWorker(self)
+            worker = SegmentWorker(modelClass,ims, params, weightPath, modelType)
             self.runLongTask(worker, 
-                             lambda: worker.run(modelClass,ims, params, weightPath, modelType),
                              self.segment,
                              self.modelButton)
+    
+    def interpolateButtonClicked(self):
+        dlg = GeneralParamDialog({"2x":False, "4x": False, "8x": False, "16x": False}, [bool,bool,bool,bool], "choose interpolation level", self)
+        if dlg.exec():
+            data = dlg.getData()
+            exp = None
+            for data, isChecked in data.items():
+                if isChecked:
+                    exp = int(data[0])/2
+                    break
         else:
-            self.activateButton(self.modelButton)
             return
+    
+        if exp:
+            ims = self.getCurrImSet().copy()
+            files = self.imData.files[self.imZ]
+            currName = self.channelSelect.currentText()
+            worker = InterpolationWorker(ims, files, f"{currName}_{data}interp", interpolate, np.uint8, exp)
+        else:
+            return
+
+        self.runLongTask(worker, self.addProcessedIms, self.interpolateButton)
 
     def doAdaptHist(self):
         files = self.imData.files[self.imZ]
@@ -2114,6 +2125,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMotherDaughtersButton.setEnabled(hasLineages)
         self.showLineageButton.setEnabled(hasLineages)
 
+@profile
 def main():
     print("running main")
     app = QApplication([])

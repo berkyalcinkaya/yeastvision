@@ -3,6 +3,7 @@ import shutil
 import os
 from yeastvision.models.utils import MODEL_DIR
 from os.path import join
+from yeastvision.ims.interpolate import RIFE_DIR
 
 def do_install():
     current_directory = os.getcwd()
@@ -27,7 +28,11 @@ def do_install():
 
                 if file_name_without_extension == "Bud_Seg":
                     destination_directory = join(MODEL_DIR, "artilife/budSeg")
-                    print("\tocated BudSeg weights - moving to", destination_directory)
+                    print("\tlocated BudSeg weights -- moving to", destination_directory)
+                
+                elif file_name_without_extension == "flownet":
+                    destination_directory = RIFE_DIR
+                    print("\tlocated weights for movie interpolation -- moving to", destination_directory)
 
                 else:
                     destination_name = ""
