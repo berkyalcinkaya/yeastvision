@@ -16,8 +16,8 @@ If you have an older `yeastvision` environment you should remove it with `conda 
 Yeastvision is ready to go for cpu-usage as soon as it downloaded. GPU-usage requires some additional steps after download. To download:
 
 1. Install an [Anaconda](https://www.anaconda.com/products/distribution) distribution of Python. Note you might need to use an anaconda prompt if you did not add anaconda to the path.
-2. Open an anaconda prompt / command prompt which has `conda` for **python 3** in the path
-3. Create a new environment with `conda create --name yeastvision python=3.10.o`. 
+2. Open an anaconda prompt/command prompt
+3. Create a new environment with `conda create --name yeastvision python=3.10.0`. 
 4. Activate this new environment by running `conda activate yeastvision`
 5. Run `python -m pip install yeastvision` to download our package plus all dependencies
 6. Download the weights [online](https://drive.google.com/file/d/1Zl3b00eSbe3wbxpYOknEP5q0A86XtEfL/view?usp=sharing). 

@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 requires = ["cellpose==2.1.0",
 "matplotlib==3.6.0",
@@ -31,17 +31,15 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision.models", "yeastvision.ims", "yeastvision.ims.rife_model",
-            "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
+            "yeastvision.ims.rife_model.pytorch_msssim", "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
             "yeastvision.models.artilife", "yeastvision.models.artilife.budSeg",
             "yeastvision.models.matSeg", "yeastvision.models.tetradSeg", "yeastvision.models.budNET", 
             "yeastvision.models.vacNET", "yeastvision.models.YeaZ"]
 
 
-
-
 setup(
     name = "yeastvision",
-    version = "0.1.6",
+    version = "0.1.8",
     description = "Deep learning-enabled image analysis of the yeast full life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
