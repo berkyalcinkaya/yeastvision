@@ -91,7 +91,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.win = pg.GraphicsLayoutWidget()
         self.mainViewRows = 30
         self.mainViewCols  = 21
-        self.l.addWidget(self.win, 0,0, self.mainViewRows, self.mainViewCols)
+        self.l.addWidget(self.win, 1,0, self.mainViewRows, self.mainViewCols)
         self.make_viewbox()
 
         self.labelX, self.labelY = None, None
@@ -349,7 +349,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view.setCursor(QtCore.Qt.CrossCursor)
         self.brush_size =3
 
-        self.win.addItem(self.view, row = 0, col = 0, rowspan = 20, colspan = 20)
+        self.win.addItem(self.view, row = 1, col = 0, rowspan = 20, colspan = 20)
         self.view.setMenuEnabled(False)
         self.view.setMouseEnabled(x=True, y=True)
 
@@ -365,7 +365,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return np.take(self.maskColors, np.unique(im), 0)
 
     def build_widgets(self):
-        rowspace = self.mainViewRows
+        rowspace = self.mainViewRows+1
         cspace = 2
         self.labelstyle = """QLabel{
                             color: white
@@ -390,6 +390,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar.setFont(self.medfont)
         self.statusBar.setStyleSheet(self.statusbarstyle)
         self.setStatusBar(self.statusBar)
+
+
+
+
         self.gpuDisplayTorch = ReadOnlyCheckBox("gpu - torch  |  ")
         self.gpuDisplayTF= ReadOnlyCheckBox("gpu - tf")
         self.gpuDisplayTF.setFont(self.smallfont)
@@ -434,6 +438,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         self.updateDataDisplay()
         self.l.addWidget(self.dataDisplay, rowspace-1,cspace+1,1,20)
+
+        self.imDataDropDown= QComboBox()
+        self.imDataDropDown.setStyleSheet(self.dropdowns)
+        self.imDataDropDown.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.imDataDropDown.setFont(self.medfont)
+        self.l.addWidget(self.imDataDropDown, 0, 1, 2,1)
+
 
         label = QLabel('Drawing:')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
@@ -666,6 +677,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.l.setColumnStretch(21,2)
         self.l.setColumnStretch(0,2)
+        self.l.setContentsMargins(0,0,0,0)
+        self.l.setSpacing(0)
     
     def updateThreadDisplay(self):
         threadCount = len(self.threads)+1
