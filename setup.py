@@ -7,7 +7,6 @@ requires = ["cellpose==2.1.0",
 "opencv_python_headless==4.6.0.66",
 "pandas==1.5.0",
 "patchify==0.2.3",
-"Pillow==9.5.0",
 "PyQt5==5.15.9",
 "pyqtgraph==0.13.0",
 "scikit_image==0.19.3",
@@ -17,7 +16,8 @@ requires = ["cellpose==2.1.0",
 "torch==1.12.1",
 "tqdm==4.65.0",
 "trackpy==0.5.0",
-"torchvision==0.13.1"]
+"torchvision==0.13.1",
+"memory-profiler"]
 
 try:
     import torch
@@ -25,7 +25,7 @@ try:
     major_version, minor_version, _ = torch.__version__.split(".")
     if major_version == "2" or int(minor_version) >= 12:
         requires.remove("torch==1.12.1")
-        requires.remove("torch==0.13.1")
+        requires.remove("torchvision==0.13.1")
 except:
     pass
 

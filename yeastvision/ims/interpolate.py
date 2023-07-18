@@ -9,7 +9,9 @@ from queue import Queue, Empty
 from skimage.util import img_as_ubyte
 from .rife_model.RIFE import Model
 import os
+from yeastvision.ims import rife_model
 
+RIFE_DIR = rife_model.__path__[0]
 
 def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
     scale = 1
@@ -54,7 +56,7 @@ def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
     
     model = Model()
     print(os.getcwd())
-    model.load_model("yeastvision/ims/train_log")
+    model.load_model(RIFE_DIR)
     model.eval()
     model.device()
 

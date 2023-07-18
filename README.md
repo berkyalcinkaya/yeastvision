@@ -40,15 +40,22 @@ Next we need to remove the CPU version of torch:
 ~~~
 pip uninstall torch
 ~~~
+And the cpu version of torchvision:
+~~~
+pip uninstall torchvision
+~~~
 
-To install the GPU version of torch, follow the instructions [here](https://pytorch.org/get-started/locally/). The conda install is strongly recommended, and then choose the CUDA version that is supported by your GPU (newer GPUs may need newer CUDA versions > 10.2). For instance this command will install the 11.6 version on Linux and Windows (note the `torchvision` and `torchaudio` commands are removed because yeastvision doesn't require them):
+To install the GPU version of torch and torchvision, first ensure you have downloaded the proper nvidia drivers for your GPU. Then for pytorch and torchvision, follow the instructions [here](https://pytorch.org/get-started/locally/). The conda install is strongly recommended, and then choose the CUDA version that is supported by your GPU (newer GPUs may need newer CUDA versions > 10.2). You can check the highest version of CUDA that your nvidia driver supports by running: 
 ~~~
-conda install pytorch torchvision pytorch-cuda=11.6 -c pytorch -c nvidia
+nvidia-smi
 ~~~
-
-If you are unable to install the package using the command above, try an older version like cuda 11.3:
+For instance this command will install the 11.6 version on Linux and Windows (note the `torchaudio` commands are removed because yeastvision doesn't require them):
 ~~~
-conda install pytorch==1.12.0 torchvision==0.13.1 cudatoolkit=11.3 -c pytorch
+conda install pytorch==1.13.1 torchvision==0.14.1 pytorch-cuda=11.6 -c pytorch -c nvidia
+~~~
+The 11.6 configuration is recommended as this system was thoroughly tested with this system.  However, for some GPUs which do not support CUDA 11.6 or later, the above command will timeout. In that case, you can quickly try an older version like cuda 11.3:
+~~~
+conda install pytorch==1.12.1 torchvision==0.13.1 cudatoolkit=11.3 -c pytorch
 ~~~~
 Info on how to install several older versions is available [here](https://pytorch.org/get-started/previous-versions/). 
 
