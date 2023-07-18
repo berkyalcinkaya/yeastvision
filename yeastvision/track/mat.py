@@ -7,11 +7,7 @@ import matplotlib.pyplot as plt
 from skimage.morphology import thin, skeletonize, opening, dilation, erosion, square
 from skimage.measure import regionprops, label
 from tqdm import tqdm
-
-def get_mating_data(mating, cells):
-    mating_tracks = correct_mat_tracks(track_mating(mating))
-    return merge(cells, mating_tracks)
-
+from yeastvision.track.cell import getBirthFrame
 
 def track_mating(mating_masks, visualize = False):
     cell_margin = 20

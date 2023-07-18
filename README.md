@@ -43,12 +43,12 @@ pip uninstall torch
 
 To install the GPU version of torch, follow the instructions [here](https://pytorch.org/get-started/locally/). The conda install is strongly recommended, and then choose the CUDA version that is supported by your GPU (newer GPUs may need newer CUDA versions > 10.2). For instance this command will install the 11.6 version on Linux and Windows (note the `torchvision` and `torchaudio` commands are removed because yeastvision doesn't require them):
 ~~~
-conda install pytorch pytorch-cuda=11.6 -c pytorch -c nvidia
+conda install pytorch torchvision pytorch-cuda=11.6 -c pytorch -c nvidia
 ~~~
 
 If you are unable to install the package using the command above, try an older version like cuda 11.3:
 ~~~
-conda install pytorch==1.12.0 cudatoolkit=11.3 -c pytorch
+conda install pytorch==1.12.0 torchvision==0.13.1 cudatoolkit=11.3 -c pytorch
 ~~~~
 Info on how to install several older versions is available [here](https://pytorch.org/get-started/previous-versions/). 
 

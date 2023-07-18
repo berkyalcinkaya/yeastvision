@@ -53,6 +53,8 @@ def get_channels_from_dir(dir, num_channels):
 
     return channels, files, names
 
+
+
 def get_channel_files_from_dir(dir, num_channels):
     '''Loads images seperately by channel 
     
@@ -303,7 +305,7 @@ class MaskData(ImageData):
         return np.array_equal(mask, mask.astype(bool))
     
     def isFloat(self,im):
-        return im.dtype.kind ==  "f" and np.all(im<=1.0)
+        return im.dtype.kind == "f" and np.all(im<=1.0)
     
     def addZ(self,imData, pred = False, contours = None):
     

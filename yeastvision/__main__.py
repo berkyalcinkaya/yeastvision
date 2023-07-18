@@ -433,7 +433,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dataDisplay.setFont(self.smallfont)
         self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         self.updateDataDisplay()
-        self.l.addWidget(self.dataDisplay, rowspace-1,cspace+1,1,20)
+        self.l.addWidget(self.dataDisplay, rowspace-1,cspace-1,1,20)
 
         label = QLabel('Drawing:')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
@@ -916,10 +916,31 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 life, cell_data = None, None
 
-            self.cellData[cellI] = LineageData(cellI, cells, necks, cell_data=cell_data, life_data=life)
+            self.cellData[cellI] = LineageData(cellI, cells, buds = necks, cell_data=cell_data, life_data=life)
 
         self.saveData()
         self.checkDataAvailibility()
+    
+    def getMatingLineages(self, cellI, matingI):
+        mating = self.maskData.channels[matingI][0,:,:,:]
+        cells = self.maskData.channels[cellI][0,:,:,:]
+
+        if isinstance(self.cellData[cellI], LineageData):
+            self.cellData[cellI].add_mating(cells, mating)
+        else:
+            if isinstance(self.cellData[cellI], TimeSeriesData):
+                life = self.cellData[cellI].life_data
+                cell_data = self.cellData[cellI].cell_data
+            else:
+                life, cell_data = None, None
+
+            self.cellData[cellI] = LineageData(cellI, cells, mating = mating, cell_data=cell_data, life_data=life)
+
+        self.saveData()
+        self.checkDataAvailibility()
+    
+
+        
     
     def getCellDataLabelProps(self):
         label_props = LABEL_PROPS.copy()
@@ -1556,7 +1577,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             return
 
-        
     def getModels(self):
         for modelName in self.modelNames:
             if os.path.exists(os.path.join("models",modelName,"model.py")):
@@ -1676,8 +1696,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def segment(self, output, modelClass, ims, params, weightPath, modelType):
 
         tStart, tStop = int(params["T Start"]), int(params["T Stop"])
-
-
         imName = params["Channel"]
 
         if modelType == "artilife":
@@ -1693,8 +1711,15 @@ class MainWindow(QtWidgets.QMainWindow):
                     outputTup = (templates[0], templates[1])
                     self.loadMasks(outputTup, name = f"{imName}_{labelName}")
             if params["Time Series"]:
+                if params["Mating Cells"]:
+                    mating_idx = self.maskZ -1
+                    cell_idx = self.maskZ
+                    self.getMatingLineage(cell_idx, mating_idx)
+
                 idx = self.maskZ - counter
                 self.updateCellData(idx = idx)
+
+
         else:
             templates = []
             for i in [0,1]:

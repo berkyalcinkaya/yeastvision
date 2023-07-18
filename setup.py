@@ -16,7 +16,8 @@ requires = ["cellpose==2.1.0",
 "tensorflow==2.10.0",
 "torch==1.12.1",
 "tqdm==4.65.0",
-"trackpy==0.5.0"]
+"trackpy==0.5.0",
+"torchvision==0.13.1"]
 
 try:
     import torch
@@ -24,6 +25,7 @@ try:
     major_version, minor_version, _ = torch.__version__.split(".")
     if major_version == "2" or int(minor_version) >= 12:
         requires.remove("torch==1.12.1")
+        requires.remove("torch==0.13.1")
 except:
     pass
 
@@ -32,7 +34,7 @@ with open("README.md", "r") as fh:
 
 packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision.models", "yeastvision.ims", "yeastvision.ims.rife_model",
             "yeastvision.ims.rife_model.pytorch_msssim", "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
-            "yeastvision.models.artilife", "yeastvision.models.artilife.budSeg",
+            "yeastvision.models.artilife", "yeastvision.models.artilife.budSeg", "yeastvision.models.artiBud",
             "yeastvision.models.matSeg", "yeastvision.models.tetradSeg", "yeastvision.models.budNET", 
             "yeastvision.models.vacNET", "yeastvision.models.YeaZ"]
 

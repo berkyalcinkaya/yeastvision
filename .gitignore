@@ -12,7 +12,7 @@ yeastvision.egg-info/
 /test
 *.tif
 /yeastvision/models/artilife/artilife
-/yeastvision/models/artilife/artilife_bud
+/yeastvision/models/artiBud/artiBud
 /yeastvision/models/budNET/extra_weights
 /yeastvision/models/budNET/budNET.h5
 /yeastvision/models/matSeg/matSeg
