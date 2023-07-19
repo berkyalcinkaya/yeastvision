@@ -13,10 +13,10 @@ requires = ["cellpose==2.1.0",
 "scikit_learn==1.2.2",
 "scipy==1.9.1",
 "tensorflow==2.10.0",
-"torch==1.12.1",
+"torch==1.12.0",
 "tqdm==4.65.0",
 "trackpy==0.5.0",
-"torchvision==0.13.1",
+"torchvision==0.13.0",
 "memory-profiler"]
 
 try:
