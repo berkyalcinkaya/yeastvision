@@ -50,15 +50,16 @@ def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
     ims = ims[1:]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.set_grad_enabled(False)
     if torch.cuda.is_available():
         torch.backends.cudnn.enabled = True
         torch.backends.cudnn.benchmark = True
     
     model = Model()
-    print(os.getcwd())
-    model.load_model(RIFE_DIR)
+    model.load_model(RIFE_DIR, -1)
     model.eval()
     model.device()
+    
 
     write_buffer = []
     read_buffer = make_read_buffer(ims)

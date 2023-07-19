@@ -47,7 +47,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, thread, imPaths = None, labelPaths = None):
         super(MainWindow, self).__init__()
         pg.setConfigOption('imageAxisOrder', 'row-major')
-        self.setGeometry(50, 50, 1300, 1300)
+        self.setGeometry(100, 100, 900, 1000)
         self.setAcceptDrops(True)
 
         #self.idealThreadCount  = thread.idealThreadCount()//2
@@ -103,8 +103,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.setEmptyDisplay(initial=True)
         self.build_widgets()
-        self.l.setHorizontalSpacing(8)
-        self.l.setVerticalSpacing(8)
+        self.l.setHorizontalSpacing(15)
+        self.l.setVerticalSpacing(15)
         
         self.drawType = ""
         self.cellToChange = 0
@@ -254,9 +254,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.currMask = np.zeros((512,512), dtype = np.uint8)
         self.pg_mask.setImage(self.currMask, autolevels  =False, levels =[0,0], lut = self.maskColors)
 
-        
-
-
+    
         self.cellData = [] 
         self.mother_daughters = []
 
