@@ -24,8 +24,8 @@ try:
     a = torch.ones(2, 3)
     major_version, minor_version, _ = torch.__version__.split(".")
     if major_version == "2" or int(minor_version) >= 12:
-        requires.remove("torch==1.12.1")
-        requires.remove("torchvision==0.13.1")
+        requires.remove("torch==1.12.0")
+        requires.remove("torchvision==0.13.0")
 except:
     pass
 
@@ -41,7 +41,7 @@ packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision
 
 setup(
     name = "yeastvision",
-    version = "0.1.8",
+    version = "0.1.9",
     description = "Deep learning-enabled image analysis of the yeast full life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
