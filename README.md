@@ -51,15 +51,25 @@ nvidia-smi
 ~~~
 For instance this command will install the 11.6 version on Linux and Windows (note the `torchaudio` commands are removed because yeastvision doesn't require them):
 ~~~
-conda install pytorch==1.13.1 torchvision==0.14.1 pytorch-cuda=11.6 -c pytorch -c nvidia
+conda install pytorch==1.12.0 torchvision==0.13.0 pytorch-cuda=11.6 -c pytorch -c nvidia
 ~~~
 The 11.6 configuration is recommended as this system was thoroughly tested with this system.  However, for some GPUs which do not support CUDA 11.6 or later, the above command will timeout. In that case, you can quickly try an older version like cuda 11.3:
 ~~~
-conda install pytorch==1.12.1 torchvision==0.13.1 cudatoolkit=11.3 -c pytorch
+conda install pytorch==1.12.0 torchvision==0.13.0 cudatoolkit=11.3 -c pytorch
 ~~~~
 Info on how to install several older versions is available [here](https://pytorch.org/get-started/previous-versions/). 
 
 After install you can check `conda list` for `pytorch`, and its version info should have `cuXX.X`, not `cpu`.
+
+## Common Installation Problems
+
+You may receive the following error upon upgrading `torch` and `torchvision`:
+~~~
+AttributeError: partially initialized module 'charset_normalizer' has no attribute 'md__mypyc' (most likely due to a circular import)
+~~~
+This is solved by upgrading the charselt_normalizer package with the following command: `AttributeError: partially initialized module 'charset_normalizer' has no attribute 'md__mypyc' (most likely due to a circular import)`
+
+Report any other installation errors.
 
 # Run yeastvision locally
 
