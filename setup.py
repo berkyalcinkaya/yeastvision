@@ -1,21 +1,21 @@
 from setuptools import setup
 
 requires = ["cellpose==2.1.0",
-"matplotlib==3.6.0",
-"munkres==1.1.4",
+"matplotlib",
+"munkres",
 "numpy",
-"opencv_python_headless==4.6.0.66",
+"opencv_python_headless",
 "pandas==1.5.0",
 "patchify==0.2.3",
 "PyQt5==5.15.9",
 "pyqtgraph==0.13.0",
-"scikit_image==0.19.3",
-"scikit_learn==1.2.2",
-"scipy==1.9.1",
+"scikit_image",
+"scikit_learn",
+"scipy",
 "tensorflow==2.10.0",
 "torch==1.12.0",
-"tqdm==4.65.0",
-"trackpy==0.5.0",
+"tqdm",
+"trackpy",
 "torchvision==0.13.0",
 "memory-profiler"]
 
@@ -41,7 +41,7 @@ packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision
 
 setup(
     name = "yeastvision",
-    version = "0.2.0",
+    version = "0.1.9",
     description = "Deep learning-enabled image analysis of the yeast full life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
