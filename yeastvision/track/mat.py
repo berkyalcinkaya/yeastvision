@@ -9,6 +9,11 @@ from skimage.measure import regionprops, label
 from tqdm import tqdm
 from yeastvision.track.cell import getBirthFrame
 
+def get_mating_data(mating, cells):
+    mating_tracks = correct_mat_tracks(track_mating(mating))
+    return merge(cells, mating_tracks)
+
+
 def track_mating(mating_masks, visualize = False):
     cell_margin = 20
     numbM = len(mating_masks)

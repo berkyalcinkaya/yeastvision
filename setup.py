@@ -3,7 +3,7 @@ from setuptools import setup
 requires = ["cellpose==2.1.0",
 "matplotlib==3.6.0",
 "munkres==1.1.4",
-"numpy",
+"numpy==1.24",
 "opencv_python_headless==4.6.0.66",
 "pandas==1.5.0",
 "patchify==0.2.3",

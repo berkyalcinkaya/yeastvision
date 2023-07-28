@@ -68,6 +68,7 @@ You may receive the following error upon upgrading `torch` and `torchvision`:
 AttributeError: partially initialized module 'charset_normalizer' has no attribute 'md__mypyc' (most likely due to a circular import)
 ~~~
 This is solved by upgrading the charselt_normalizer package with the following command: `pip install --force-reinstall charset-normalizer==3.1.0`
+
 Report any other installation errors.
 
 # Run yeastvision locally
