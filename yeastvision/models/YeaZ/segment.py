@@ -27,7 +27,7 @@ def segment(th, pred, min_distance=10, topology=None):
         topology = topology(dtr)
 
     indices = peak_local_max(-topology, min_distance = min_distance)
-    m = np.zeros_like(th, dtype = np.bool)
+    m = np.zeros_like(th, dtype = bool)
     m[tuple(indices.T)] = True
 
     # Uncomment to start with cross for every pixel instead of single pixel

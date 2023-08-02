@@ -310,7 +310,7 @@ class ViewBoxNoRightDrag(pg.ViewBox):
             dif = dif * -1
 
             ## Ignore axes if mouse is disabled
-            mouseEnabled = np.array(self.state['mouseEnabled'], dtype=np.float)
+            mouseEnabled = np.array(self.state['mouseEnabled'], dtype=float)
             mask = mouseEnabled.copy()
             if axis is not None:
                 mask[1-axis] = 0.0

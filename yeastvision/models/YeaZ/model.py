@@ -9,8 +9,10 @@ from .unet import unet
 
 class YeaZ(CustomModel):
     hyperparams = {"Threshold":0.50, "Minimum Cell Distance":5}
+    trainparams = {"learning_rate": 0.0001, "n_epochs": 100}
     types = [None, None]
-    loss = "binary crossentropy"
+    prefix = ".hdf5"
+    loss = "binary_crossentropy"
 
     def __init__(self, params, weights):
         super().__init__(params, weights)
@@ -18,7 +20,7 @@ class YeaZ(CustomModel):
 
     def load(self):  
         # WHOLE CELL PREDICTION
-        model = unet(pretrained_weights = self.weights+".hdf5",
+        model = unet(pretrained_weights = self.weights,
                     input_size = (None,None,1))
         return model
     

@@ -27,9 +27,13 @@ from skimage.measure import label
 from skimage.exposure import equalize_adapthist as ea
 from scipy.signal import medfilt2d
 from yeastvision.utils import *
+from yeastvision.models.utils import jaccard_coef_loss, MODEL_DIR, patchify_for_train
+import tensorflow as tf
 
 class Model():
     hyperparams = {"Threshold":0.50}
+    loss = jaccard_coef_loss
+    trainparams = {"learning_rate": 0.001, "n_epochs": 100}
     types = [None]
     prefix = ""
 
@@ -37,14 +41,39 @@ class Model():
         self.params = params 
         self.weights = weights
     
-    def preprocess(self,im):
-        return im
-    
     def getProbIm(self,im):
         return im
     
     def getMask(self, probIm):
         return (probIm>self.params["Threshold"]).astype(np.uint8)
+    
+    def preprocess(self, im):
+        return ea(im).astype(np.float32)
+    
+    def preprocess_masks(self, mask):
+        return (mask>0).astype(np.float32)
+    
+    def name(self):
+        pass
+    
+    def train(self, ims, masks, params):
+        batchsize = 8
+        path = join(MODEL_DIR, params["model_type"], params["model_name"])
+        ims = [self.preprocess(im) for im in ims]
+        masks = [self.preprocess_masks(mask) for mask in masks]
+        ims = patchify_for_train(ims)
+        masks = patchify_for_train(masks)
+        ims = np.array(ims)
+        masks = np.array(masks)
+        model = self.model
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=params["learning_rate"]),
+                loss=self.loss)
+        model.fit(ims, masks,
+            batch_size=batchsize,
+            epochs=int(params["n_epochs"]))
+
+        # Save the trained model (optional)
+        model.save(os.path.join(params["dir"], f"{path}{self.prefix}"))
 
     @classmethod
     def run(cls, ims, params, weights):

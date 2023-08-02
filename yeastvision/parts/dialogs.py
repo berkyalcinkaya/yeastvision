@@ -408,6 +408,9 @@ class ArtilifeParamDialog(ModelParamDialog):
     
     def populateFormLayout(self):
         self.dropDownData  = {}
+        
+        self.addArtilifeWeightDropDown()
+
         self.dropDownData["Channel"] =  self.addParentComboBox(self.parent.channelSelect, name = "Channel to Segment")
         # order is important here as self.dropDownData["T Start"]/["T Stop"]
             # must exist before addTValues and indexChange can be called
@@ -445,7 +448,6 @@ class ArtilifeParamDialog(ModelParamDialog):
         
         self.connectSporeMatButtons()
 
-    
     def connectSporeMatButtons(self):
         self.checkBoxData["Mating Cells"].toggled.connect(self.toggleMat)
         self.checkBoxData["Sporulating Cells"].toggled.connect(self.toggleSpore)
@@ -460,6 +462,16 @@ class ArtilifeParamDialog(ModelParamDialog):
         self.dropDownData["sporeStart"].setEnabled(enabled)
         self.dropDownData["sporeStop"].setEnabled(enabled)
         self.dropDownData["tetradSeg"].setEnabled(enabled)
+
+    def addArtilifeWeightDropDown(self):
+        artilifeWeights = self.parent.getModelWeights(name = "artilife")
+        artiWeights = QComboBox()
+        artiWeights.addItems(artilifeWeights)
+        self.dropDownData["artiWeights"] = artiWeights
+        artiWeights.setFixedWidth(120)
+        artiWeights.setEnabled(True)
+        artiWeights.setCurrentIndex(0)
+        self.formLayout.addRow(QLabel("artilife weights"), artiWeights)
 
     def addArtilifeTDropDowns(self, name):
         hbox = QHBoxLayout()
@@ -487,8 +499,7 @@ class ArtilifeParamDialog(ModelParamDialog):
         weights.addItems(modeloptions)
         weights.setCurrentIndex(0)
         self.dropDownData[modelType] = weights
-        if len(modeloptions)>1:
-            self.formLayout.addRow(QLabel(f"{modelType} Weights"), weights)
+        self.formLayout.addRow(QLabel(f"{modelType} Weights"), weights)
 
 
     def channelSelectIndexChanged(self):
@@ -545,7 +556,7 @@ class TrainWindow(QDialog):
         # add loss function
         self.yoff+=1
         lossDisplay = QComboBox()
-        lossDisplay.addItem(self.lossName)
+        lossDisplay.addItem(str(self.lossName))
         lossDisplay.setFixedWidth(150)
         self.l0.addWidget(lossDisplay, self.yoff,1,1,1)
         qlabel = QLabel("Loss Function: ")
@@ -562,14 +573,11 @@ class TrainWindow(QDialog):
         #     self.l0.addWidget(cSelect, self.yoff, 1,1,1)
 
         self.yoff+=1
-        qlabel = QLabel("Model Suffix")
+        qlabel = QLabel("Model Name")
         qlabel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         self.l0.addWidget(qlabel, self.yoff,0,1,1)
-        d =  datetime.datetime.now()
-        d =  d.strftime("%Y_%m_%d_%H_%M_%S.%f")
-        defaultSuffix = f"{d}"
         self.modelName = QLineEdit()
-        self.modelName.setText(str(defaultSuffix))
+        self.modelName.setText(self.parent.trainModelName)
         self.modelName.setFixedWidth(200)
         self.l0.addWidget(self.modelName, self.yoff, 1,1,1)
 
@@ -601,7 +609,7 @@ class TrainWindow(QDialog):
     
     def getData(self):
         suffix = str(self.modelName.text())
-        return {k:float(v.text()) for k,v in self.edits.items()} | {"scratch": self.checkbox.isChecked()} | {"model_name": f"{self.modelType}_{suffix}"}
+        return {k:float(v.text()) for k,v in self.edits.items()} | {"scratch": self.checkbox.isChecked()} | {"model_name": f"{suffix}"}
 
     
     def isNumber(self, num):
@@ -623,7 +631,7 @@ class TrainWindow(QDialog):
         return channelSelect
     
     def getTrainingParams(self):
-        modelClass =  self.parent.getModelClass(self.modelName)
+        modelClass =  self.parent.getModelClass(self.modelType)
         modelParams = dict(modelClass.trainparams)
         loss = modelClass.loss
         return dict(modelParams), loss
@@ -649,7 +657,7 @@ class TrainWindow(QDialog):
         qlabel = QLabel('ims')
         qlabel.setFont(QtGui.QFont("Arial", 12, QtGui.QFont.Bold))
         self.l0.addWidget(qlabel, 0,4,1,1)
-        qlabel = QLabel('# of masks')
+        qlabel = QLabel('ROIs')
         qlabel.setFont(QtGui.QFont("Arial", 12, QtGui.QFont.Bold))
         self.l0.addWidget(qlabel, 0,5,1,1)
         

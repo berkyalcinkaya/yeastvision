@@ -1,9 +1,10 @@
 from setuptools import setup
 
-requires = ["cellpose==2.1.0",
+requires = [
+"numpy<1.24",
+"cellpose==2.1.0",
 "matplotlib",
 "munkres",
-"numpy",
 "opencv_python_headless",
 "pandas==1.5.0",
 "patchify==0.2.3",

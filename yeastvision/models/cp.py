@@ -14,6 +14,7 @@ class CustomCellpose(models.Cellpose):
         sdevice, gpu = models.assign_device(self.torch, gpu)
         self.device = device if device is not None else sdevice
         self.gpu = gpu
+        print(device, gpu)
         
         model_type = 'cyto' if pretrained_model else None
         

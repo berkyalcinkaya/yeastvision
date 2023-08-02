@@ -13,3 +13,4 @@ class VacNET(BudNET):
     def __init__(self, params, weights):
         super().__init__(params, weights)
     
+    

@@ -128,7 +128,7 @@ def normalize_im(im_o, clip = True):
     im_norm[np.isnan(im_o)] = np.nan
     return im_norm.astype(np.float32)
 
-def convertGreyToRGBA(im):
+def convertGreyToRGB(im):
     image = skimage.util.img_as_ubyte(normalize_im(im))
     image_3D = cv2.merge((image,image,image))
     return image_3D

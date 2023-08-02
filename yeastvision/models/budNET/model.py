@@ -15,7 +15,6 @@ class BudNET(Model):
                     "Test Time Augmentation": True}
     types = [None, bool]
     prefix = ".h5"
-    loss = "jaccard coefficient"
 
     def __init__(self, params, weights):
         super().__init__(params, weights)

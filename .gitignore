@@ -22,3 +22,4 @@ yeastvision.egg-info/
 /yeastvision/models/YeaZ/YeaZ_phasecontrast.hdf5
 /yeastvision/ims/rife_model/flownet.pkl
 /yeastvision/data
+*.pkl

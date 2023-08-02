@@ -41,6 +41,9 @@ from cellpose.metrics import average_precision
 from tqdm import tqdm
 from memory_profiler import profile
 from functools import partial
+from yeastvision.models.artilife.model import ArtilifeFullLifeCycle
+torch.cuda.empty_cache() 
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -132,6 +135,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.emptying = False
 
         self.overrideNpyPath = None
+
+        self.trainModelName = None
 
         self.win.show()
     
@@ -577,13 +582,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelButton.setStyleSheet(self.styleInactive)
         self.l.addWidget(self.GB, rowspace+1,10,3,5, Qt.AlignTop | Qt.AlignHCenter)
 
-        #------Flourescence Segmentation -----------pp-p-
-        self.segButton = QPushButton(u'blob detection')
-        self.segButton.setEnabled(False)
-        self.segButton.clicked.connect(self.doFlou)
-        self.segButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.segButton, rowspace+1+2,10,3,5, Qt.AlignTop | Qt.AlignLeft)
+        self.artiButton = QPushButton(u'artilife full lifecycle')
+        self.artiButton.setEnabled(False)
+        self.artiButton.setFont(self.medfont)
+        self.artiButton.clicked.connect(self.computeArtilifeModel)
+        self.artiButton.setStyleSheet(self.styleInactive)
+        self.l.addWidget(self.artiButton, rowspace+3,10,1,5, Qt.AlignTop)#, Qt.AlignTop | Qt.AlignLeft)
 
+        #------Flourescence Segmentation -----------pp-p-
+        # self.segButton = QPushButton(u'blob detection')
+        # self.segButton.setEnabled(False)
+        # self.segButton.clicked.connect(self.doFlou)
+        # self.segButton.setStyleSheet(self.styleInactive)
+        # self.l.addWidget(self.segButton, rowspace+1+4,10,1,5, Qt.AlignTop | Qt.AlignLeft)
         #----------------------------------s-------------
 
         line = QVLine()
@@ -689,8 +700,8 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.autoSaturationButton.setStyleSheet(self.styleUnpressed)
         self.modelButton.setEnabled(True)
         self.modelButton.setStyleSheet(self.styleUnpressed)
-        self.segButton.setEnabled(True)
-        self.segButton.setStyleSheet(self.styleUnpressed)
+        self.artiButton.setEnabled(True)
+        self.artiButton.setStyleSheet(self.styleUnpressed)
         self.interpolateButton.setEnabled(True)
         self.interpolateButton.setStyleSheet(self.styleUnpressed)
         self.channelSelect.setEnabled(True)
@@ -1208,8 +1219,10 @@ class MainWindow(QtWidgets.QMainWindow):
         nextMaskOn  = self.maskOn
 
         if (event.key() == QtCore.Qt.Key_Delete or event.key() == QtCore.Qt.Key_Backspace) and self.selectedCells:
-            for selectedCell in self.selectedCells:
+            for selectedCell in self.selectedCells.copy():
                 self.deleteCell(selectedCell)
+                self.selectedCells.remove(selectedCell)
+        
 
         if event.key() == QtCore.Qt.Key_Y:
             self.cellToChange+=1
@@ -1584,6 +1597,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return f"yeastvision.models.{string}.model"
 
     def getModelClass(self, modelName):
+        
         module = importlib.import_module(self.getPkgString(modelName))
         modelClass = getattr(module, capitalize(modelName))
         return modelClass
@@ -1593,23 +1607,36 @@ class MainWindow(QtWidgets.QMainWindow):
             self.showError("Load Labels before training")
             return
         
-        try:
-            self.getTrainData()
-        except IndexError:
-            return
-
         weightName = self.modelChoose.currentText() 
         if weightName == "":
             self.showError("Select A Model First")
             return
+        
+        try:
+            self.getTrainData()
+        except IndexError:
+            return
+        
 
         modelType = self.modelTypes[self.modelNames.index(weightName)]
         weightPath = join(MODEL_DIR, modelType, weightName)
+
+        modelClass = self.getModelClass(modelType)
+
+        weightPath += modelClass.prefix
+
+        if not self.trainModelName:
+            d =  datetime.now()
+            d =  d.strftime("%Y_%m_%d_%H_%M")
+            suffix = f"{d}"
+            self.trainModelName = f"{modelType}_{suffix}"
     
         
         TW = TrainWindow(modelType, weightPath, self)
         if TW.exec_():
             data = TW.getData()
+            data["model_type"] = modelType
+            self.trainModelName = data["model_name"]
             self.train(data, modelType, weightPath)
             
         else:
@@ -1618,14 +1645,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def train(self, data, modelType, weightPath, autorun = True):
         # weights are overwritten if model is to be trained from scratch
+        torch.cuda.empty_cache() 
         if data["scratch"]:
             weightPath = None
         # directory to save weights is current image directory stored in reader
-        data["dir"] = self.imData.dirs[self.imZ]
+        data["dir"] = os.getcwd()
         modelCls = self.getModelClass(modelType)
         # model is initiated with default hyperparams
         self.model = modelCls(modelCls.hyperparams, weightPath)
         self.model.train(self.trainIms, self.trainLabels, data)
+        weightPath = join(data["dir"], data["model_name"])+self.model.prefix
+        print("Saving new weights to",weightPath)
 
         if autorun:
             self.trainTStop+=1
@@ -1654,25 +1684,27 @@ class MainWindow(QtWidgets.QMainWindow):
             imShape = ims[0].shape[0,:,:]
             self.showError(f"Masks of shape {maskShape} does not match images of shape {imShape}")
             raise IndexError
+        
+        imT, maskT = ims.shape[0], labels.shape[0]
 
-        if self.imData.files[self.imZ]:
+        if len(self.imData.files[self.imZ]) == imT:
             self.trainFiles = [os.path.split(path)[1].split(".")[0] for path in self.imData.files[self.imZ]]
         else:
             self.trainFiles = [f"Index {i}" for i in range(ims.shape[0])]
 
-        imT, maskT = ims.shape[0], labels.shape[0]
+
         self.trainTStop = min(imT, maskT)
         for i,label in enumerate(labels[:self.trainTStop+1,:,:]):
             if np.all(label==0):
                 break
         self.trainTStop = i-1
-        if self.trainTStop==-1:
-            self.showErrorMessage("No Labels Have Greater than the minimum of 5 ROIs")
-            raise IndexError
 
         self.trainIms = [im for im in ims[:self.trainTStop+1,:,:]]
         self.trainLabels = [im for im in labels[:self.trainTStop+1,:,:]]
         self.trainFiles = self.trainFiles[:self.trainTStop+1]
+
+        print(len(self.trainIms), len(self.trainLabels))
+
     
     def getModelNames(self):
         self.modelNames = []
@@ -1690,13 +1722,27 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(self.modelNames)==0:
             self.showError("Weights Have Not Been Downloaded. Find the weights at https://drive.google.com/file/d/1J3R4JKILkQNM0Ap-MKxqv61oAxObSjBo/view?usp=drive_link. Then run install-weights in the same directory as the downloaded zip file.")
 
+    def getModelWeights(self, name = "artilife"):
+        weights = []
+        dirs = [dir for dir in glob.glob(join(MODEL_DIR,"*")) if (os.path.isdir(dir) and "__" not in dir)]
+        for dir in dirs:
+            dirPath, dirName = os.path.split(dir)
+
+            if name in dirName:
+                for dirFile in glob.glob(join(dir,"*")):
+                    dirPath2, dirName2 = os.path.split(dirFile)
+                    if dirName.lower() in dirName2.lower():
+                        if "." not in dirName2 or (dirFile.endswith("h5") or dirFile.endswith("hdf5")):
+                            weights.append(os.path.split(dirFile)[1].split(".")[0])
+        return weights
+
 
     def segment(self, output, modelClass, ims, params, weightPath, modelType):
 
         tStart, tStop = int(params["T Start"]), int(params["T Stop"])
         imName = params["Channel"]
 
-        if modelType == "artilife":
+        if modelClass.__name__ == "ArtilifeFullLifeCycle" :
             counter = 0
             for labelName, outputTup in output.items():
                 if type(outputTup[0]) == np.ndarray:
@@ -1712,11 +1758,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 if params["Mating Cells"]:
                     mating_idx = self.maskZ -1
                     cell_idx = self.maskZ
-                    self.getMatingLineage(cell_idx, mating_idx)
+                    self.getMatingLineages(cell_idx, mating_idx)
 
                 idx = self.maskZ - counter
                 self.updateCellData(idx = idx)
-
 
         else:
             templates = []
@@ -1726,6 +1771,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 templates.append(template)
             outputTup = (templates[0], templates[1])
             self.loadMasks(outputTup, name = f"{imName}_{modelType}_{tStart}-{tStop}")
+        
+        torch.cuda.empty_cache()
+        del modelClass
+        del output
         
     def evaluate(self):
         if not self.maskLoaded:
@@ -1824,7 +1873,7 @@ class MainWindow(QtWidgets.QMainWindow):
         weightPath += modelClass.prefix
 
         self.deactivateButton(self.modelButton)
-        dlgCls = ArtilifeParamDialog if modelType == "artilife" else ModelParamDialog
+        dlgCls = ModelParamDialog
         dlg = dlgCls(modelClass.hyperparams, modelClass.types, modelType, self)
         
         if dlg.exec():
@@ -1836,7 +1885,30 @@ class MainWindow(QtWidgets.QMainWindow):
             self.runLongTask(worker, 
                              self.segment,
                              self.modelButton)
+        else:
+            self.activateButton(self.modelButton)
     
+    def computeArtilifeModel(self):
+        modelType = "artilife"
+        modelClass = ArtilifeFullLifeCycle
+        self.deactivateButton(self.artiButton)
+        dlgCls = ArtilifeParamDialog
+        dlg = dlgCls(modelClass.hyperparams, modelClass.types, modelType, self)
+        
+        if dlg.exec():
+            params = dlg.getData()
+            channel = params["Channel"]
+            weightPath = params["artiWeights"]
+            channelIndex = self.channelSelect.findText(channel)
+            ims = self.imData.channels[channelIndex]
+            worker = SegmentWorker(modelClass,ims, params, weightPath, modelType)
+            self.runLongTask(worker, 
+                             self.segment,
+                             self.modelButton)
+        else:
+            self.activateButton(self.modelButton)
+
+
     def interpolateButtonClicked(self):
         dlg = GeneralParamDialog({"2x":False, "4x": False, "8x": False, "16x": False}, [bool,bool,bool,bool], "choose interpolation level", self)
         if dlg.exec():
@@ -1975,7 +2047,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def createFigure(self):
         ims = self.getCurrImSet()
-        ims = np.array([convertGreyToRGBA(im) for im in ims], dtype = np.uint8)
+        ims = np.array([convertGreyToRGB(im) for im in ims], dtype = np.uint8)
         masks = []
         currT = self.tIndex
         for i in range(self.imData.maxT+1):
@@ -2103,7 +2175,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.overrideNpyPath:
                 path = self.overrideNpyPath
             else:
-                dir = self.imData.dirs[0]
+                dir = os.getcwd()
                 name = self.sessionId
                 path = join(dir,name+".pkl")
 
