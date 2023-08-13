@@ -3,7 +3,6 @@ import numpy as np
 from time import process_time
 tic = process_time()
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import (QApplication, QStyle, QMainWindow, QGroupBox, QPushButton, QDialog,
                             QDialogButtonBox, QLineEdit, QFormLayout, QMessageBox,QErrorMessage, QStatusBar, 
@@ -137,6 +136,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.overrideNpyPath = None
 
         self.trainModelName = None
+        self.trainModelSuffix = None
 
         self.win.show()
     
@@ -433,7 +433,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dataDisplay.setMinimumWidth(300)
         # self.dataDisplay.setMaximumWidth(300)
         self.dataDisplay.setStyleSheet(self.labelstyle)
-        self.dataDisplay.setFont(self.smallfont)
+        self.dataDisplay.setFont(self.medfont)
         self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         self.updateDataDisplay()
         self.l.addWidget(self.dataDisplay, rowspace-1,cspace-1,1,20)
@@ -1084,12 +1084,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 file = files[0]
             dataString += f'  |  {file}'
 
-            if x!=None and y!=None and val!=None:
-                self.labelX, self.labelY = x,y
-                if self.maskType == 1:
-                    val = round(val/255,2)
-                dataString += f"\nx={str(x)}, y={str(y)}, value={str(val)}"
-
             dataString += f"\nIMAGE: {self.currIm.shape} {self.currImDtype}"
             
             if self.maskLoaded:
@@ -1099,6 +1093,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
             if self.maskLoaded:
                 dataString += f"  |  REGIONS: {self.numObjs}"
+            
+
+            if x!=None and y!=None and val!=None:
+                self.labelX, self.labelY = x,y
+                if self.maskType == 1:
+                    val = round(val/255,2)
+                dataString += f"\nx={str(x)}, y={str(y)}, value={str(val)}"
 
         self.dataDisplay.setText(dataString)
     
@@ -1625,11 +1626,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         weightPath += modelClass.prefix
 
-        if not self.trainModelName:
+        if not self.trainModelName or not self.trainModelSuffix:
             d =  datetime.now()
             d =  d.strftime("%Y_%m_%d_%H_%M")
             suffix = f"{d}"
             self.trainModelName = f"{modelType}_{suffix}"
+            self.trainModelSuffix = suffix
     
         
         TW = TrainWindow(modelType, weightPath, self)
@@ -1654,7 +1656,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # model is initiated with default hyperparams
         self.model = modelCls(modelCls.hyperparams, weightPath)
         self.model.train(self.trainIms, self.trainLabels, data)
-        weightPath = join(data["dir"], data["model_name"])+self.model.prefix
+        weightPath = join(data["dir"], "models", data["model_name"])+self.model.prefix
         print("Saving new weights to",weightPath)
 
         if autorun:
