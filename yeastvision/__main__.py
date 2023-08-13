@@ -43,7 +43,7 @@ from memory_profiler import profile
 from functools import partial
 from yeastvision.models.artilife.model import ArtilifeFullLifeCycle
 torch.cuda.empty_cache() 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -1794,7 +1794,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 if data[labelName]:
                     toValidate[labelName] = (self.maskData.channels[self.labelSelect.items().index(labelName)][0,:,:,:])
             
-            ious = [0.50, 0.75, 0.90]
+            ious = [0.25, 0.50, 0.75, 0.90]
             statsDict = self.getStatsDict(masksTrue, toValidate, ious)
             self.evalWindow = plot.EvalWindow(self,statsDict, ious)
             self.evalWindow.show()

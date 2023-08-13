@@ -39,6 +39,9 @@ from cellpose.metrics import average_precision
 from tqdm import tqdm
 import time
 from PyQt5.QtCore import Qt, QThread, QMutex
+import torch
+
+
 
 
 class SegmentWorker(QtCore.QObject):
@@ -57,7 +60,8 @@ class SegmentWorker(QtCore.QObject):
         newImTemplate = np.zeros((len(self.ims), row, col))
         tStart, tStop = int(self.params["T Start"]), int(self.params["T Stop"])
 
-        output = self.mc.run(self.ims[tStart:tStop+1],self.params, self.weight)
+        with torch.no_grad():
+            output = self.mc.run(self.ims[tStart:tStop+1],self.params, self.weight)
         self.finished.emit(output, self.mc,newImTemplate, self.params, self.weight, self.mType)
 
 class TrackWorker(QtCore.QObject):
