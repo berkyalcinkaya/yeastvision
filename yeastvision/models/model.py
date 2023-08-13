@@ -58,7 +58,7 @@ class Model():
     
     def train(self, ims, masks, params):
         batchsize = 8
-        path = join(MODEL_DIR, params["model_type"], params["model_name"])
+        weightPath = join(params["dir"], "models", params["model_name"])
         ims = [self.preprocess(im) for im in ims]
         masks = [self.preprocess_masks(mask) for mask in masks]
         ims = patchify_for_train(ims)
@@ -73,7 +73,8 @@ class Model():
             epochs=int(params["n_epochs"]))
 
         # Save the trained model (optional)
-        model.save(os.path.join(params["dir"], f"{path}{self.prefix}"))
+        print(weightPath)
+        model.save(weightPath)
 
     @classmethod
     def run(cls, ims, params, weights):
