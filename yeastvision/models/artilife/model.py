@@ -11,6 +11,8 @@ from yeastvision.track.track import trackYeasts
 from yeastvision.track.mat import get_mating_data
 from yeastvision.track.cell import Cell, getBirthFrame, getCellData, getDeathFrame, getLifeData
 from yeastvision.models.utils import normalizeIm, produce_weight_path
+import torch
+
 
 
 class Artilife(CustomCPWrapper):
@@ -276,6 +278,7 @@ class ArtilifeFullLifeCycle(Artilife):
         self.masks = masksPadded[:,25:r-25,25:c-25].astype(np.uint16)
 
     @classmethod
+    @torch.no_grad()
     def run(cls, ims, params, weights):
         params = params if params else cls.hyperparams
         model = cls(params, weights)
@@ -291,7 +294,6 @@ class ArtilifeFullLifeCycle(Artilife):
                                                     do_3D=False)
         else:
             evaluator = model.model
-    
             model.masks, flows, _, model.diams = evaluator.eval(ims3D, 
                                                     diameter = model.params["Mean Diameter"], 
                                                     channels = [0, 0],
@@ -317,10 +319,15 @@ class ArtilifeFullLifeCycle(Artilife):
             model.addTetrads(ims3D)
         
         print("finished")
-        
-        return {"artilife": (model.masks, model.cellprobs), 
-                "mating": (model.matMasks, model.matprobs),
-                "tetrads": (model.tetraMasks, model.tetraprobs)
+        arti = (model.masks, model.cellprobs)
+        mating = (model.matMasks, model.matprobs)
+        tetra = (model.tetraMasks, model.tetraprobs)
+
+        del model
+
+        return {"artilife": arti,
+                "mating": mating,
+                "tetrads": tetra
                 }
 
 

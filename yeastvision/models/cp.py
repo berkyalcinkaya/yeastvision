@@ -3,6 +3,7 @@ from yeastvision.models.model import Model as CustomModel
 import cv2
 import numpy as np
 from cellpose.transforms import normalize99
+import torch
 
 
 class CustomCellpose(models.Cellpose):
@@ -78,6 +79,7 @@ class CustomCPWrapper(CustomModel):
                                         model_name = params["model_name"])
 
     @classmethod
+    @torch.no_grad()
     def run(cls, ims, params, weights):
         params = params if params else cls.hyperparams
 
@@ -93,4 +95,10 @@ class CustomCPWrapper(CustomModel):
         model.cellprobs = [flow[2] for flow in flows]
         model.cellprobs = np.array((model.processProbability(model.cellprobs)), dtype = np.uint8)
 
-        return np.array(model.masks, dtype = np.uint16), np.array(model.cellprobs, dtype = np.float32)
+        masks = np.array(model.masks, dtype = np.uint16)
+        prob = np.array(model.cellprobs, dtype = np.float32)
+
+        del model
+        
+
+        return masks, prob
