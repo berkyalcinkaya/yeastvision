@@ -92,7 +92,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.win = pg.GraphicsLayoutWidget()
         self.mainViewRows = 30
-        self.mainViewCols  = 21
+        self.mainViewCols  = 20
         self.l.addWidget(self.win, 0,0, self.mainViewRows, self.mainViewCols)
         self.make_viewbox()
 
@@ -675,6 +675,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.l.setColumnStretch(20,2)
         self.l.setColumnStretch(0,2)
+        self.l.setContentsMargins(0,0,0,0)
+        self.l.setSpacing(0)
     
     def updateThreadDisplay(self):
         threadCount = len(self.threads)+1
