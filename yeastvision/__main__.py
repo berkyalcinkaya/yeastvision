@@ -92,7 +92,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.win = pg.GraphicsLayoutWidget()
         self.mainViewRows = 30
-        self.mainViewCols  = 19
+        self.mainViewCols  = 20
         self.l.addWidget(self.win, 0,0, self.mainViewRows, self.mainViewCols)
         self.make_viewbox()
 
@@ -670,10 +670,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.saturationSlider.setFocusPolicy(QtCore.Qt.NoFocus)
         # self.saturationSlider.setEnabled(False)
         # self.l.addWidget(self.saturationSlider, rowspace+4, 22,1,3)
-        for i in range(self.mainViewRows):
-            self.l.setRowStretch(i, 10)
+        # for i in range(self.mainViewRows):
+        #     self.l.setRowStretch(i, 10)
 
-        self.l.setColumnStretch(20,2)
+        self.l.setColumnStretch(19,2)
         self.l.setColumnStretch(0,2)
         self.l.setContentsMargins(0,0,0,0)
         self.l.setSpacing(0)

@@ -82,14 +82,23 @@ class CustomCPWrapper(CustomModel):
         params = params if params else cls.hyperparams
 
         model = cls(params, weights)
-        ims = [cv2.merge((im,im,im)) for im in ims]
-        assert len(ims[0].shape)==3
+        ims3D = [cv2.merge((im,im,im)) for im in ims]
+        assert len(ims3D[0].shape)==3
 
-        model.masks, flows, _, model.diams = model.model.eval(ims, 
-                                                diameter = model.params["Mean Diameter"], 
-                                                channels = [0, 0],
-                                                cellprob_threshold = model.params["Flow Threshold"], 
-                                                do_3D=False)
+        if not params["Mean Diameter"]:
+            evaluator = model.cpAlone
+            model.masks, flows, _ = evaluator.eval(ims3D, 
+                                                    diameter = model.params["Mean Diameter"], 
+                                                    channels = [0, 0],
+                                                    cellprob_threshold = model.params["Flow Threshold"], 
+                                                    do_3D=False)
+        else:
+            evaluator = model.model
+            model.masks, flows, _, model.diams = evaluator.eval(ims3D, 
+                                                    diameter = model.params["Mean Diameter"], 
+                                                    channels = [0, 0],
+                                                    cellprob_threshold = model.params["Flow Threshold"], 
+                                                    do_3D=False)
         model.cellprobs = [flow[2] for flow in flows]
         model.cellprobs = np.array((model.processProbability(model.cellprobs)), dtype = np.uint8)
 
