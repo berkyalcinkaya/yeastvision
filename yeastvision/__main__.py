@@ -673,7 +673,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for i in range(self.mainViewRows):
             self.l.setRowStretch(i, 10)
 
-        self.l.setColumnStretch(21,2)
+        self.l.setColumnStretch(20,2)
         self.l.setColumnStretch(0,2)
     
     def updateThreadDisplay(self):
