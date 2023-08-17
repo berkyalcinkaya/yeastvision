@@ -92,7 +92,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.win = pg.GraphicsLayoutWidget()
         self.mainViewRows = 30
-        self.mainViewCols  = 20
+        self.mainViewCols  = 19
         self.l.addWidget(self.win, 0,0, self.mainViewRows, self.mainViewCols)
         self.make_viewbox()
 
