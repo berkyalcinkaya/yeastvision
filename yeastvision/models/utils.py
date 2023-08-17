@@ -9,6 +9,23 @@ from sklearn.decomposition import PCA
 from skimage.measure import regionprops
 from tqdm import tqdm
 from tensorflow.keras import backend as K
+import torch
+import tensorflow as tf
+
+
+
+def check_gpu(tf = True, trch = True):
+    if tf:
+        print(f"Tensorflow\n__________:\n{tf.config.experimental.get_memory_info('GPU:0')}")
+    if trch:
+        t = torch.cuda.get_device_properties(0).total_memory
+        r = torch.cuda.memory_reserved(0)
+        a = torch.cuda.memory_allocated(0)
+        d = {"total": t,
+             "reserved": r,
+             "allocated": a}
+        print(f"Pytorch\n_________\n{d}")
+        # free inside reserved
 
 MODEL_DIR = models.__path__[0]
 

@@ -99,6 +99,4 @@ class CustomCPWrapper(CustomModel):
         prob = np.array(model.cellprobs, dtype = np.float32)
 
         del model
-        
-
         return masks, prob
