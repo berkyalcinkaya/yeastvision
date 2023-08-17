@@ -1,3 +1,4 @@
+#https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html
 import torch
 import numpy as np
 from time import process_time
@@ -59,7 +60,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.goldColor = [255,215,0,255]
 
-        self.setStyleSheet("QMainWindow {background: 'black';}")
+        self.setStyleSheet("QMainWindow {background-color: rgb(24,25,26);}")
         self.stylePressed = ("QPushButton {Text-align: left; "
                              "background-color: rgb(200,10,10); "
                              "border-color: white;"
@@ -83,7 +84,6 @@ class MainWindow(QtWidgets.QMainWindow):
                               "color:rgb(80,80,80);}")
         self.firstMaskLoad = True
         self.getModelNames()
-        self.setStyleSheet("QMainWindow {background: 'black';}")
         self.cwidget = QWidget(self)
         self.l = QGridLayout()
         self.cwidget.setLayout(self.l)
@@ -378,7 +378,7 @@ class MainWindow(QtWidgets.QMainWindow):
                            color: white; 
                            border: black solid 1px
                            }"""
-        self.statusbarstyle = ("color: white;" "background-color : black")
+        self.statusbarstyle = ("background-color : black")
         self.boldfont = QtGui.QFont("Arial", 14, QtGui.QFont.Bold)
         self.medfont = QtGui.QFont("Arial", 12)
         self.smallfont = QtGui.QFont("Arial", 10)
@@ -391,7 +391,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar = QStatusBar()
         self.statusBar.setFont(self.medfont)
-        self.statusBar.setStyleSheet(self.statusbarstyle)
         self.setStatusBar(self.statusBar)
         self.gpuDisplayTorch = ReadOnlyCheckBox("gpu - torch  |  ")
         self.gpuDisplayTF= ReadOnlyCheckBox("gpu - tf")
@@ -408,6 +407,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.gpuDisplayTorch.setChecked(True)
         self.statusBarLayout = QGridLayout()
         self.statusBarWidget = QWidget()
+        self.statusBarWidget.setStyleSheet(self.statusbarstyle)
         self.statusBarWidget.setLayout(self.statusBarLayout)
 
         self.cpuCoreDisplay = QLabel("")
@@ -428,6 +428,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBarLayout.addWidget(self.hasLineageBox, 0,4,1,1)
         self.statusBarLayout.addWidget(self.hasCellDataBox,0,5,1,1)
         self.statusBar.addPermanentWidget(self.statusBarWidget)
+
+        self.statusBar.setStyleSheet(self.statusbarstyle)
         
         self.dataDisplay = QLabel("")
         self.dataDisplay.setMinimumWidth(300)

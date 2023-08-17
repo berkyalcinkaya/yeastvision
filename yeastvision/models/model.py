@@ -85,6 +85,7 @@ class Model():
             probIm = model.getProbIm(im)
             probIms.append(probIm)
             masks.append(model.getMask(probIm))
+        del model
         return np.array(masks, dtype = np.uint8), np.array(probIms, dtype = np.float32) 
 
 
