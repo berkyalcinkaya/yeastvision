@@ -37,7 +37,8 @@ class Artilife(CustomCPWrapper):
     def __init__(self, params, weights):
         super().__init__(params, weights)
 
-        self.budSeg = BudSeg()
+        if params["Time Series"]:
+            self.budSeg = BudSeg()
 
     def findSmallBud(self, ims, masks):
         smallBuds = []
@@ -124,10 +125,14 @@ class Artilife(CustomCPWrapper):
             cellData = getLifeData(model.masks)
             model.addSmallCells(ims, cellData)
             model.masks = trackYeasts(model.masks)
+            del model.masks
 
         print("finished")
+        mask, probs = model.masks, model.cellprobs
+
+        del model
         
-        return model.masks, model.cellprobs
+        return mask, probs
 
 
 
@@ -159,8 +164,8 @@ class ArtilifeFullLifeCycle(Artilife):
         self.matMasks, self.matprobs = None, None
         self.tetraMasks, self.tetraprobs = None, None
 
-
-        self.budSeg = BudSeg()
+        if params["Time Series"]:
+            self.budSeg = BudSeg()
         if params["Mating Cells"]:
             from models.matSeg.model import MatSeg
             self.matSeg = MatSeg(self.params, produce_weight_path("matSeg", self.params["matSeg"]))
@@ -311,6 +316,7 @@ class ArtilifeFullLifeCycle(Artilife):
             cellData = getLifeData(model.masks)
             model.addSmallCells(ims, cellData)
             model.masks = trackYeasts(model.masks)
+            del model.budSeg
 
         if model.matSeg:
             print('add mating cell')

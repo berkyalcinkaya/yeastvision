@@ -29,6 +29,7 @@ class BudNET(Model):
 
         probIms = [prediction(model.model, im, do_thresh=False, do_aug = model.params["Test Time Augmentation"]) for im in tqdm(ims)]
         threshIms = [label((im>model.params["Threshold"]).astype(np.uint16)) for im in probIms]
+        del model.model
         del model
         return np.array(threshIms, dtype = np.uint16), np.array(probIms, dtype = np.float32)
 

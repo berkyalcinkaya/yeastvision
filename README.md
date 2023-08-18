@@ -36,7 +36,11 @@ Again, enusre your yeastvision conda environment is active for the following com
 
 To use your NVIDIA GPU with python, you will first need to install the NVIDIA driver for your GPU, check out this [website](https://www.nvidia.com/Download/index.aspx?lang=en-us) to download it. Ensure it is downloaded and your GPU is detected by running `nvidia-smi` in the terminal.
 
-Next we need to remove the CPU version of torch:
+Yeastvision relies on two machine-learning frameworks: `tensorflow` and `pytorch`. We will need to configure both of these packages for gpu usage
+
+#### PyTorch
+
+First, we need to remove the CPU version of torch:
 ~~~
 pip uninstall torch
 ~~~
@@ -45,21 +49,19 @@ And the cpu version of torchvision:
 pip uninstall torchvision
 ~~~
 
-To install the GPU version of torch and torchvision, first ensure you have downloaded the proper nvidia drivers for your GPU. Then for pytorch and torchvision, follow the instructions [here](https://pytorch.org/get-started/locally/). The conda install is strongly recommended, and then choose the CUDA version that is supported by your GPU (newer GPUs may need newer CUDA versions > 10.2). You can check the highest version of CUDA that your nvidia driver supports by running: 
-~~~
-nvidia-smi
-~~~
-For instance this command will install the 11.6 version on Linux and Windows (note the `torchaudio` commands are removed because yeastvision doesn't require them):
-~~~
-conda install pytorch==1.12.0 torchvision==0.13.0 pytorch-cuda=11.6 -c pytorch -c nvidia
-~~~
-The 11.6 configuration is recommended as this system was thoroughly tested with this system.  However, for some GPUs which do not support CUDA 11.6 or later, the above command will timeout. In that case, you can quickly try an older version like cuda 11.3:
+Now install `torch` and `torchvision` for CUDA version 11.3 (Ensure that your nvidia drivers are up to date for version 11.3 by running `nvidia-smi` and check that a version >=11.3 is displayed in the top right corner of the output table).
 ~~~
 conda install pytorch==1.12.0 torchvision==0.13.0 cudatoolkit=11.3 -c pytorch
 ~~~~
-Info on how to install several older versions is available [here](https://pytorch.org/get-started/previous-versions/). 
 
 After install you can check `conda list` for `pytorch`, and its version info should have `cuXX.X`, not `cpu`.
+
+#### Tensorflow
+
+All we need to do here is install the cuDNN package for tensorflow gpu usage
+~~~
+conda install cudnn=8.1.0
+~~~
 
 ## Common Installation Problems
 

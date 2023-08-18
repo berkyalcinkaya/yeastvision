@@ -72,6 +72,7 @@ class CustomCPWrapper(CustomModel):
         self.model.cp.train(ims, labels, 
                                         channels=[0,0], 
                                         save_path=params["dir"], 
+                                        min_train_masks=1,
                                         nimg_per_epoch=8,
                                         learning_rate = params['learning_rate'], 
                                         weight_decay = params['weight_decay'], 

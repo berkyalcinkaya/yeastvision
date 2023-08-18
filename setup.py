@@ -1,7 +1,7 @@
 from setuptools import setup
 
 requires = [
-"numpy<1.24",
+"numpy==1.24",
 "cellpose==2.1.0",
 "matplotlib",
 "munkres",

@@ -44,6 +44,12 @@ from functools import partial
 from yeastvision.models.artilife.model import ArtilifeFullLifeCycle
 torch.cuda.empty_cache() 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
+import warnings
+warnings.filterwarnings("ignore")
+configure_tf_memory_growth()
+
+global logger
+logger, log_file = logger_setup()
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -92,7 +98,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.win = pg.GraphicsLayoutWidget()
         self.mainViewRows = 30
-        self.mainViewCols  = 20
+        self.mainViewCols  = 21
         self.l.addWidget(self.win, 0,0, self.mainViewRows, self.mainViewCols)
         self.make_viewbox()
 
@@ -438,7 +444,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dataDisplay.setFont(self.medfont)
         self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         self.updateDataDisplay()
-        self.l.addWidget(self.dataDisplay, rowspace-1,cspace-1,1,20)
+        self.l.addWidget(self.dataDisplay, rowspace-1,0,1,20)
 
         label = QLabel('Drawing:')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
@@ -1078,7 +1084,16 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.saveData()
 
     def updateDataDisplay(self, x = None,y = None, val = None):
-        dataString = f"Session Id: {self.sessionId}"
+
+        dataString = ""
+
+        if x!=None and y!=None and val!=None:
+            self.labelX, self.labelY = x,y
+            if self.maskType == 1:
+                val = round(val/255,2)
+            dataString += f"x={str(x)}, y={str(y)}, value={str(val)}"
+        
+        #dataString = f"Session Id: {self.sessionId}"
 
         if self.imLoaded:
             files = self.imData.files[self.imZ]
@@ -1086,9 +1101,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 file = files[self.tIndex]
             else:
                 file = files[0]
-            dataString += f'  |  {file}'
+            dataString += f'\n{file}'
 
-            dataString += f"\nIMAGE: {self.currIm.shape} {self.currImDtype}"
+            dataString += f" | IMAGE: {self.currIm.shape} {self.currImDtype}"
             
             if self.maskLoaded:
                 dataString += f"  |  MASK: {self.currMask.shape} {self.currImDtype}"
@@ -1097,14 +1112,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
             if self.maskLoaded:
                 dataString += f"  |  REGIONS: {self.numObjs}"
-            
-
-            if x!=None and y!=None and val!=None:
-                self.labelX, self.labelY = x,y
-                if self.maskType == 1:
-                    val = round(val/255,2)
-                dataString += f"\nx={str(x)}, y={str(y)}, value={str(val)}"
-
         self.dataDisplay.setText(dataString)
     
     def deleteCell(self, cellNum):
@@ -1112,7 +1119,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.strokes.append((stroke,cellNum))
         self.currMask[stroke] = 0
         self.maskData.contours[self.maskZ][self.tIndex,:,:][stroke]=0
-        
+        self.drawMask()
         self.saveData()
 
     def getMaskCmap(self):
@@ -1651,20 +1658,22 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def train(self, data, modelType, weightPath, autorun = True):
         # weights are overwritten if model is to be trained from scratch
+        #check_gpu()
         torch.cuda.empty_cache() 
         if data["scratch"]:
             weightPath = None
         # directory to save weights is current image directory stored in reader
         data["dir"] = os.getcwd()
         modelCls = self.getModelClass(modelType)
+        #check_gpu()
         # model is initiated with default hyperparams
         self.model = modelCls(modelCls.hyperparams, weightPath)
         self.model.train(self.trainIms, self.trainLabels, data)
+        #check_gpu()
         weightPath = join(data["dir"], "models", data["model_name"])+self.model.prefix
         print("Saving new weights to",weightPath)
 
-        if autorun:
-            self.trainTStop+=1
+        if autorun and self.trainTStop < self.maxT:
             im = self.getCurrMaskSet()[self.trainTStop:self.trainTStop+1,:,:]
             newIms, newProbIms = modelCls.run(im,None,weightPath)
 
@@ -1677,6 +1686,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 newProbIms = None
             addMethod(newIms, self.trainTStop, self.maskZ, newProbIms=newProbIms)
             self.drawMask()
+        elif self.trainTStop == self.maxT:
+            print("Not enough data to autorun")
 
     def hasProbIm(self):
         return self.maskData.channels[self.maskZ].shape[0]>1
@@ -1703,7 +1714,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for i,label in enumerate(labels[:self.trainTStop+1,:,:]):
             if np.all(label==0):
                 break
-        self.trainTStop = i-1
+        self.trainTStop = i
 
         self.trainIms = [im for im in ims[:self.trainTStop+1,:,:]]
         self.trainLabels = [im for im in labels[:self.trainTStop+1,:,:]]
@@ -1744,7 +1755,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def segment(self, output, modelClass, ims, params, weightPath, modelType):
-
+        #check_gpu()
         tStart, tStop = int(params["T Start"]), int(params["T Stop"])
         imName = params["Channel"]
 
@@ -1781,6 +1792,7 @@ class MainWindow(QtWidgets.QMainWindow):
         torch.cuda.empty_cache()
         del modelClass
         del output
+        #check_gpu()
         
     def evaluate(self):
         if not self.maskLoaded:
@@ -1868,6 +1880,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def computeModels(self):
+        #check_gpu()
         weightName = self.modelChoose.currentText() 
         if weightName == '':
             return
@@ -1893,6 +1906,8 @@ class MainWindow(QtWidgets.QMainWindow):
                              self.modelButton)
         else:
             self.activateButton(self.modelButton)
+        
+        #check_gpu()
     
     def computeArtilifeModel(self):
         modelType = "artilife"

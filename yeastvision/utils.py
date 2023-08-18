@@ -8,6 +8,52 @@ import skimage
 import matplotlib.pyplot as plt
 import cv2
 from cv2 import resize
+import logging
+import pathlib
+import sys
+
+
+def logger_setup():
+    cp_dir = pathlib.Path.home().joinpath('.yeastvision')
+    cp_dir.mkdir(exist_ok=True)
+    log_file = cp_dir.joinpath('run.log')
+    try:
+        log_file.unlink()
+    except:
+        print('creating new log file')
+    logging.basicConfig(
+                    level=logging.INFO,
+                    format="%(asctime)s [%(levelname)s] %(message)s",
+                    handlers=[
+                        logging.FileHandler(log_file),
+                        logging.StreamHandler(sys.stdout)
+                    ]
+                )
+    logger = logging.getLogger(__name__)
+    logger.info(f'WRITING LOG OUTPUT TO {log_file}')
+    return logger, log_file
+
+def configure_tf_memory_growth():
+    physical_devices = tf.config.list_physical_devices('GPU')
+    try:
+        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    except:
+        # Invalid device or cannot modify virtual devices once initialized.
+        pass
+
+
+def check_gpu(do_tf = True, do_torch = True):
+    if do_tf:
+        print(f"Tensorflow\n__________:\n{tf.config.experimental.get_memory_info('GPU:0')}")
+    if do_torch:
+        t = torch.cuda.get_device_properties(0).total_memory
+        r = torch.cuda.memory_reserved(0)
+        a = torch.cuda.memory_allocated(0)
+        d = {"total": t,
+             "reserved": r,
+             "allocated": a}
+        print(f"Pytorch\n_________\n{d}")
+        # free inside reserved
 
 def showCellNums(mask):
     "annotates the current plt figure with cell numbers"

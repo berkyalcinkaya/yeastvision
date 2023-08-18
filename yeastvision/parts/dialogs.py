@@ -576,11 +576,11 @@ class TrainWindow(QDialog):
         qlabel = QLabel("New Model Suffix")
         qlabel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         self.l0.addWidget(qlabel, self.yoff,0,1,1)
-        self.modelName = QLineEdit()
-        self.modelName.setToolTip("Initial model name will automatically be added as a prefix to New Model Suffix.")
-        self.modelName.setText(self.parent.trainModelSuffix)
-        self.modelName.setFixedWidth(200)
-        self.l0.addWidget(self.modelName, self.yoff, 1,1,1)
+        self.suffixName = QLineEdit()
+        self.suffixName.setToolTip("Initial model name will automatically be added as a prefix to New Model Suffix.")
+        self.suffixName.setText(self.parent.trainModelSuffix)
+        self.suffixName.setFixedWidth(200)
+        self.l0.addWidget(self.suffixName, self.yoff, 1,1,1)
 
         self.addTrainParams()
         
@@ -609,7 +609,7 @@ class TrainWindow(QDialog):
         return True
     
     def getData(self):
-        suffix = str(self.modelName.text())
+        suffix = str(self.suffixName.text())
         return {k:float(v.text()) for k,v in self.edits.items()} | {"scratch": self.checkbox.isChecked()} | {"model_name": f"{self.modelName}_{suffix}"}
 
     
