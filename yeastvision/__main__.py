@@ -42,6 +42,7 @@ from tqdm import tqdm
 from memory_profiler import profile
 from functools import partial
 from yeastvision.models.artilife.model import ArtilifeFullLifeCycle
+from yeastvision.data.ims import Experiment
 torch.cuda.empty_cache() 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 import warnings
@@ -143,6 +144,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.trainModelName = None
         self.trainModelSuffix = None
+
+        self.experiments = []
 
         self.win.show()
     
@@ -292,7 +295,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.imLoaded = True
             self.enableImageOperations()
 
-        self.imZ+=1
+        self.imZ = 0
         self.imChanged = True
 
         if name:
@@ -1189,15 +1192,25 @@ class MainWindow(QtWidgets.QMainWindow):
         if ".pkl" in files[0]:
             self.toStatusBar("Loading Npy... ")
             loadPkl(files[0], self)
+        elif os.path.isdir(files[0]):
+            self.loadExperiment(files[0])
             
-        elif not self.imLoaded:        
-            self.loadImageFiles(files[0])
+        # elif not self.imLoaded:        
+        #     self.loadImageFiles(files[0])
+        # else:
+        #     if self.isUpperHalf(event):
+        #         self.loadMaskFiles(files[0])
+        #     else:
+        #         self.loadImageFiles(files[0])
+        #self.statusBar.clearMessage()
+    
+    def loadExperiment(self,file):
+        dlg = GeneralParamDialog({"num_channels":1}, [None], "", self)
+        if dlg.exec():
+            num_channels = int(dlg.getData()["num_channels"])
         else:
-            if self.isUpperHalf(event):
-                self.loadMaskFiles(files[0])
-            else:
-                self.loadImageFiles(files[0])
-        self.statusBar.clearMessage()
+            return
+        new_experiment = Experiment(file, num_channels=num_channels)
     
     def loadImageFiles(self, file):
         self.toStatusBar("Loading Image...")
