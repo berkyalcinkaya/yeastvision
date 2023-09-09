@@ -9,6 +9,32 @@ image_extensions = ['.tif','.tiff',
                             '.JPG','.JPEG','.PNG','.BMP',
                             '.PBM','.PGM','.PPM','.PXM','.PNM','.JP2']
 
+def get_files(dir, extension):
+    return sorted(glob.glob(os.path.join(dir, "*"+extension)))
+
+def has_extension(dir, extension):
+    return bool(get_files(dir, extension))
+
+def get_im_mask_npzs(dir):
+    npz_files = get_files(dir, ".npz")
+    ims, masks = [], []
+    if npz_files:
+        for file in npz_files:
+            if is_mask_npz(file):
+                masks.append(file)
+            elif is_image_npz(file):
+                ims.append(file)
+    return ims,masks
+
+
+
+def is_mask_npz(file):
+    return "labels" in np.load(file).files
+
+def is_image_npz(file):
+    return "ims" in np.load(file).file
+
+
 def get_extensions_in_dir(dir):
     extensions = []
     for path in os.listdir(dir):
@@ -53,9 +79,11 @@ def concatenate_arrays_by_dict(main_dict, new_dict):
     for key in main_dict.keys():
         new_data = new_dict[key]
         main_data = main_dict[key]
-        main_dict[key] = np.concatenate(main_data, new_data, axis = 0)
+        print(main_data.shape, new_data.shape)
+        main_dict[key] = np.concatenate((main_data, new_data), axis = 0)
+    return main_dict
 
 
 def append_to_npz(npz_file, new_data):
     npz_dict = dict(np.load(npz_file))
-    np.savez(npz_file, concatenate_arrays_by_dict(npz_dict, new_data))
+    np.savez(npz_file, **concatenate_arrays_by_dict(npz_dict, new_data))

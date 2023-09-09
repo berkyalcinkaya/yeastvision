@@ -190,7 +190,7 @@ class ModelParamDialog(GeneralParamDialog):
 
     def channelSelectIndexChanged(self):
         channelIndex = self.parent.channelSelect.findText(self.dropDownData["Channel"].currentText())
-        maxT = self.parent.imData.maxTs[channelIndex]
+        maxT = self.parent.experiment().channels[channelIndex].max_t()
         self.dropDownData["T Start"].clear()
         self.dropDownData["T Stop"].clear()
         self.addTValues(maxT)
@@ -504,7 +504,7 @@ class ArtilifeParamDialog(ModelParamDialog):
 
     def channelSelectIndexChanged(self):
         channelIndex = self.parent.channelSelect.findText(self.dropDownData["Channel"].currentText())
-        maxT = self.parent.imData.maxTs[channelIndex]
+        maxT = self.parent.experiment().channels[channelIndex].max_t()
         for prefix in ["T ", "mat", "spore"]:
             self.dropDownData[f"{prefix}Start"].clear()
             self.dropDownData[f"{prefix}Stop"].clear()

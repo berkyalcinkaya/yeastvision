@@ -11,7 +11,11 @@ from cv2 import resize
 import logging
 import pathlib
 import sys
+import os
 
+def get_filename(path):
+    _, name_with_extension = os.path.split(path)
+    return os.path.splitext(path)[0]
 
 def logger_setup():
     cp_dir = pathlib.Path.home().joinpath('.yeastvision')

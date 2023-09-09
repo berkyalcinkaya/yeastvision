@@ -106,7 +106,7 @@ class CustomCPWrapper(CustomModel):
         model.cellprobs = np.array((model.processProbability(model.cellprobs)), dtype = np.uint8)
 
         masks = np.array(model.masks, dtype = np.uint16)
-        prob = np.array(model.cellprobs, dtype = np.float32)
+        prob = model.cellprobs
 
         del model
         return masks, prob

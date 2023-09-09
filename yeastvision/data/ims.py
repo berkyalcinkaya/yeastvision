@@ -4,38 +4,73 @@ import glob
 from yeastvision.utils import get_mask_contour
 import numpy as np
 from .utils import *
+import copy
+from tqdm import tqdm
 
 
 
 class Experiment():
 
-    npz_filename = "labels.npz"
-
     def __init__(self, dir, num_channels = 1):
         self.dir = dir
+        _, self.name = os.path.split(self.dir)
         self.num_channels = num_channels
         self.num_labels = 0
 
         self.channels = []
         self.labels = []
 
-        self.npz_path  = os.path.join(self.dir, self.npz_filename)
-        if os.path.exists(self.npz_path):
-            self.load_from_npz(num_channels=num_channels)
+        im_npzs, mask_npzs = get_im_mask_npzs(self.dir)
+        if mask_npzs:
+            self.load_with_mask_npzs(mask_npzs, num_channels)
         else:
             self.load_from_dir(num_channels)
-            self.load_masks()
         
+        if im_npzs:
+            self.load_channels_from_npz_files(im_npzs)
+        
+        self.set_mask_type("labels")
+    
+    def new_channel_name(self, index, new_name):
+        if new_name not in self.get_channel_names():
+            self.channels[index].set_name(new_name)
+            return True
+        else:
+            return False
 
+    def new_label_name(self, index, new_name):
+        if new_name not in self.get_channel_names():
+            self.labels[index].set_name(new_name)
+            return True
+        else:
+            return False
+    
+    def load_channels_from_npz_files(self):
+        npz_files = get_files(self.dir, extension="npz")
+        if self.npz_path in npz_files:
+            npz_files.remove(self.npz_path)
+        self.npz_channel_files = npz_files
+        for path in self.npz_channel_files:
+            _, name = os.path.split(path)
+            if InterpolatedChannel.text_id in name:
+                self.add_channel_object(InterpolatedChannel(npz_path=path))
+            else:
+                self.add_channel_object(ChannelNoDirectory(npz_path=path))
+    
+    def get_channel_names(self):
+        return [channel.name for channel in self.channels]
+    
+    def get_label_names(self):
+        return [label.name for label in self.labels]
+        
     def get_dummy_labels(self, full = True):
         shape = self.shape()
         if full:
             h,w = shape
             t = self.get_t()
-            print(t,h,w)
-            return np.zeros((t,h,w))
+            return np.zeros((t,h,w), dtype = np.uint8)
         else:
-            return np.zeros(shape)
+            return np.zeros(shape, dtype = np.uint8)
     
     def get_label(self, mask_type, name = None, idx = None, t = None):
         if not self.has_labels():
@@ -45,10 +80,10 @@ class Experiment():
                 self.set_mask_type(mask_type)
             if name:
                 idx = self.get_mask_index_from_name(name)
-            if t:
-                return self.data[idx,t,:,:]
+            if t is not None:
+                return self.labels[idx].data[t,:,:]
             else:
-                return self.data[idx,:,:,:]
+                return self.labels[idx].data[:,:,:]
     
     def get_channel_by_name(self, name):
         for channel in self.channels:
@@ -62,13 +97,13 @@ class Experiment():
                 return label
         raise IndexError
     
-    def get_channel(self, name = None, index = None, t = None):
+    def get_channel(self, name = None, idx = None, t = None):
         if name:
             channel = self.get_channel_by_name(name)
         else:
-            channel = self.channels[index]
-        if t:
-            return channel.ims[t,:,:]
+            channel = self.channels[idx]
+        if t is not None:
+            return channel.ims[t]
         else:
             return channel.ims
         
@@ -80,13 +115,8 @@ class Experiment():
 
     def set_mask_type(self, mask_type):
         self.mask_type = mask_type
-        self.data = self.npzdata[self.mask_type]
-        
-    def load_masks(self, mask_type = "labels"):
-        if self.has_labels():
-            self.npzdata = np.load(self.npz_path)
-            self.mask_type = mask_type
-            self.data = self.npzdata[mask_type]
+        for label in self.labels:
+            label.set_mask_type(mask_type)
     
     def has_labels(self):
         return self.num_labels>0
@@ -118,9 +148,9 @@ class Experiment():
         
         if num_labels>0:
             for label in labels:
-                self.add_label(files = label, increment_count=False)
+                self.add_label(files = label, increment_count=True)
 
-    def load_from_npz(self, num_channels):
+    def load_with_mask_npzs(self, mask_npzs, num_channels):
         channels = [[]*num_channels]
         
         files = sorted(get_image_files(self.dir, remove_masks=True))
@@ -135,15 +165,27 @@ class Experiment():
         
         for channel in channels:
             self.add_channel(channel, increment_count=False)
-        self.load_masks()
-        self.create_label_objects_from_npz()
-    
+        for npz_path in tqdm(mask_npzs):
+            print(npz_path)
+            self.labels.append(Label(npz_path=npz_path))
+            self.num_labels+=1
+
+
     def create_label_objects_from_npz(self):
+        self.npzdata = np.load(self.npz_path)
         loaded_npz = self.npzdata
         num_masks = loaded_npz["labels"].shape[0]
         for i in range(num_masks):
-            self.labels.append(Label(dir = self.dir, name = self.get_label_name(None), npz_name=self.npz_filename, loaded_npz=loaded_npz, npz_index=i))
+            self.labels.append(Label(dir = self.dir, name = self.get_label_name(name = None), npz_name=self.npz_filename, loaded_npz=loaded_npz, npz_index=i))
             self.num_labels+=1
+    
+    def add_channel_object(self, channel_object):
+        self.channels.append(channel_object)
+        self.num_channels+=1
+    
+    def add_label_object(self, label_object):
+        self.labels.append(label_object)
+        self.num_labels+=1
 
     def add_channel(self, files, increment_count = True):
         self.channels.append(Channel(files, f"channel_{len(self.channels)}"))
@@ -151,18 +193,35 @@ class Experiment():
         if increment_count:
             self.num_channels+=1
 
-    def add_label(self, files = None, arrays = None, increment_count = True, name = None):
-        new_label = Label(fnames = files, mask_arrays=arrays, dir = self.dir, npz_name=self.npz_filename, name = self.get_label_name(name))
+    def add_label(self, files = None, arrays = None, increment_count = True, name = None, update_data = False):
+        new_label = Label(fnames = files, mask_arrays=arrays, dir = self.dir, name = self.get_label_name(name = name))
         self.labels.append(new_label)
+        if increment_count:
+            self.num_labels +=1
+        if update_data:
+            self.load_masks()
+        
+    def get_num_labels(self):
+        return len(self.labels)
 
-        self.num_labels +=1
-    
+    def get_num_channels(self):
+        return len(self.channels)
+
     def get_t(self):
         return len(self.channels[0].ims)
     
-    def get_label_name(self, name):
+    def get_label_name(self, name = None):
         if name is None:
-            return f"label_{len(self.labels)}"
+            name =  f"label_{len(self.labels)}"
+        n = (np.char.find(np.array(self.get_channel_names()), name)+1).sum()
+        if n>0:
+            return f"{name}-n"
+        else:
+            return name
+    
+    def get_channel_name(self, name = None):
+        if name is None:
+            return f"channel_{len(self.labels)}"
         n = (np.char.find(np.array(self.labels), name)+1).sum()
         if n>0:
             return f"{name}-n"
@@ -180,6 +239,13 @@ class Experiment():
         for label in self.labels:
             label_string+=f"\t{label.name}: {str(label)}\n"
         return label_string
+
+    def get_viable_im_objs(self, mask_obj):
+        viable_ims = []
+        for channel in self.channels:
+            if channel.t == mask_obj.t and channel.shape == mask_obj.shape:
+                viable_ims.append(channel)
+        return viable_ims
 
     def shape(self):
         return self.channels[0].shape
@@ -205,6 +271,7 @@ class Files():
         self.loaded = False
         self.load()
         self.get_properties()
+        self.annotations = None
     
     def load(self):
         self.ims = [imread(file) for file in self.files]
@@ -216,8 +283,28 @@ class Files():
         self.loaded = False
     
     def get_properties(self):
+        self.t = len(self.ims)
         self.shape = self.ims[0].shape
         self.dtype = str(self.ims[0].dtype)
+    
+    
+    def get_string(self, t):
+        return f"{self.shape} {self.dtype}"
+    
+    def get_files(self, t):
+        return self.files[t]
+
+    def max_t(self):
+        return self.t-1
+
+    def set_name(self, new_name):
+        self.name = new_name
+    
+    def x(self):
+        return self.shape[-1]
+
+    def y(self):
+        return self.shape[0]
 
 
 class Channel(Files):
@@ -225,24 +312,134 @@ class Channel(Files):
         super().__init__(fnames, load_on_init=load_on_init)
         self.labels = labels
         self.name = name
+        self.compute_saturation()
     def __str__(self):
         return f"{self.shape} | {self.dtype}"
-
+    
+    def compute_saturation(self):
+        self.saturation = [[im.min(), im.max()] for im in self.ims]
+    
+    def get_saturation(self, t):
+        return self.saturation[t]
     
 
+class ChannelNoDirectory(Channel):
+    def __init__(self, npz_path = None, ims = None, dir = None, name = None, annotations = None):
+        if npz_path is not None:
+            self.dir, fname = os.path.split(npz_path)
+            self.name = os.path.splitext(fname)[0]
+            data = np.load(npz_path, allow_pickle=True)
+            self.annotations = data["annotations"]
+            self.ims = data["ims"]
+            self.path = npz_path
+        else:
+            self.dir = dir
+            self.name = name 
+            self.ims = ims
+            self.path = self.make_path()
+            if annotations is None:
+                annotations = [[] for _ in range(len(ims))]
+            self.annotations = np.array(annotations, dtype = object)
+            self.save_to_npz()
+        
+        self.get_properties()
+        self.compute_saturation()
+
+    def make_path(self):
+        return os.path.join(self.dir, self.name+".npz")
+
+    def set_name(self, new_name):
+        self.name = new_name
+        new_npz_name = self.make_path()
+        os.rename(self.path, new_npz_name)
+        self.path = new_npz_name
+
+    def save_to_npz(self):
+        np.savez(self.path, annotations = self.annotations, ims = self.ims)
+    
+    def get_string(self,t):
+        if self.annotations is not None and self.annotations[t] != []:
+            return f"{super().get_string(t)} ,  {(','.join(self.annotations[t])).upper()}"
+        else:
+            return super().get_string(t)
+
+    def get_files(self, t):
+        return self.path
+
+class InterpolatedChannel(ChannelNoDirectory):
+    text_id = "_interp"
+    def __init__(self, interpolation = None, npz_path = None, ims = None, dir = None, name = None, annotations = None):
+        if npz_path is not None:
+            self.dir, fname = os.path.split(npz_path)
+            self.name = os.path.splitext(fname)[0]
+            data = np.load(npz_path, allow_pickle=True)
+            self.annotations = data["annotations"]
+            self.ims = data["ims"]
+            self.interp_annotations = data["interpolation"]
+            self.infer_interpolation()
+            self.path = npz_path
+        else:
+            self.interpolation = interpolation
+            self.dir = dir
+            self.name = name 
+            self.ims = ims
+            print(self.ims.shape)
+            print(len(self.ims))
+            self.path = os.path.join(self.dir, self.name+".npz")
+            print("annotations", annotations)
+            if annotations is not None:
+                self.annotations = copy.deepcopy(annotations)
+            else:
+                self.annotations = [[] for _ in range(len(self.ims))]
+            self.add_interpolation_to_annotations()
+            self.make_interpolation_annotation()
+            self.annotations = np.array(self.annotations)
+            self.save_to_npz()
+
+        
+        self.get_properties()
+        self.compute_saturation()
+
+    def save_to_npz(self):
+        np.savez(self.path, annotations = self.annotations, ims = self.ims, interpolation = self.interp_annotations)
+    
+    def make_interpolation_annotation(self):
+        self.interp_annotations = [False for i in range(len(self.ims))]
+        for i in range(0, len(self.ims), self.interpolation):
+            self.interp_annotations[i] = True
+
+    def add_interpolation_to_annotations(self):
+        for i, ann in enumerate(self.annotations):
+            if i % self.interpolation == 0:
+                self.annotations[i].append("REAL-IMAGE")
+            else:
+                self.annotations[i].append("INTERPOLATED")
+
+    def infer_interpolation(self):
+        num_real = np.count_nonzero(self.interp_annotations)
+        total = len(self.interp_annotations)
+        self.interpolation = total/num_real
+    
+
+
 class Label(Files):
-        def __init__(self, mask_arrays = None, fnames = None, dir = None, npz_name = "labels.npz", name = None, loaded_npz = None, npz_index = None):
-            self.name = name
-
-            if loaded_npz is not None and npz_name is not None and npz_index is not None:
+        mask_types = ["labels", "probability", "contours"]
+        def __init__(self, mask_arrays = None, fnames = None, dir = None, npz_path = None, name = None):
+            
+            self.celldata = None
+            self.lineagedata = None
+            self.labels, self.contours, self.probability = None, None, None
+            
+            if npz_path and os.path.exists(npz_path):
                 print("loading from npz")
-                self.dir = dir
-                self.npz_path = os.path.join(self.dir, npz_name)
-                self.load_from_npz(loaded_npz, npz_index)
+                self.npz_path = npz_path
+                self.get_dir_and_name_from_npz_path()
+                self.init_from_npz()
 
-            else:              
+            else:   
+                self.name = name           
                 if fnames is not None:
-                    self.files =fnames
+                    self.files = fnames
                     self.dir = os.path.dirname(self.files[0])
                     raw_arrays = np.array([imread(file) for file in self.files])
                 elif mask_arrays is not None:
@@ -250,21 +447,58 @@ class Label(Files):
                     self.dir = dir
                     self.files = []
                     raw_arrays = np.array(mask_arrays)            
-                self.npz_path = os.path.join(self.dir, npz_name)
+                self.npz_path = os.path.join(self.dir, name+".npz")
                 self.extract_probability(raw_arrays)
                 self.extract_contours()
                 self.get_properties()
 
                 self.write_to_npz()
-                self.unload()
+                self.unload_data_attrs()
             
-        def load_from_npz(self, loaded_npz, npz_index):
-            labels = loaded_npz["labels"][npz_index,:,:,:]
+            self.load()
+
+        def has_cell_data(self):
+            print(self.celldata)
+            return self.celldata is not None
+        
+        def has_lineage_data(self):
+            return self.lineagedata is not None
+        
+        def get_dir_and_name_from_npz_path(self):
+            self.dir, head = os.path.split(self.npz_path)
+            self.name,_ = os.path.splitext(head)
+
+        def load(self, mask_type = "labels"):
+            self.npzdata = dict(np.load(self.npz_path, allow_pickle=True))
+            self.data = self.npzdata[mask_type]
+        
+        def set_mask_type(self, mask_type):
+            assert mask_type in self.mask_types
+            self.mask_type = mask_type
+            self.data = self.npzdata[self.mask_type]
+        
+        def save_current_data(self):
+            if self.mask_type == "contours":
+                self.contours = self.data
+            elif self.mask_type == "labels":
+                self.labels = self.data
+            self.save()
+
+
+        def init_from_npz(self):
+            data = np.load(self.npz_path, allow_pickle=True)
+            self.celldata = data["celldata"][0]
+            self.lineagedata = data["lineagedata"][0]
+            labels = data["labels"][:,:,:]
             self.shape = labels[0].shape
             self.dtype = str(labels[0].dtype)
-            self.has_probability = np.any(loaded_npz["probability"][npz_index,:,:,:]!=0)
+            self.t = len(labels)
+            self.has_probability = np.any(data["probability"][:,:,:]!=0)
+            del labels
+            del data
 
         def get_properties(self):
+            self.t = len(self.labels)
             self.shape = self.labels[0].shape
             self.dtype = str(self.labels[0].dtype)
         
@@ -272,48 +506,82 @@ class Label(Files):
             return f"{self.shape} | {self.dtype} | has_probability: {self.has_probability}"
 
         def write_to_npz(self):
-            print(self.npz_path)
-            if not os.path.exists(self.npz_path):
-                np.savez(self.npz_path, **self.get_data_dict())
-            else:
-                append_to_npz(self.npz_path, **self.get_data_dict())
+            np.savez(self.npz_path, **self.get_data_dict())
 
-        def unload(self):
-            del self.labels
-            del self.contours
-            if self.has_probability:
-                del self.probability
+        def unload_data_attrs(self):
+            self.labels = None
+            self.contours = None
+            self.has_probability = None
 
         def get_data_dict(self):
             data = {}
             for property_name in ["labels", "contours", "probability"]:
                 data[property_name] = getattr(self,f"get_{property_name}")()
+            data["celldata"] = np.array([self.celldata])
+            data["lineagedata"] = np.array([self.lineagedata])
             return data
 
         def extract_probability(self, raw_arrays):
             if len(raw_arrays.shape) == 4:
                 self.has_probability = True
-                self.labels = raw_arrays[:,:,:,0]
-                self.probability = raw_arrays[:,:,:,1]
+                self.labels = raw_arrays[0,:,:,:]
+                self.probability = raw_arrays[1,:,:,:]
             else:
                 self.has_probability = False
                 self.labels = raw_arrays
             
         def extract_contours(self):
-            self.contours = [get_mask_contour(mask) for mask in self.labels]
+            self.contours = [get_mask_contour(mask) for mask in tqdm(self.labels)]
         
         def get_labels(self):
-            return np.expand_dims(self.labels, 0)
+            if self.labels is not None:
+                return self.labels
+            return self.npzdata["labels"]
         
         def get_contours(self):
-            return np.expand_dims(self.contours, 0)
-        
+            if self.contours is not None:
+                return self.contours
+            return self.npzdata["contours"]
+
         def get_probability(self):
             if self.has_probability:
-                return np.expand_dims(self.probability, 0)
+                    if self.probability is not None:
+                        return self.probability
+                    return self.npzdata["probability"]
             else:
-                return np.expand_dims(np.zeros_like(self.labels, dtype = np.uint8), 0)
+                return np.zeros_like(self.get_labels(), dtype = np.uint8)
+        
+        def get_files(self,t):
+            return self.npz_path
+        
+        def set_name(self, new_name):
+            self.name = new_name
+            new_npz_name = self.make_path()
+            os.rename(self.npz_path, new_npz_name)
+            self.npz_path = new_npz_name
+        
+        def make_path(self):
+            return os.path.join(self.dir, self.name+".npz")
+        
+        def save(self):
+            print("saving")
+            self.write_to_npz()
+            #self.load()
+            #self.unload_data_attrs()
+        
+        def set_data(self, labels, contours):
+            self.labels = labels
+            self.contours = contours
+            self.save()
+            self.unload_data_attrs()
+        
+        def set_contours(self, contours):
+            self.contours = contours
+            self.save()
+            self.unload_data_attrs()
 
             
 
-                
+class TrainChannel(Channel):
+    def __init__(self):
+        pass

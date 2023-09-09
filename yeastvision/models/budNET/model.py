@@ -27,11 +27,11 @@ class BudNET(Model):
         params = params if params else cls.hyperparams
         model = cls(params, weights)
 
-        probIms = [prediction(model.model, im, do_thresh=False, do_aug = model.params["Test Time Augmentation"]) for im in tqdm(ims)]
+        probIms = [prediction(model.model, im, do_thresh=False, do_aug = model.params["Test Time Augmentation"])*255 for im in tqdm(ims)]
         threshIms = [label((im>model.params["Threshold"]).astype(np.uint16)) for im in probIms]
         del model.model
         del model
-        return np.array(threshIms, dtype = np.uint16), np.array(probIms, dtype = np.float32)
+        return np.array(threshIms, dtype = np.uint16), np.array(probIms, dtype = np.uint8)
 
 
 

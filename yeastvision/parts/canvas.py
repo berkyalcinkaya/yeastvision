@@ -32,6 +32,7 @@ class ImageDraw(pg.ImageItem):
         self.strokeAppended = True
     
     def turnOnDraw(self):
+        print("drawing on")
         self.setDefaultColorNum()
     
     def turnOffDraw(self):
@@ -52,6 +53,7 @@ class ImageDraw(pg.ImageItem):
                                  int(np.floor(kernel.shape[1]/2))]
     
     def mouseClickEvent(self, ev):
+        print("click event")
         if not self.parent.imLoaded:
             return
         
@@ -65,9 +67,6 @@ class ImageDraw(pg.ImageItem):
         elif ev.button() == QtCore.Qt.RightButton and not self.parent.probOn and self.parent.maskOn:
             
             if self.parent.drawType != "":
-                if not self.parent.maskLoaded:
-                    self.parent.loadMasks(self.parent.maskData.channels[self.parent.maskZ][0,:,:,:], 
-                                      name = self.parent.channelSelect.currentText() + "-draw")
                 
                 # different brush modes
                 if self.parent.drawType == "Brush":
@@ -83,6 +82,7 @@ class ImageDraw(pg.ImageItem):
                         self.drawAt(ev.pos(), ev)
                         self.strokeAppended = False
                     else:
+                        print("outline click event second if")
                         ev.accept()
                         self.end_stroke()
                         self.parent.in_addregion_stroke = False
@@ -96,6 +96,7 @@ class ImageDraw(pg.ImageItem):
                 self.brushColorSelected = True
 
     def mouseDragEvent(self, ev):
+        print("drag")
         if ev.button() == QtCore.Qt.LeftButton:
             self.parent.view.mouseDragEvent(ev)
             ev.ignore()
@@ -111,9 +112,6 @@ class ImageDraw(pg.ImageItem):
                 self.colorNum = 0
             else:
                 self.colorNum = self.parent.selectedCells[0] if self.parent.selectedCells else self.colorNum
-            if self.parent.maskData.isDummy:
-                self.parent.loadMasks(self.parent.maskData.channels[self.parent.maskZ][0,:,:,:], 
-                                      name = self.parent.channelSelect.currentText() + "-draw")
 
             if not self.parent.probOn and self.parent.maskOn:
                 if ev.isStart():
@@ -165,13 +163,16 @@ class ImageDraw(pg.ImageItem):
             return False
 
     def addSet(self):
+        print("adding set")
         if len(self.parent.currStroke)>3:
-            ny, nx = self.parent.maskData.x, self.parent.maskData.y
+            print("\tlength requirement")
+            ny, nx = self.parent.label().x(), self.parent.label().y
             img = Image.new('L', (ny, nx), 0)
             ID.Draw(img).polygon(self.parent.currStroke, outline=1, fill=1)
             polygon = np.array(img).astype(bool)
             self.parent.currMask[polygon] = self.colorNum
             self.setImage(self.parent.maskColors[self.parent.currMask], autolevels  = False)
+            #self.parent.label().save()
             self.parent.strokes.append((polygon, self.colorNum))
             self.parent.addRecentDrawing()
 
@@ -179,6 +180,7 @@ class ImageDraw(pg.ImageItem):
                 self.parent.drawContours()
     
     def end_stroke(self):
+        print("ending stroke")
         self.parent.view.removeItem(self.scatter)
         if not self.strokeAppended:
             # self.parent.addRegionStrokes.append(self.currStroke)
@@ -190,6 +192,7 @@ class ImageDraw(pg.ImageItem):
             self.parent.currStroke = []
             self.colorNum = 0
             self.parent.in_addregion_stroke = False
+
     
     def enterEvent(self, ev):
         self.hoverEvent(ev)
@@ -199,7 +202,7 @@ class ImageDraw(pg.ImageItem):
         
     
     def paintBrush(self,pos1, pos2):
-
+        print("paint brush")
         pos1y,pos1x = (int(pos1.y()), int(pos1.x()))
         pos2y,pos2x = (int(pos2.y()), int(pos2.x()))
 
@@ -215,10 +218,21 @@ class ImageDraw(pg.ImageItem):
         self.parent.strokes.append((to_change, self.colorNum))
         
         self.setImage(self.parent.maskColors[self.parent.currMask])
+        #self.parent.label().save()
+
+        if self.parent.drawType == "Outline":
+            # for ky,y in enumerate(np.arange(ty[0], ty[1], 1, int)):
+            #     for kx,x in enumerate(np.arange(tx[0], tx[1], 1, int)):
+            #         iscent = np.logical_and(kx==kcent[0], ky==kcent[1])
+            #         self.currStroke.append([self.parent.maskZ, x, y, iscent])
+            print("appending stroke")
+            self.parent.currStroke.append((int(pos2.x()), int(pos2.y())))
         self.parent.addRecentDrawing()
 
     
     def drawAt(self, p, ev=None):
+        print("drawAt")
+        print(self.parent.drawType)
         pos = [int(p.y()), int(p.x())]
         dk = self.drawKernel
         kc = self.drawKernelCenter
@@ -237,17 +251,17 @@ class ImageDraw(pg.ImageItem):
             sy[1] = kc[1] + 1
             ty    = sy
             kcent[1] = 0
-        if tx[1] >= self.parent.maskData.y-1:
+        if tx[1] >= self.parent.label().y()-1:
             sx[0] = dk.shape[0] - kc[0] - 1
             sx[1] = dk.shape[0]
-            tx[0] = self.parent.maskData.y - kc[0] - 1
-            tx[1] = self.parent.maskData.y
+            tx[0] = self.parent.label().y() - kc[0] - 1
+            tx[1] = self.parent.label().y()
             kcent[0] = tx[1]-tx[0]-1
-        if ty[1] >= self.parent.maskData.x-1:
+        if ty[1] >= self.parent.label().x()-1:
             sy[0] = dk.shape[1] - kc[1] - 1
             sy[1] = dk.shape[1]
-            ty[0] = self.parent.maskData.x - kc[1] - 1
-            ty[1] = self.parent.maskData.x
+            ty[0] = self.parent.label().x() - kc[1] - 1
+            ty[1] = self.parent.label().x()
             kcent[1] = ty[1]-ty[0]-1
 
 
@@ -258,15 +272,16 @@ class ImageDraw(pg.ImageItem):
         self.parent.strokes.append((ts, self.colorNum))
 
         self.setImage(self.parent.maskColors[self.parent.currMask], autolevels  = False)
-        
+        #self.parent.label().save()
         if self.parent.drawType == "Brush":
+            print("brush drawtype, adding recent")
             self.parent.addRecentDrawing()
-            #pass
-        elif self.parent.drawType == "Outline":
+        if self.parent.drawType == "Outline":
             # for ky,y in enumerate(np.arange(ty[0], ty[1], 1, int)):
             #     for kx,x in enumerate(np.arange(tx[0], tx[1], 1, int)):
             #         iscent = np.logical_and(kx==kcent[0], ky==kcent[1])
             #         self.currStroke.append([self.parent.maskZ, x, y, iscent])
+            print("appending stroke")
             self.parent.currStroke.append((int(p.x()), int(p.y())))
 
     
