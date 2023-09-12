@@ -118,5 +118,5 @@ def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
             break
         print(i)
         i+=1
-    
+    del model
     return np.array([im[:,:,0] for im in write_buffer], dtype = np.uint8)

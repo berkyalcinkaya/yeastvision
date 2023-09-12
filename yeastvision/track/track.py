@@ -23,8 +23,20 @@ def track_to_cell(objs, cells):
         im_idx += 1
     return tracked_mask
 
+def extract_cell_frames(ims):
+    found_cells = False
+    for i, im in enumerate(ims):
+        if not found_cells:
+            found_cells = np.any(im>0)
+        if found_cells:
+            if np.all(im==0):
+                break
+    return i
 
 def trackYeasts(ims):
+    stop_i = extract_cell_frames(ims)
+    ims_template = np.zeros_like(ims, dtype=np.uint16)
+    ims = ims[:stop_i]
     print("--TRACKING: LOOP 1/4")
     IS1 = ims[0,:,:]
     IblankG = np.zeros(IS1.shape, dtype="uint16") # allocate
@@ -143,8 +155,8 @@ def trackYeasts(ims):
             cell_exists[0,itt2]=np.max(np.nonzero(all_ob[itt2,:]==0)) + 1
 
     Mask2 = np.array([Mask2[:,:,i] for i in range(Mask2.shape[-1])], dtype = np.uint16)
-
-    return Mask2
+    ims_template[:stop_i] = Mask2
+    return ims_template
 
 
 

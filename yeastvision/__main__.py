@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QStyle, QMainWindow, QGroupBox, QPush
                             QDialogButtonBox, QLineEdit, QFormLayout, QMessageBox,QErrorMessage, QStatusBar, 
                              QFileDialog, QVBoxLayout, QCheckBox, QFrame, QSpinBox, QLabel, QWidget, QComboBox, QSizePolicy, QGridLayout)
 from PyQt5.QtCore import Qt, QThread, QMutex, pyqtSignal
+from QSwitchControl import SwitchControl
 import pyqtgraph as pg
 import numpy as np
 import matplotlib.pyplot as plt
@@ -42,14 +43,16 @@ from tqdm import tqdm
 from memory_profiler import profile
 from functools import partial
 from yeastvision.models.artilife.model import ArtilifeFullLifeCycle
+from yeastvision.data.ims import Experiment, ChannelNoDirectory, InterpolatedChannel
 torch.cuda.empty_cache() 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 import warnings
-warnings.filterwarnings("ignore")
+import copy
+#warnings.filterwarnings("ignore")
 configure_tf_memory_growth()
 
-global logger
-logger, log_file = logger_setup()
+# global logger
+# logger, log_file = logger_setup()
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -144,18 +147,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.trainModelName = None
         self.trainModelSuffix = None
 
+        self.experiments = []
+        self.experiment_index = -1
+
         self.win.show()
     
     @property
     def maxT(self):
-        return self.imData.maxT
+        return self.channel().max_t()
     @maxT.setter
     def maxT(self, num):
-        self._maxT = num
-    
+        return
     def computeMaxT(self):
-        self.maxT = self.imData.maxT
-        self.tIndex =  min(self.tIndex, self.imData.maxT, self.maskData.maxT)
+        self.tIndex =  min(self.tIndex, self.maxT)
 
     @property
     def imZ(self):
@@ -185,6 +189,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._maskZ  = num
         if num>=0:
             try:
+                self.checkProbability()
                 self.checkDataAvailibility()
                 # if self.pWindow:
                 #     self.
@@ -209,11 +214,29 @@ class MainWindow(QtWidgets.QMainWindow):
         self.closeThread(self.threads[-1])
         self.updateThreadDisplay()
     
+    def clearCurrMask(self):
+        self.currMask[self.currMask>0] = 0
+        contours  = self.getCurrContours()
+        contours[:,:] =0 
+        self.label().save()
+        self.drawMask()
+    
+    def labelCurrMask(self):
+        mask = label(self.currMask)
+        contours = self.getCurrContours()
+        contours = get_mask_contour(self.currMask)
+        self.getCurrMaskSet()[self.tIndex] = mask
+        self.getCurrContourSet()[self.tIndex] = contours
+        self.label().save()
+        self.drawMask()
+    
     def setEmptyDisplay(self, initial = False):
         self.tIndex = 0
         self.bigTStep = 3
         self.maxT = 0
         self.tChanged = False
+        self.experiments = []
+        self.experiment_index = -1
 
         if not initial:
             self.overrideNpyPath = None
@@ -233,7 +256,6 @@ class MainWindow(QtWidgets.QMainWindow):
         #     self.errorDialog.showMessage("Images cannot be removed with masks present")
         #     return
 
-        self.imData = ImageData(self)
         self.saturation = [0,255]
         self.imLoaded = False
         self.imZ = -1
@@ -251,9 +273,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.maskLoaded = False
         self.selectedCells = []
         self.selectedCellContourColors = []
-        self.maskType = 0 # masks = 0, floats = 1
-        self.cmaps = [self.getMaskCmap(), self.getFloatCmap()]
-        self.cmap = self.cmaps[0]
+        self.cmap = self.getMaskCmap()
+        self.floatCmap = self.getFloatCmap()
         self.maskColors = self.cmap.copy()
         self.maskData = MaskData(self)
         self.maskChanged = False
@@ -265,18 +286,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.currMask = np.zeros((512,512), dtype = np.uint8)
         self.pg_mask.setImage(self.currMask, autolevels  =False, levels =[0,0], lut = self.maskColors)
 
-    
-        self.cellData = [] 
-        self.mother_daughters = []
 
         if not initial:
             self.labelSelect.clear()
-            self.maskTypeSelect.uncheckAll()
+            self.maskOnCheck.setChecked(False)
+            self.probOnCheck.setChecked(False)
             self.contourButton.setChecked(False)
             self.cellNumButton.setChecked(False)
-
-        if self.imLoaded:
-            self.loadDummyMasks()
 
     def getCurrTimeStr(self):
         now = datetime.now()
@@ -285,48 +301,23 @@ class MainWindow(QtWidgets.QMainWindow):
     def newData(self):
         self.computeMaxT()
         self.updateDisplay()
-        self.saveData()
+        #self.saveData()
 
-    def newIms(self, name = None):
-        if not self.imLoaded:
-            self.imLoaded = True
-            self.enableImageOperations()
+    # def newMasks(self, name = None):
+    #     if not self.maskLoaded:
+    #         self.maskLoaded = True
+    #         self.enableMaskOperations()
+    #     self.maskChanged = True
 
-        self.imZ+=1
-        self.imChanged = True
-
-        if name:
-            self.channelSelect.addItem(self.getNewChannelName(name))
-        else:
-            self.channelSelect.addItem("Channel " + str(self.imData.maxZ))
-
-        if self.firstMaskLoad:
-            self.loadDummyMasks()
-            self.firstMaskLoad = False
-        self.newData()
-
-    
-    def newMasks(self, name = None):
-        if not self.maskLoaded:
-            self.maskLoaded = True
-            self.enableMaskOperations()
-        self.maskChanged = True
-
-        if name:
-            self.labelSelect.addItem(self.getNewLabelName(name))
-        else:
-            self.labelSelect.addItem("Label " + str(self.maskData.maxZ))
+    #     if name:
+    #         self.labelSelect.addItem(self.getNewLabelName(name))
+    #     else:
+    #         self.labelSelect.addItem("Label " + str(self.maskData.maxZ))
         
-        self.maskTypeSelect.checkMaskRemote()
+    #     self.maskTypeSelect.checkMaskRemote()
 
-        self.cellData.append(None)
-        self.newData()
-    
-    def handleDummyMasks(self, add = True):
-        if add:
-            self.maskData.addZ(self.maskData.channels[self.maskZ][0,:,:,:])
-        self.maskData.removeDummys()
-        self.maskZ = 0
+    #     self.cellData.append(None)
+    #     self.newData()
     
     def addBlankMasks(self):
         if not self.imLoaded:
@@ -334,18 +325,6 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         blankMasks = np.zeros_like(self.getCurrImSet())
         self.loadMasks(blankMasks, name = "Blank")
-
-    def loadDummyMasks(self):
-        y,x = self.imData.y,self.imData.x
-        dummyMasks = np.zeros((self.imData.maxT+1,y,x), dtype = np.uint8)
-        self.maskData.addDummyZ(dummyMasks)
-        self.maskZ+=1
-        self.maskChanged = True
-    
-    def loadDummyIms(self):
-        y,x = self.maskData.y,self.maskData.x
-        self.imData.addDummyZ(np.zeros((self.maxT+1,y,x), dtype = np.uint8))
-        self.imChanged = True
 
     def make_viewbox(self):
         self.view = ViewBoxNoRightDrag(
@@ -374,7 +353,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return np.take(self.maskColors, np.unique(im), 0)
 
     def build_widgets(self):
-        rowspace = self.mainViewRows
+        rowspace = self.mainViewRows+1
         cspace = 2
         self.labelstyle = """QLabel{
                             color: white
@@ -384,7 +363,7 @@ class MainWindow(QtWidgets.QMainWindow):
                            color: white; 
                            border: black solid 1px
                            }"""
-        self.statusbarstyle = ("background-color : black")
+        self.statusbarstyle = ("color: white;" "background-color : black")
         self.boldfont = QtGui.QFont("Arial", 14, QtGui.QFont.Bold)
         self.medfont = QtGui.QFont("Arial", 12)
         self.smallfont = QtGui.QFont("Arial", 10)
@@ -397,7 +376,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar = QStatusBar()
         self.statusBar.setFont(self.medfont)
+        self.statusBar.setStyleSheet(self.statusbarstyle)
         self.setStatusBar(self.statusBar)
+
         self.gpuDisplayTorch = ReadOnlyCheckBox("gpu - torch  |  ")
         self.gpuDisplayTF= ReadOnlyCheckBox("gpu - tf")
         self.gpuDisplayTF.setFont(self.smallfont)
@@ -413,7 +394,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.gpuDisplayTorch.setChecked(True)
         self.statusBarLayout = QGridLayout()
         self.statusBarWidget = QWidget()
-        self.statusBarWidget.setStyleSheet(self.statusbarstyle)
         self.statusBarWidget.setLayout(self.statusBarLayout)
 
         self.cpuCoreDisplay = QLabel("")
@@ -433,18 +413,65 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBarLayout.addWidget(self.gpuDisplayTorch, 0, 3, 1, 1)
         self.statusBarLayout.addWidget(self.hasLineageBox, 0,4,1,1)
         self.statusBarLayout.addWidget(self.hasCellDataBox,0,5,1,1)
-        self.statusBar.addPermanentWidget(self.statusBarWidget)
-
-        self.statusBar.setStyleSheet(self.statusbarstyle)
+        self.statusBar.addWidget(self.statusBarWidget)
         
         self.dataDisplay = QLabel("")
         self.dataDisplay.setMinimumWidth(300)
         # self.dataDisplay.setMaximumWidth(300)
         self.dataDisplay.setStyleSheet(self.labelstyle)
-        self.dataDisplay.setFont(self.medfont)
+        self.dataDisplay.setFont(self.smallfont)
         self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         self.updateDataDisplay()
-        self.l.addWidget(self.dataDisplay, rowspace-1,0,1,20)
+        self.l.addWidget(self.dataDisplay, rowspace-1,cspace,1,20)
+
+        self.experimentLabel = QLabel("Experiment:")
+        self.experimentLabel.setStyleSheet(self.labelstyle)
+        self.experimentLabel.setFont(self.smallfont)
+        self.l.addWidget(self.experimentLabel, 0,1,1,2)
+        self.experimentSelect= QComboBox()
+        self.experimentSelect.setStyleSheet(self.dropdowns)
+        self.experimentSelect.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.experimentSelect.setFont(self.medfont)
+        self.experimentSelect.currentIndexChanged.connect(self.experimentChange)
+        print("connecting")
+        self.l.addWidget(self.experimentSelect, 0, 3, 1,2)
+        
+        self.channelSelectLabel = QLabel("Channel: ")
+        self.channelSelectLabel.setStyleSheet(self.labelstyle)
+        self.channelSelectLabel.setFont(self.smallfont)
+        self.l.addWidget(self.channelSelectLabel, 0, self.mainViewCols-7,1,1)
+        self.channelSelect = QComboBox()
+        self.channelSelect.setStyleSheet(self.dropdowns)
+        self.channelSelect.setFont(self.medfont)
+        self.channelSelect.currentIndexChanged.connect(self.channelSelectIndexChange)
+        self.channelSelect.setEditable(True)
+        self.channelSelect.editTextChanged.connect(self.channelSelectEdit)
+        self.channelSelect.setEnabled(False)
+        self.l.addWidget(self.channelSelect, 0, self.mainViewCols-6,1, 2)
+        self.l.setAlignment(self.channelSelect, QtCore.Qt.AlignLeft)
+        self.channelSelect.setMinimumWidth(100)
+        self.channelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.channelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        setattr(self.channelSelect, "items", lambda: [self.channelSelect.itemText(i) for i in range(self.channelSelect.count())])
+
+
+        self.labelSelectLabel = QLabel("Label: ")
+        self.labelSelectLabel.setStyleSheet(self.labelstyle)
+        self.labelSelectLabel.setFont(self.smallfont)
+        self.l.addWidget(self.labelSelectLabel, 0, self.mainViewCols-4,1,1)
+        self.labelSelect = QComboBox()
+        self.labelSelect.setStyleSheet(self.dropdowns)
+        self.labelSelect.setFont(self.medfont)
+        self.labelSelect.currentIndexChanged.connect(self.labelSelectIndexChange)
+        self.labelSelect.setEditable(True)
+        self.labelSelect.editTextChanged.connect(self.labelSelectEdit)
+        self.labelSelect.setMinimumWidth(100)
+        self.labelSelect.setEnabled(False)
+        self.l.addWidget(self.labelSelect, 0, self.mainViewCols-3,1,2)
+        self.l.setAlignment(self.labelSelect, QtCore.Qt.AlignLeft)
+        setattr(self.labelSelect, "items", lambda: [self.labelSelect.itemText(i) for i in range(self.labelSelect.count())])
+        self.labelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.labelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 
         label = QLabel('Drawing:')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
@@ -495,20 +522,6 @@ class MainWindow(QtWidgets.QMainWindow):
         label.setFont(self.boldfont)
         self.l.addWidget(label, rowspace,5,1,4)
 
-        self.cellNumButton = QCheckBox("cell nums")
-        self.cellNumButton.setStyleSheet(self.checkstyle)
-        self.cellNumButton.setFont(self.medfont)
-        self.cellNumButton.stateChanged.connect(self.toggleCellNums)
-        self.cellNumButton.setEnabled(False)
-        self.l.addWidget(self.cellNumButton, rowspace+1, 5, 1,2)
-
-        self.showLineageButton = QCheckBox("lineages")
-        self.showLineageButton.setStyleSheet(self.checkstyle)
-        self.showLineageButton.setFont(self.medfont)
-        self.showLineageButton.stateChanged.connect(self.toggleLineages)
-        self.showLineageButton.setEnabled(False)
-        self.l.addWidget(self.showLineageButton, rowspace+1, 7, 1,2)
-
         self.trackButton = QPushButton('track cells')
         #self.trackButton.setFixedWidth(90)
         #self.trackButton.setFixedHeight(20)
@@ -517,9 +530,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.trackButton.clicked.connect(self.trackButtonClick)
         self.trackButton.setEnabled(False)
         self.trackButton.setToolTip("Track current cell labels")
-        self.l.addWidget(self.trackButton, rowspace+2, 5,1,2)
+        self.l.addWidget(self.trackButton, rowspace+1, 5,1,2)
 
-        self.trackObjButton = QPushButton('track to cell')
+        self.trackObjButton = QPushButton('track label to cell')
         #self.trackObjButton.setFixedWidth(90)
         #self.trackObjButton.setFixedHeight(20)
         self.trackObjButton.setFont(self.medfont)
@@ -527,7 +540,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.trackObjButton.clicked.connect(self.trackObjButtonClick)
         self.trackObjButton.setEnabled(False)
         self.trackObjButton.setToolTip("Track current non-cytoplasmic label to a cellular label")
-        self.l.addWidget(self.trackObjButton, rowspace+2, 7,1,2)
+        self.l.addWidget(self.trackObjButton, rowspace+1, 7,1,2)
 
         self.lineageButton = QPushButton("get lineages")
         self.lineageButton.setStyleSheet(self.styleInactive)
@@ -539,21 +552,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMotherDaughters = False
         self.showLineages = False
         self.lineageButton.clicked.connect(self.getLineages)
-        self.l.addWidget(self.lineageButton, rowspace+3, 5,1,2, Qt.AlignBottom)
-
-        self.showMotherDaughtersButton = QCheckBox("mother-daughters")
-        self.showMotherDaughtersButton.setStyleSheet(self.checkstyle)
-        self.showMotherDaughtersButton.setFont(self.medfont)
-        self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
-        self.showMotherDaughtersButton.setEnabled(False)
-        self.l.addWidget(self.showMotherDaughtersButton, rowspace+3, 7, 1,2)
+        self.l.addWidget(self.lineageButton, rowspace+2, 5,1,2, Qt.AlignBottom)
 
         self.interpolateButton = QPushButton("Enhance Tracking Through Frame Interpolation")
         self.interpolateButton.setStyleSheet(self.styleInactive)
         self.interpolateButton.setFont(self.medfont)
         self.interpolateButton.setEnabled(False)
         self.interpolateButton.clicked.connect(self.interpolateButtonClicked)
-        self.l.addWidget(self.interpolateButton, rowspace+4, 5,1,4)
+        self.l.addWidget(self.interpolateButton, rowspace+3, 5,1,4)
 
 
         line = QVLine()
@@ -595,14 +601,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.artiButton.setFont(self.medfont)
         self.artiButton.clicked.connect(self.computeArtilifeModel)
         self.artiButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.artiButton, rowspace+3,10,1,5, Qt.AlignTop)#, Qt.AlignTop | Qt.AlignLeft)
+        self.l.addWidget(self.artiButton, rowspace+3, 10, 1,5, Qt.AlignTop)
 
         #------Flourescence Segmentation -----------pp-p-
-        # self.segButton = QPushButton(u'blob detection')
-        # self.segButton.setEnabled(False)
-        # self.segButton.clicked.connect(self.doFlou)
-        # self.segButton.setStyleSheet(self.styleInactive)
-        # self.l.addWidget(self.segButton, rowspace+1+4,10,1,5, Qt.AlignTop | Qt.AlignLeft)
+        self.segButton = QPushButton(u'blob detection')
+        self.segButton.setEnabled(False)
+        self.segButton.clicked.connect(self.doFlou)
+        self.segButton.setStyleSheet(self.styleInactive)
+        self.l.addWidget(self.segButton, rowspace+4,10,3,5, Qt.AlignTop)
+
         #----------------------------------s-------------
 
         line = QVLine()
@@ -629,38 +636,43 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plotButton.setShortcut(QtCore.Qt.Key_P)
         self.l.addWidget(self.plotButton, rowspace+1, 18, 1,2)
 
-        self.channelSelect = QComboBox()
-        self.channelSelect.setStyleSheet(self.dropdowns)
-        self.channelSelect.setFont(self.medfont)
-        self.channelSelect.setCurrentText("")
-        self.channelSelect.currentIndexChanged.connect(self.channelSelectIndexChange)
-        self.channelSelect.setEditable(True)
-        self.channelSelect.editTextChanged.connect(self.channelSelectEdit)
-        self.channelSelect.setEnabled(False)
-        self.l.addWidget(self.channelSelect, rowspace+2,16,1,2)
-        self.l.setAlignment(self.channelSelect, QtCore.Qt.AlignLeft)
-        self.channelSelect.setMinimumWidth(200)
-        self.channelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        self.channelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        setattr(self.channelSelect, "items", lambda: [self.channelSelect.itemText(i) for i in range(self.channelSelect.count())])
+        self.maskOnCheck = QCheckBox("Mask")
+        self.maskOnCheck.setStyleSheet(self.checkstyle)
+        self.maskOnCheck.setFont(self.medfont)
+        self.maskOnCheck.setEnabled(False)
+        self.maskOnCheck.setShortcut(QtCore.Qt.Key_Space)
+        self.maskOnCheck.stateChanged.connect(self.toggleMask)
+        self.l.addWidget(self.maskOnCheck, rowspace+2, 16,1,2)
 
-        self.labelSelect = QComboBox()
-        self.labelSelect.setStyleSheet(self.dropdowns)
-        self.labelSelect.setFont(self.medfont)
-        self.labelSelect.setCurrentText("")
-        self.labelSelect.currentIndexChanged.connect(self.labelSelectIndexChange)
-        self.labelSelect.setEditable(True)
-        self.labelSelect.editTextChanged.connect(self.labelSelectEdit)
-        self.labelSelect.setMinimumWidth(200)
-        self.labelSelect.setEnabled(False)
-        
-        self.l.addWidget(self.labelSelect, rowspace+2,18,1,2)
-        self.l.setAlignment(self.labelSelect, QtCore.Qt.AlignLeft)
-        setattr(self.labelSelect, "items", lambda: [self.labelSelect.itemText(i) for i in range(self.labelSelect.count())])
-        self.labelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.labelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 
-        self.maskTypeSelect  = MaskTypeButtons(parent=self, row = rowspace+3, col = 16)
+        self.probOnCheck = QCheckBox("Probability")
+        self.probOnCheck.setStyleSheet(self.checkstyle)
+        self.probOnCheck.setFont(self.medfont)
+        self.probOnCheck.setEnabled(False)
+        self.probOnCheck.setShortcut(QtCore.Qt.Key_P)
+        self.probOnCheck.stateChanged.connect(self.toggleProb)
+        self.l.addWidget(self.probOnCheck, rowspace+2, 18,1,2)
+
+        self.cellNumButton = QCheckBox("cell nums")
+        self.cellNumButton.setStyleSheet(self.checkstyle)
+        self.cellNumButton.setFont(self.medfont)
+        self.cellNumButton.stateChanged.connect(self.toggleCellNums)
+        self.cellNumButton.setEnabled(False)
+        self.l.addWidget(self.cellNumButton, rowspace+3, 16, 1,2)
+
+        self.showLineageButton = QCheckBox("lineages")
+        self.showLineageButton.setStyleSheet(self.checkstyle)
+        self.showLineageButton.setFont(self.medfont)
+        self.showLineageButton.stateChanged.connect(self.toggleLineages)
+        self.showLineageButton.setEnabled(False)
+        self.l.addWidget(self.showLineageButton, rowspace+3, 18, 1,2)
+
+        self.showMotherDaughtersButton = QCheckBox("mother-daughters")
+        self.showMotherDaughtersButton.setStyleSheet(self.checkstyle)
+        self.showMotherDaughtersButton.setFont(self.medfont)
+        self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
+        self.showMotherDaughtersButton.setEnabled(False)
+        self.l.addWidget(self.showMotherDaughtersButton, rowspace+4, 16, 1,2)
 
         # self.autoSaturationButton = QPushButton("Auto")
         # self.autoSaturationButton.setFixedWidth(45)
@@ -678,10 +690,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.saturationSlider.setFocusPolicy(QtCore.Qt.NoFocus)
         # self.saturationSlider.setEnabled(False)
         # self.l.addWidget(self.saturationSlider, rowspace+4, 22,1,3)
-        # for i in range(self.mainViewRows):
-        #     self.l.setRowStretch(i, 10)
+        for i in range(self.mainViewRows):
+            self.l.setRowStretch(i, 10)
 
-        self.l.setColumnStretch(19,2)
+        self.l.setColumnStretch(20,2)
         self.l.setColumnStretch(0,2)
         self.l.setContentsMargins(0,0,0,0)
         self.l.setSpacing(0)
@@ -698,7 +710,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.trackButton.setStyleSheet(self.styleUnpressed)
         self.trackObjButton.setStyleSheet(self.styleUnpressed)
         self.cellNumButton.setEnabled(True)
-        self.maskTypeSelect.setEnabled(True)
+        self.maskOnCheck.setEnabled(True)
+        self.maskOnCheck.setChecked(True)
+        self.probOnCheck.setEnabled(self.label().has_probability)
         self.lineageButton.setEnabled(True)
         self.lineageButton.setStyleSheet(self.styleUnpressed)
     
@@ -733,7 +747,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def channelSelectEdit(self, text):
-        self.channelSelect.setItemText(self.channelSelect.currentIndex(), str(text))
+        curr_text = self.channelSelect.currentText()
+        idx = self.channelSelect.currentIndex()
+        text = str(text)
+        if isinstance(self.channel(), InterpolatedChannel) and InterpolatedChannel.text_id not in text:
+            self.showError(f"Removal of the {InterpolatedChannel.text_id} text id from the name of this channel will disable certain features upon reloading")
+        if self.experiment().new_channel_name(idx, text):
+            self.channelSelect.setItemText(idx, str(text))
+
 
     def channelSelectIndexChange(self,index):
         if not self.emptying:
@@ -748,7 +769,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setCurrentIndex(index)
 
     def labelSelectEdit(self, text):
-        self.labelSelect.setItemText(self.labelSelect.currentIndex(), str(text))
+        idx = self.labelSelect.currentIndex()
+        text = str(text)
+        if self.experiment().new_label_name(idx, text):
+            self.labelSelect.setItemText(idx, str(text))
 
     def labelSelectIndexChange(self,index):
         if not self.emptying:
@@ -802,35 +826,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
             cellIdx = self.labelSelect.findText(data["Cytoplasm Label"])
-            cells = self.maskData.channels[cellIdx][0, :, :,:].copy()
-            obj = self.maskData.channels[self.maskZ][0, :, :,:].copy()
+            cells = self.experiment().get_label("labels", idx = cellIdx)
+            obj = self.getCurrMaskSet()
 
             task = partial(track_to_cell, obj, cells)
-            worker = TrackWorker(task, cells, cellIdx, obj)            
-            self.runLongTask(worker,self.trackObjFinished, self.trackObjButton)
+            worker = TrackWorker(task, cells, self.maskZ, self.experiment_index, obj)            
+            self.runLongTask(worker,self.trackFinished, self.trackObjButton)
 
         else:
             return
     
-    def trackObjFinished(self, tracked, z):
-        self.maskData.channels[z][0,:,:,:] = tracked
-        contours = self.getCurrContourSet()
-        newContours = tracked.copy()
-        newContours[np.logical_not(contours>0)] = 0
-        self.maskData.contours[z] = newContours
-        self.updateCellData(idx = z)
-        self.maskZ = z
-        self.drawMask()
-    
-    def trackFinished(self, z, tracked):
+    def checkProbability(self):
+        self.probOnCheck.setEnabled(self.label().has_probability)
 
+    
+    def trackFinished(self, z, exp_idx, tracked):
         if isinstance(tracked, np.ndarray):
-            self.maskData.channels[z][0,:,:,:] = tracked
             contours = self.getCurrContourSet()
             newContours = tracked.copy()
             newContours[np.logical_not(contours>0)] = 0
-            self.maskData.contours[z] = newContours
-            self.updateCellData(idx = z)
+            self.experiments[exp_idx].labels[z].set_data(tracked, newContours)
+            self.updateCellData(idx = z, exp_idx = exp_idx)
+            self.experiment_index = exp_idx
             self.maskZ = z
             self.drawMask()
         
@@ -838,38 +855,43 @@ class MainWindow(QtWidgets.QMainWindow):
     def trackButtonClick(self):
 
         idxToTrack = self.maskZ
-        cells = self.getCurrMaskSet().copy()
+        cells = self.getCurrMaskSet()
         task = trackYeasts
-        worker = TrackWorker(task, cells, idxToTrack)     
+        worker = TrackWorker(task, cells, idxToTrack, self.experiment_index)     
     
         self.runLongTask(worker,self.trackFinished, self.trackButton)
 
         
-    def updateCellData(self, idx = None):
+    def updateCellData(self, idx = None, exp_idx = None):
         if not self.maskLoaded:
             return
   
         if idx:
-            masks  = self.maskData.channels[idx][0,:,:,:]
+            if exp_idx is not None:
+                exp = self.experiments[exp_idx]
+            else:
+                exp = self.experiment()
+
+            mask_obj = exp.labels[idx]
+            masks = exp.get_label("labels", idx = idx)
         else:
+            exp = self.experiment()
+            mask_obj = self.label()
             masks = self.getCurrMaskSet()
             idx = self.maskZ
 
     
-        viableIms = []
-        viableImNames = []
-        for i, imChannel in enumerate(self.imData.channels):
-            if imChannel[0].shape == masks[0].shape and imChannel.shape[0] >= masks.shape[0]:
-                viableIms.append(imChannel)
-                viableImNames.append(self.channelSelect.itemText(i))
+        viable_channel_objs = exp.get_viable_im_objs(mask_obj)
+        viableIms = [obj.ims for obj in viable_channel_objs]
+        viableImNames = [obj.name for obj in viable_channel_objs]
 
-        if self.cellData[idx] is not None:
-            self.cellData[idx].update_cell_data(masks, channels = viableIms, channel_names = viableImNames)
+        if mask_obj.has_cell_data():
+            mask_obj.celldata.update_cell_data(masks, channels = viableIms, channel_names = viableImNames)
         else:
-            self.cellData[idx] = TimeSeriesData(idx, masks, channels = viableIms, channel_names=viableImNames)
+            mask_obj.celldata = TimeSeriesData(idx, masks, channels = viableIms, channel_names=viableImNames)
+            print(mask_obj.celldata)
 
-        self.statusBar.clearMessage()
-        self.saveData()
+        mask_obj.save()
         self.checkDataAvailibility()  
 
         if self.pWindow:
@@ -886,21 +908,21 @@ class MainWindow(QtWidgets.QMainWindow):
     def hasCellData(self, i = None):
         if type(i) is not int:
             i = self.maskZ
-        return (isinstance(self.cellData[i], TimeSeriesData))
+        return self.experiment().labels[i].has_cell_data()
     
     def hasLineageData(self, i = None):
         if not i:
             i = self.maskZ
-        return isinstance(self.cellData[i], LineageData) and self.cellData[i].hasLineages()
+        return self.experiment().labels[i].has_lineage_data()
     
     def getLabelsWithPopulationData(self):
-        return [population for i,population in enumerate(self.cellData) if self.hasCellData(i = i)]
+        return [population.celldata for i,population in enumerate(self.experiment().labels) if self.hasCellData(i = i)]
     
     def getCellData(self):
         if not self.maskLoaded or not self.hasCellData():
             return None
         else:
-            return self.cellData
+            return self.label().celldata
     
     def getTimeSeriesDataName(self, tsObj):
         index = tsObj.i
@@ -912,7 +934,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.hasCellData():
             return pd.DataFrame.from_dict(self.cellDataFormat)
         elif self.maskLoaded and self.hasCellData():
-            return self.cellData[self.maskZ].get_cell_info()
+            return self.label().celldata.get_cell_info()
         
     def getLineages(self):
         dlg = GeneralParamDialog({}, [], "Lineage Construction", self, labelSelects=["bud necks", "cells"])
@@ -920,46 +942,46 @@ class MainWindow(QtWidgets.QMainWindow):
             data = dlg.getData()
             neckI = self.labelSelect.findText(data["bud necks"])
             cellI = self.labelSelect.findText(data["cells"])
-            necks = self.maskData.channels[neckI][0,:,:,:]
-            cells = self.maskData.channels[cellI][0,:,:,:]
+            necks = self.experiment().get_label("labels", idx = neckI)
+            cells = self.experiment().get_label("labels", idx = cellI)
         else:
             return 
         
         
-        if isinstance(self.cellData[cellI], LineageData):
-            self.cellData[cellI].add_lineages(cells, necks)
+        if isinstance(self.experiment().labels[cellI].celldata, LineageData):
+            self.experiment().labels[cellI].celldata.add_lineages(cells, necks)
         else:
-            if isinstance(self.cellData[cellI], TimeSeriesData):
-                life = self.cellData[cellI].life_data
-                cell_data = self.cellData[cellI].cell_data
+            if isinstance(self.experiment().labels[cellI].celldata, TimeSeriesData):
+                life = self.experiment().labels[cellI].celldata.life_data
+                cell_data = self.experiment().labels[cellI].celldata.cell_data
             else:
                 life, cell_data = None, None
 
-            self.cellData[cellI] = LineageData(cellI, cells, buds = necks, cell_data=cell_data, life_data=life)
+            self.experiment().labels[cellI].celldata = LineageData(cellI, cells, buds = necks, cell_data=cell_data, life_data=life)
 
-        self.saveData()
+        self.experiment().labels[cellI].save()
         self.checkDataAvailibility()
     
     def getMatingLineages(self, cellI, matingI):
-        mating = self.maskData.channels[matingI][0,:,:,:]
-        cells = self.maskData.channels[cellI][0,:,:,:]
+        mating = self.experiment().get_label("labels", idx = matingI)
+        cells = self.experiment().get_label("labels", idx = cellI)
 
-        if isinstance(self.cellData[cellI], LineageData):
-            self.cellData[cellI].add_mating(cells, mating)
+        if isinstance(self.experiment().labels[cellI].celldata, LineageData):
+            self.experiment().labels[cellI].celldata.add_mating(cells, mating)
         else:
-            if isinstance(self.cellData[cellI], TimeSeriesData):
-                life = self.cellData[cellI].life_data
-                cell_data = self.cellData[cellI].cell_data
+            if isinstance(self.experiment().labels[cellI].celldata, TimeSeriesData):
+                life = self.experiment().labels[cellI].celldata.life_data
+                cell_data = self.experiment().labels[cellI].celldata.cell_data
             else:
                 life, cell_data = None, None
 
-            self.cellData[cellI] = LineageData(cellI, cells, mating = mating, cell_data=cell_data, life_data=life)
+            self.experiment().labels[cellI].celldata = LineageData(cellI, cells, mating = mating, cell_data=cell_data, life_data=life)
 
-        self.saveData()
+        self.experiment().labels[cellI].save()
         self.checkDataAvailibility()
     
-
-        
+    def saveData(self):
+        pass
     
     def getCellDataLabelProps(self):
         label_props = LABEL_PROPS.copy()
@@ -975,7 +997,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return sorted(IM_PROPS + extra_props)
         else:
             im_props = []
-            columns  = self.cellData[self.maskZ].columns
+            columns  = self.label().celldata.columns
             for column in columns:
                 for prop in IM_PROPS + extra_props:
                     if prop in column:
@@ -1075,52 +1097,53 @@ class MainWindow(QtWidgets.QMainWindow):
         return contourMask
 
     def addRecentDrawing(self):
+        print("adding recent drawing")
         newStroke, newColor = self.strokes[-1]
         #self.maskData.channels[self.maskZ][0, self.tIndex,:,:][newStroke]=newColor
-        contourMask = self.maskData.contours[self.maskZ][self.tIndex,:,:]
-        cellMask = self.maskData.channels[self.maskZ][self.maskType, self.tIndex,:,:]
-        self.maskData.contours[self.maskZ][self.tIndex,:,:] = self.addCellContour(contourMask, cellMask, newColor)
-        
-        #self.saveData()
+        contourMask = self.experiment().get_label("contours", idx = self.maskZ, t = self.tIndex)
+        cellMask = self.experiment().get_label("labels", idx = self.maskZ, t = self.tIndex)
+        self.label().npzdata["contours"][self.tIndex,:,:] = (self.addCellContour(contourMask, cellMask, newColor))
+        self.label().save()
 
     def updateDataDisplay(self, x = None,y = None, val = None):
-
-        dataString = ""
-
-        if x!=None and y!=None and val!=None:
-            self.labelX, self.labelY = x,y
-            if self.maskType == 1:
-                val = round(val/255,2)
-            dataString += f"x={str(x)}, y={str(y)}, value={str(val)}"
-        
         #dataString = f"Session Id: {self.sessionId}"
+        dataString = ""
+        if x!=None and y!=None and val is not None and x>=0 and y>=0 and x<self.currIm.shape[1] and y<self.currIm.shape[1]:
+            self.labelX, self.labelY = x,y
+            if self.probOn:
+                val = self.experiment().get_label("probability", idx = self.maskZ, t = self.tIndex)[y,x]/255
+            dataString += f"x={str(x)}, y={str(y)}, value={str(val)}"
 
         if self.imLoaded:
-            files = self.imData.files[self.imZ]
-            if len(files) > 1:
-                file = files[self.tIndex]
-            else:
-                file = files[0]
-            dataString += f'\n{file}'
+            dataString += f'\n{self.channel().get_files(self.tIndex)}'
 
-            dataString += f" | IMAGE: {self.currIm.shape} {self.currImDtype}"
+            dataString += f" | IMAGE: {self.channel().get_string(self.tIndex)}, T: {self.tIndex}/{self.channel().max_t()}"
             
             if self.maskLoaded:
-                dataString += f"  |  MASK: {self.currMask.shape} {self.currImDtype}"
+                dataString += f"  |  MASK: {self.label().get_string(self.tIndex)}, T: {self.tIndex}/{self.label().max_t()}"
 
-            dataString += f"  |  TIME: {self.tIndex}/{self.maxT}"
+            #dataString += f"  |  TIME: {self.tIndex}/{self.maxT}"
 
             if self.maskLoaded:
                 dataString += f"  |  REGIONS: {self.numObjs}"
         self.dataDisplay.setText(dataString)
     
+    def experiment(self):
+        return self.experiments[self.experiment_index]
+    
+    def channel(self):
+        return self.experiment().channels[self.imZ]
+
+    def label(self):
+        return self.experiment().labels[self.maskZ]
+    
     def deleteCell(self, cellNum):
         stroke = self.currMask == cellNum
         self.strokes.append((stroke,cellNum))
         self.currMask[stroke] = 0
-        self.maskData.contours[self.maskZ][self.tIndex,:,:][stroke]=0
+        self.label().npzdata["contours"][self.tIndex,:,:][stroke]=0
         self.drawMask()
-        self.saveData()
+        self.label().save()
 
     def getMaskCmap(self):
         cmap = plt.get_cmap("tab20",20) # returns Ncolors from the jet colormap
@@ -1171,12 +1194,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 m = "Image Files"
         self.toStatusBar(m)
     
+    def get_experiment_names(self):
+        return [experiment.name for experiment in self.experiments]
+    
     def toStatusBar(self, message, time = None):
         self.statusBar.clearMessage()
-        if time:
-            self.statusBar.showMessage(message, time)
-        else:
-            self.statusBar.showMessage(message)
+        # if time:
+        #     self.statusBar.showMessage(message, time)
+        # else:
+        #     self.statusBar.showMessage(message)
     
     def setChannelSelectName(self, name):
         self.channelSelect.setItemText(self.channelSelect.currentIndex(), self.getNewChannelName(name))
@@ -1186,36 +1212,90 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def dropEvent(self, event):
         files = [u.toLocalFile() for u in event.mimeData().urls()]
-        if ".pkl" in files[0]:
-            self.toStatusBar("Loading Npy... ")
-            loadPkl(files[0], self)
-            
-        elif not self.imLoaded:        
-            self.loadImageFiles(files[0])
-        else:
-            if self.isUpperHalf(event):
-                self.loadMaskFiles(files[0])
+
+        if os.path.isdir(files[0]):
+            if get_filename(files[0]) in self.get_experiment_names():
+                self.showError(f"{get_filename} already exists as an experiment. Change the directory name.")
+                return
             else:
-                self.loadImageFiles(files[0])
-        self.statusBar.clearMessage()
+                self.loadExperiment(files[0])
     
-    def loadImageFiles(self, file):
-        self.toStatusBar("Loading Image...")
-        self.imData.load(file)
-        self.newIms(name = file.split("/")[-1].split(".")[0])
+    def userSelectExperiment(self):
+        dir = QFileDialog.getExistingDirectory(self, "Choose Experiment Directory")
+        self.loadExperiment(dir)
+    
+    def loadExperiment(self,file):
+        print("new_experiment")
+        dlg = GeneralParamDialog({"num_channels":1}, [int], "", self)
+        if dlg.exec():
+            num_channels = int(dlg.getData()["num_channels"])
+        else:
+            return
+        
+        self.experiment_index+=1
+        new_experiment = Experiment(file, num_channels=num_channels)
+        self.experiments.append(new_experiment)
+        self.experimentSelect.addItem(new_experiment.name)
+        self.experimentSelect.setCurrentIndex(self.experiment_index)
+    
+    def setDataSelects(self):
+        self.clearDataSelects()
+        self.channelSelect.addItems(self.experiment().get_channel_names())
+        if self.experiment().has_labels():
+            self.labelSelect.addItems(self.experiment().get_label_names())
+        
+    
+    def experimentChange(self):
+        print("experiment_change")
+        self.imLoaded = True
+        print(self.experiment_index)
+        print(self.experiments)
+        self.setDataSelects()
+        self.experiment_index = self.experimentSelect.currentIndex()
+        self.tIndex, self.maskZ, self.imZ = 0,0,0
+        self.imChanged, self.maskChanged = True, True
+        self.enableImageOperations()
+        if self.experiment().has_labels():
+            self.maskLoaded = True
+            self.enableMaskOperations()
+        self.updateDisplay()
 
-    def loadMaskFiles(self, file):
-        self.toStatusBar("Loading Mask & Extracting Region Contours...")
-        self.maskData.load(file)
-        self.newMasks(name = (file.split("/")[-1].split(".")[0]).replace("-", "_"))
+    
+    def clearDataSelects(self):
+        self.labelSelect.clear()
+        self.channelSelect.clear()
 
-    def loadImages(self, ims, name = None):
-        self.imData.addZ(ims)
-        self.newIms(name = name)
+    def newIms(self, ims = None, files = None, dir = None, name = None, annotations = None):
+        if files is not None:
+            self.experiment().add_channel(files)
+        else:
+            if name is None:
+                name = self.experiments[self.experiment_index].get_channel_name()
+            new_channel = ChannelNoDirectory(ims = ims, dir = self.experiments[self.experiment_index].dir, name = name, annotations=annotations)
+            self.experiments[self.experiment_index].add_channel_object(new_channel)
+        self.imZ+=1
+        self.channelSelect.addItem(self.experiments[self.experiment_index].channels[self.imZ].name)
+        self.computeMaxT()
+        self.drawIm()
+    
+    def newMasks(self, masks = None, files = None, dir = None, name = None, exp_idx = None):
+        if exp_idx is None:
+            exp_idx = self.experiment_index
+        self.experiments[exp_idx].add_label(files = files, arrays = masks, name = name)
 
-    def loadMasks(self, masks, name = None, contours = None):
-        self.maskData.addZ(masks, contours = contours)
-        self.newMasks(name = name)
+        if exp_idx == self.experiment_index:
+            self.labelSelect.addItem(self.experiment().labels[-1].name)
+            self.maskZ = len(self.experiment().labels)-1
+            self.computeMaxT()
+            self.updateDisplay()
+
+    def loadMasks(self, masks, exp_idx = None, name = None, contours = None):
+        if type(masks) is tuple:
+            mask1, mask2 = np.expand_dims(masks[0],0), np.expand_dims(masks[1],0)
+            print("mask1", mask1.dtype, "mask2", mask2.dtype)
+            masks = np.concatenate((mask1, mask2), axis = 0)
+        print("new masks:", masks.shape)
+        self.newMasks(masks, name = name, exp_idx=exp_idx)
     
     def isUpperHalf(self,ev):
         posY= ev.pos().y()
@@ -1232,8 +1312,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if (event.key() == QtCore.Qt.Key_Delete or event.key() == QtCore.Qt.Key_Backspace) and self.selectedCells:
             for selectedCell in self.selectedCells.copy():
+                self.deselectCell(selectedCell)
                 self.deleteCell(selectedCell)
-                self.selectedCells.remove(selectedCell)
         
 
         if event.key() == QtCore.Qt.Key_Y:
@@ -1276,16 +1356,17 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.tIndex-=1
                 else:
                     self.tIndex = self.maxT
+            print(self.tIndex)
 
         if event.key() == QtCore.Qt.Key_Up:
             if event.modifiers() & QtCore.Qt.ControlModifier:
-                if self.maskZ<self.maskData.maxZ:
+                if self.maskZ<self.experiment().get_num_labels()-1:
                     self.maskZ+=1
                 else:
                     self.maskZ = 0
                 nextMaskOn = True
             else:
-                if self.imZ<self.imData.maxZ:
+                if self.imZ<self.experiment().get_num_channels()-1:
                     self.imZ+=1
                 else:
                     self.imZ = 0
@@ -1295,41 +1376,37 @@ class MainWindow(QtWidgets.QMainWindow):
                 if self.maskZ>0:
                     self.maskZ-=1
                 else:
-                    self.maskZ = self.maskData.maxZ
+                    self.maskZ = self.experiment().get_num_labels()-1
                 nextMaskOn = True
             else:
                 if self.imZ>0:
                     self.imZ-=1
                 else:
-                    self.imZ = self.imData.maxZ
+                    self.imZ = self.experiment().get_num_channels()-1
 
-        if event.key() == QtCore.Qt.Key_0 or event.key() == QtCore.Qt.Key_Space:
-            nextMaskOn = not self.maskOn
-            self.toggleMask()
+
         
         if self.maskOn == False and nextMaskOn == True:
             self.addMask()
         self.updateDisplay()
 
     def toggleMask(self):
-        if self.maskOn:
+        if not self.maskOnCheck.isChecked():
             self.hideMask()
         else:
             self.addMask()
+    
+    def toggleProb(self):
+        self.probOn = self.probOnCheck.isChecked()
+        self.drawIm()
 
     def hideMask(self):
         self.maskOn = False
-        self.maskTypeSelect.uncheckAll()
         self.drawMask()
 
     def addMask(self):
         self.prevMaskOn = False
         self.maskOn = True
-
-        if self.maskType == 0:
-            self.maskTypeSelect.checkMaskRemote()
-        elif self.maskType == 1:
-            self.maskTypeSelect.checkProbRemote()
         self.drawMask()
 
     def drawMask(self):
@@ -1371,7 +1448,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addSpecificContours(contour, [mother, daughter], [[255,0,0,255], [0,255,0,255]])
     
     def getDaughters(self, cellNum):
-        potentialDaughters = self.cellData[self.maskZ].daughters[cellNum-1]
+        potentialDaughters = self.label().celldata.daughters[cellNum-1]
         daughters = list(np.where(potentialDaughters)[0]+1)
         return daughters
         
@@ -1398,33 +1475,34 @@ class MainWindow(QtWidgets.QMainWindow):
     def getCurrImSet(self):
         if not self.imLoaded:
             return np.zeros((512,512))
-        return self.imData.channels[self.imZ]
+        return self.experiments[self.experiment_index].get_channel(idx = self.imZ)
     
     def getCurrMaskSet(self):
-        if not self.maskLoaded:
-            return np.zeros((1,512,512))
-        return self.maskData.channels[self.maskZ][0,:,:,:]
+        return self.experiments[self.experiment_index].get_label("labels", idx = self.maskZ)
     
     def getCurrIm(self):
-        if self.tIndex > self.imData.maxT:
-            return np.zeros((self.maskData.y, self.maskData.x), dtype = np.uint8)
-        return self.imData.channels[self.imZ][self.tIndex,:,:]
+        if self.tIndex > self.channel().max_t():
+            return np.zeros((512,512))
+        if self.probOn:
+            im =  self.floatCmap[self.experiment().get_label("probability", idx = self.maskZ, t = self.tIndex)].astype(np.uint8)
+            print(im.shape, im.min(), im.max(), im.dtype)
+            return im
+        else:
+            return self.experiments[self.experiment_index].get_channel(idx = self.imZ, t = self.tIndex)
     
     def getCurrMask(self):
+        if self.tIndex > self.label().max_t():
+            return np.zeros((512,512), dtype = np.uint8)
         if self.maskOn:
-            maskData = self.maskData.channels
-            if self.tIndex>self.maskData.maxT:
-                return np.zeros((self.imData.y,self.imData.x), dtype = np.uint8)
-            return maskData[self.maskZ][self.maskType, self.tIndex,:,:]
+            return self.experiment().get_label("labels", t = self.tIndex, idx = self.maskZ)
         else:
-            return np.zeros_like(self.currMask)
+            return np.zeros(self.experiment().shape(), dtype = np.uint8)
 
     def getCurrContours(self):
-        maskData = self.maskData.contours
-        return maskData[self.maskZ][self.tIndex,:,:]
+        return self.experiment().get_label("contours", idx = self.maskZ, t = self.tIndex)
 
     def getCurrContourSet(self):
-        return self.maskData.contours[self.maskZ]
+        return self.experiment().get_label("contours", idx = self.maskZ)
 
     def getCurrFrames(self):
         return (self.getCurrIm(), self.getCurrMask())
@@ -1434,11 +1512,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pg_mask.setImage(self.currMask, autolevels  =False, levels =[0,0], lut = self.maskColors)
 
     def updateDisplay(self):
-        if self.imChanged:
-            self.drawIm()
 
         if self.maskChanged:
             self.drawMask()
+        
+        if self.imChanged:
+            self.drawIm()
         
         if self.tChanged:
             if self.win.underMouse() and self.labelX and self.labelY:
@@ -1455,8 +1534,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.saturation = self.computeSaturation()
         self.currIm = self.getCurrIm()
         self.currImDtype = str(self.currIm.dtype)
-        self.pg_im.setImage(self.currIm, autoLevels = False)
-        self.pg_im.setLevels(self.saturation)
+        if self.probOn:
+            self.pg_im.setImage(self.currIm, autoLevels = False, levels = [0,255])
+        else:
+            self.pg_im.setImage(self.currIm, autoLevels = False)
+            self.pg_im.setLevels(self.saturation)
         #self.saturationSlider.setMaximum(self.imData.channels[self.imZ][:,:,:].max())
         #self.saturationSlider.resetLevels(self.saturation)
         self.channelSelectRemote()
@@ -1470,7 +1552,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.saturationSlider.resetLevels(self.saturation)
 
     def computeSaturation(self):
-        return self.imData.saturation[self.imZ][self.tIndex]
+        saturation =  self.experiment().channels[self.imZ].get_saturation(self.tIndex)
+        return saturation
                                 
     def selectCell(self, pos):
         pos = [int(pos.y()), int(pos.x())]
@@ -1515,7 +1598,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.pWindow.updateSingleCellPlots()
     
     def getMotherFromLineageData(self,cell):
-        ld = self.cellData[self.maskZ].mothers
+        ld = self.label().celldata.mothers
         mother = ld["mother"].iloc[cell-1]
         if pd.notna(mother):
             return (int(mother))
@@ -1676,21 +1759,15 @@ class MainWindow(QtWidgets.QMainWindow):
         if autorun and self.trainTStop < self.maxT:
             im = self.getCurrMaskSet()[self.trainTStop:self.trainTStop+1,:,:]
             newIms, newProbIms = modelCls.run(im,None,weightPath)
-
-            if self.trainTStop>self.maskData.maxT:
-                addMethod = self.maskData.addToZ
-            else:
-                addMethod = self.maskData.insert
-            
-            if not self.hasProbIm():
-                newProbIms = None
-            addMethod(newIms, self.trainTStop, self.maskZ, newProbIms=newProbIms)
-            self.drawMask()
+            self.tIndex = self.trainTStop
+            self.label().insert(newIms, self.tIndex, new_prob_im = newProbIms)
         elif self.trainTStop == self.maxT:
+            self.tIndex = self.trainTStop
             print("Not enough data to autorun")
+        self.drawMask()
 
     def hasProbIm(self):
-        return self.maskData.channels[self.maskZ].shape[0]>1
+        return self.label().has_probability
 
     def getTrainData(self):
         ims = self.getCurrImSet()
@@ -1702,25 +1779,23 @@ class MainWindow(QtWidgets.QMainWindow):
             self.showError(f"Masks of shape {maskShape} does not match images of shape {imShape}")
             raise IndexError
         
-        imT, maskT = ims.shape[0], labels.shape[0]
+        imT, maskT = len(ims), len(labels)
+        maskT = get_end_of_cells(labels)
+        no_cell_frames = get_frames_with_no_cells(labels)
 
-        if len(self.imData.files[self.imZ]) == imT:
-            self.trainFiles = [os.path.split(path)[1].split(".")[0] for path in self.imData.files[self.imZ]]
+        files = self.channel().get_file_names()
+        print(files)
+        if len(files) == imT:
+            self.trainFiles = files
         else:
-            self.trainFiles = [f"Index {i}" for i in range(ims.shape[0])]
+            self.trainFiles = [f"index_{i}" for i in range(len(ims))]
 
 
         self.trainTStop = min(imT, maskT)
-        for i,label in enumerate(labels[:self.trainTStop+1,:,:]):
-            if np.all(label==0):
-                break
-        self.trainTStop = i
 
-        self.trainIms = [im for im in ims[:self.trainTStop+1,:,:]]
-        self.trainLabels = [im for im in labels[:self.trainTStop+1,:,:]]
-        self.trainFiles = self.trainFiles[:self.trainTStop+1]
-
-        print(len(self.trainIms), len(self.trainLabels))
+        self.trainIms = [im for i,im in enumerate(ims[:self.trainTStop+1]) if i not in no_cell_frames]
+        self.trainLabels = [im for i,im in enumerate(labels[:self.trainTStop+1]) if i not in no_cell_frames]
+        self.trainFiles = [file for i, file in enumerate(self.trainFiles[:self.trainTStop+1]) if i not in no_cell_frames]
 
     
     def getModelNames(self):
@@ -1754,7 +1829,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return weights
 
 
-    def segment(self, output, modelClass, ims, params, weightPath, modelType):
+    def segment(self, output, modelClass, ims, params, weightPath, modelType, exp_idx):
         #check_gpu()
         tStart, tStop = int(params["T Start"]), int(params["T Stop"])
         imName = params["Channel"]
@@ -1770,7 +1845,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         template[tStart:tStop+1] = outputTup[i]
                         templates.append(template)
                     outputTup = (templates[0], templates[1])
-                    self.loadMasks(outputTup, name = f"{imName}_{labelName}")
+                    self.loadMasks(outputTup, exp_idx=exp_idx, name = f"{imName}_{labelName}")
             if params["Time Series"]:
                 if params["Mating Cells"]:
                     mating_idx = self.maskZ -1
@@ -1787,7 +1862,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 template[tStart:tStop+1] = output[i]
                 templates.append(template)
             outputTup = (templates[0], templates[1])
-            self.loadMasks(outputTup, name = f"{imName}_{modelType}_{tStart}-{tStop}")
+            self.loadMasks(outputTup, exp_idx=exp_idx, name = f"{imName}_{modelType}_{tStart}-{tStop}")
         
         torch.cuda.empty_cache()
         del modelClass
@@ -1805,12 +1880,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if evalDlg.exec():
             data = evalDlg.getData()
             validationName = data[labelSelects[0]]
-            masksTrue = self.maskData.channels[self.labelSelect.items().index(validationName)][0,:,:,:]
+            masksTrueIndex = self.labelSelect.items().index(validationName)
+            masksTrue = self.experiment().labels[masksTrueIndex].npzdata["labels"]
 
             toValidate = {}
             for labelName in params:
                 if data[labelName]:
-                    toValidate[labelName] = (self.maskData.channels[self.labelSelect.items().index(labelName)][0,:,:,:])
+                    toValidate[labelName] = (self.experiment().labels[self.labelSelect.items().index(labelName)].npzdata["labels"])
             
             ious = [0.25, 0.50, 0.75, 0.90]
             statsDict = self.getStatsDict(masksTrue, toValidate, ious)
@@ -1877,7 +1953,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.deactivateButton(button)
         thread.finished.connect(lambda: self.activateButton(button))
         self.updateThreadDisplay()
-
+    
+    def interpolationFinished(self, ims, exp_idx, name, annotations, interpolation):
+        experiment = self.experiments[exp_idx]
+        new_channel = InterpolatedChannel(interpolation=interpolation, ims = ims, dir = experiment.dir , name = name, annotations=annotations)
+        experiment.add_channel_object(new_channel)
+        self.imZ+=1
+        self.channelSelect.addItem(self.experiment().channels[self.imZ].name)
+        self.computeMaxT()
+        self.drawIm()
 
     def computeModels(self):
         #check_gpu()
@@ -1899,15 +1983,14 @@ class MainWindow(QtWidgets.QMainWindow):
             params = dlg.getData()
             channel = params["Channel"]
             channelIndex = self.channelSelect.findText(channel)
-            ims = self.imData.channels[channelIndex]
-            worker = SegmentWorker(modelClass,ims, params, weightPath, modelType)
+            ims = self.experiment().get_channel(idx = channelIndex)
+            worker = SegmentWorker(modelClass,ims, params, self.experiment_index, weightPath, modelType)
             self.runLongTask(worker, 
                              self.segment,
                              self.modelButton)
         else:
             self.activateButton(self.modelButton)
-        
-        #check_gpu()
+
     
     def computeArtilifeModel(self):
         modelType = "artilife"
@@ -1921,14 +2004,19 @@ class MainWindow(QtWidgets.QMainWindow):
             channel = params["Channel"]
             weightPath = params["artiWeights"]
             channelIndex = self.channelSelect.findText(channel)
-            ims = self.imData.channels[channelIndex]
-            worker = SegmentWorker(modelClass,ims, params, weightPath, modelType)
+            ims = self.experiment().get_channel(idx = channelIndex)
+            worker = SegmentWorker(modelClass,ims, params, self.experiment_index, weightPath, modelType)
             self.runLongTask(worker, 
                              self.segment,
                              self.modelButton)
         else:
             self.activateButton(self.modelButton)
 
+    def get_curr_state(self):
+        return {"experiment_index":self.experiment_index,
+                "imZ":self.imZ,
+                "maskZ":self.maskZ,
+                "t":self.tIndex}
 
     def interpolateButtonClicked(self):
         dlg = GeneralParamDialog({"2x":False, "4x": False, "8x": False, "16x": False}, [bool,bool,bool,bool], "choose interpolation level", self)
@@ -1937,64 +2025,95 @@ class MainWindow(QtWidgets.QMainWindow):
             exp = None
             for data, isChecked in data.items():
                 if isChecked:
-                    exp = int(data[0])/2
+                    interpolation = int(data[:-1])
+                    exp = math.log(interpolation,2)
                     break
         else:
             return
     
         if exp:
-            ims = self.getCurrImSet().copy()
-            files = self.imData.files[self.imZ]
-            currName = self.channelSelect.currentText()
-            worker = InterpolationWorker(ims, files, f"{currName}_{data}interp", interpolate, np.uint8, exp)
+            curr_im = self.channel()
+            ims = curr_im.ims
+            currName = curr_im.name
+ 
+            worker = InterpolationWorker(ims, f"{currName}_{data}interp", curr_im.annotations, self.experiment_index, interpolation, interpolate, exp)
         else:
             return
 
-        self.runLongTask(worker, self.addProcessedIms, self.interpolateButton)
+        self.runLongTask(worker, self.interpolationFinished, self.interpolateButton)
 
     def doAdaptHist(self):
-        files = self.imData.files[self.imZ]
-        currName = self.channelSelect.currentText()
+        curr_im = self.channel()
+        annotation_name = "adaptive_hist_eq"
+        annotations = None
+        if isinstance(curr_im, ChannelNoDirectory):
+            annotations = copy.deepcopy(curr_im.annotations)
+            for ann in annotations:
+                ann.append(annotation_name)
+
         newIms = im_funcs.do_adapt_hist(self.getCurrImSet())
-        self.addProcessedIms(newIms, files, currName+"-adaptHist", dtype = np.float32)
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
+      
+    # def doNormalizeByIm(self):
+    #     files = self.imData.files[self.imZ]
+    #     currName = self.channelSelect.currentText()
+    #     newIms = [normalize_im(im) for im in self.getCurrImSet()]
+    #     self.addProcessedIms(newIms, files, currName+"-imNormalized", dtype = np.float32)
     
-    def doNormalizeByIm(self):
-        files = self.imData.files[self.imZ]
-        currName = self.channelSelect.currentText()
-        newIms = [normalize_im(im) for im in self.getCurrImSet()]
-        self.addProcessedIms(newIms, files, currName+"-imNormalized", dtype = np.float32)
-    
-    def doNormalizeBySet(self):
-        files = self.imData.files[self.imZ]
-        currName = self.channelSelect.currentText()
-        newIms = normalize_im(self.getCurrImSet())
-        self.addProcessedIms(newIms, files, currName+"-setNormalized", dtype = np.float32)
+    # def doNormalizeBySet(self):
+    #     files = self.imData.files[self.imZ]
+    #     currName = self.channelSelect.currentText()
+    #     newIms = normalize_im(self.getCurrImSet())
+    #     self.addProcessedIms(newIms, files, currName+"-setNormalized", dtype = np.float32)
 
     def doGaussian(self):
-        files = self.imData.files[self.imZ]
-        currName = self.channelSelect.currentText()
-        newIms = im_funcs.do_gaussian(self.getCurrImSet())
-        self.addProcessedIms(newIms, files, currName+"-gaussian")
+        curr_im = self.channel()
+        annotation_name = "gaussian"
+        annotations = None
+        if isinstance(curr_im, ChannelNoDirectory):
+            annotations = copy.deepcopy(curr_im.annotations)
+            for ann in annotations:
+                ann.append(annotation_name)
+        else:
+            annotations = [[annotation_name] for i in range(len(curr_im.ims))]
+
+        newIms = im_funcs.do_gaussian(curr_im.ims)
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+"-gaussian", annotations = annotations )
 
     def doMedian(self):
-        files = self.imData.files[self.imZ]
-        currName = self.channelSelect.currentText()
-        newIms = im_funcs.do_median(self.getCurrImSet())
-        self.addProcessedIms(newIms, files, currName+"-median")
+        curr_im = self.channel()
+        annotation_name = "median"
+        if isinstance(curr_im, ChannelNoDirectory):
+            annotations = copy.deepcopy(curr_im.annotations)
+            for ann in annotations:
+                ann.append(annotation_name)
+        else:
+            annotations = [[annotation_name] for i in range(len(curr_im.ims))]
+        
+        newIms = im_funcs.do_median(curr_im.ims)
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
     
-    def doDeflicker(self):
-        files = self.imData.files[self.imZ]
-        currName = self.channelSelect.currentText()
-        newIms = im_funcs.deflicker(self.getCurrImSet())
-        self.addProcessedIms(newIms, files, currName+"-deflickered")
+    # def doDeflicker(self):
+    #     files = self.imData.files[self.imZ]
+    #     currName = self.channelSelect.currentText()
+    #     newIms = im_funcs.deflicker(self.getCurrImSet())
+    #     self.addProcessedIms(newIms, files, currName+"-deflickered")
     
     def doRescale(self):
-        files = self.imData.files[self.imZ]
-        currName = self.channelSelect.currentText()
-        ims  = self.getCurrImSet()
+        curr_im = self.channel()
+        ims  = curr_im.ims
         newIms = self.rescaleFromUser(ims)
         newSize = str(newIms[0].shape)
-        self.addProcessedIms(newIms, files, currName+f"-{newSize}")
+        annotations =None
+        annotation_name = f"rescaled_to_{newSize}"
+        if isinstance(curr_im, ChannelNoDirectory):
+            annotations = copy.deepcopy(curr_im.annotations)
+            for ann in annotations:
+                ann.append(annotation_name)
+        else:
+            annotations = [[annotation_name] for i in range(len(curr_im.ims))]
+
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
 
     def rescaleFromUser(self, ims):
         row, col = ims[0].shape
@@ -2014,12 +2133,6 @@ class MainWindow(QtWidgets.QMainWindow):
             return rescaleBySize((int(data["new row"]), int(data["new col"])), ims)
         else:
             return
-
-    def addProcessedIms(self, newIms, files, name, dtype = np.uint16):
-        head, _ = os.path.split(files[0])
-        self.imData.dirs.append(head)
-        self.imData.files.append(files)
-        self.loadImages(np.array(newIms, dtype = dtype), name = name)
     
     def deactivateButton(self, button):
         button.setEnabled(False)
@@ -2030,56 +2143,88 @@ class MainWindow(QtWidgets.QMainWindow):
         button.setStyleSheet(self.styleUnpressed)
     
     def getCurrImDir(self):
-        return self.imData.dirs[self.imZ]
+        return self.experiment().channels[self.imZ].dir
     
     def saveIms(self):
         if not self.imLoaded:
             self.showError("No Images Loaded")
             return
-        defaultFileName = join(self.getCurrImDir(), self.channelSelect.currentText().replace(" ", "") + ".tif")
+        defaultFileName = join(self.getCurrImDir(), self.channelSelect.currentText().replace(" ", ""))
         path, _ = QFileDialog.getSaveFileName(self, 
-                            "save image as greyscale stack tif", 
+                            "save images to a directory", 
                             defaultFileName)
         if path:
-            imsave(path, self.getCurrImSet().astype(np.uint16))
+            write_images_to_dir(path, self.getCurrImSet())
     
-
     def saveMasks(self):
         if not self.maskLoaded:
             self.showError("No masks to save")
-        defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", "") + ".tif")
+        defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", ""))
         path, _ = QFileDialog.getSaveFileName(self, 
-                            "save mask as greyscale stack tif (uint16)", 
+                            "save masks to a directory", 
                             defaultFileName)
         if path:
-            imsave(path, self.getCurrMaskSet().astype(np.uint16))
+            write_images_to_dir(path, self.getCurrMaskSet())
     
     def saveFigure(self):
         if (not self.imLoaded):
             self.showError("No Images Loaded")
             return
 
-        defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", "") + "-figure.tif")
+        defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", "") + "-figure")
         path, _ = QFileDialog.getSaveFileName(self, 
-                            "save figure as stack tif (uint16)", 
+                            "save figures to directory", 
                             defaultFileName)
         if path:
-            imsave(path, self.createFigure())
+            print(path)
+            write_images_to_dir(path, self.createFigure())
+    
+    def createMaskOverlay(self):
+        return
+        if (not self.imLoaded):
+            self.showError("No Images Loaded")
+            return
+
+        defaultFileName = join(self.getCurrImDir(), "label_overlay_figure")
+        path, _ = QFileDialog.getSaveFileName(self, 
+                            "save figures to directory", 
+                            defaultFileName)
+        if path:
+            print(path)
+            write_images_to_dir(path, self.overlayMasks())
+    
+    def overlayMasks(self):
+        
+        def use_label(name):
+            return data[name]["contours"] or data[name]["labels"]
+
+
+        dlg = FigureDialog(self)
+        if dlg.exec():
+            data = dlg.get_data()
+            im = self.getCurrIm()
+            
+        
+
+
+    def zNormalization(self):
+        pass 
 
     def createFigure(self):
         ims = self.getCurrImSet()
-        ims = np.array([convertGreyToRGB(im) for im in ims], dtype = np.uint8)
+        colored_masks = []
         masks = []
         currT = self.tIndex
-        for i in range(self.imData.maxT+1):
+        for i in range(self.channel().max_t()+1):
             self.tIndex = i
             self.updateDisplay()
-            masks.append(self.pg_mask.image[:,:,0:3])
+            colored_masks.append(self.pg_mask.image[:,:,:])
+            masks.append(self.currMask)
+        figures = np.array([overlay_images(ims[i], masks[i], colored_masks[i]) for i in range(len(masks))])
+        print(figures.shape, figures.dtype)
         self.tIndex = currT
         self.updateDisplay()
-        masks = np.array(masks, dtype = np.uint8)
-        np.putmask(ims, masks>0, masks)
-        return ims
+        return figures
     
     def saveCellData(self):
         if not self.maskLoaded:
@@ -2089,8 +2234,8 @@ class MainWindow(QtWidgets.QMainWindow):
         labelName = self.labelSelect.items()[self.maskZ]
         labelFileName = labelName.replace(" ", "")
         if self.hasCellData():
-            data = exportCellData(self.cellData[self.maskZ])
-            defaultFileName = join(self.imData.dirs[self.imZ], labelFileName + "_celldata.csv")
+            data = exportCellData(self.label().celldata.cell_data, self.label().celldata.get_cell_info())
+            defaultFileName = join(self.experiment().dir, labelFileName + "_celldata.csv")
             path, _ = QFileDialog.getSaveFileName(self, 
                             "save data as csv", 
                             defaultFileName)
@@ -2106,9 +2251,9 @@ class MainWindow(QtWidgets.QMainWindow):
         labelName = self.labelSelect.items()[self.maskZ]
         labelFileName = labelName.replace(" ", "")
         if self.hasLineageData():
-            motherdata, daughterdata = self.cellData[self.maskZ].mothers, self.cellData[self.maskZ].daughters
-            fname1= join(self.imData.dirs[self.imZ], labelFileName + "_mother_daughters.csv")
-            fname2 = join(self.imData.dirs[self.imZ], labelFileName + "_daughter_array.csv.csv")
+            motherdata, daughterdata = self.label().celldata.mothers, self.label().celldata.daughters
+            fname1= join(self.experiment().dir, labelFileName + "_mother_daughters.csv")
+            fname2 = join(self.experiment().dir, labelFileName + "_daughter_array.csv.csv")
             path, _ = QFileDialog.getSaveFileName(self, 
                             "save data as csv", 
                             fname1)
@@ -2118,6 +2263,7 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.showError(f"No Cell Data for {labelName}")
     
+    
     def saveHeatMaps(self):
         if not self.maskLoaded:
             self.showError("No Label Data Loaded")
@@ -2126,8 +2272,8 @@ class MainWindow(QtWidgets.QMainWindow):
         labelName = self.labelSelect.items()[self.maskZ]
         labelFileName = labelName.replace(" ", "")
         if self.hasCellData():
-            data = getHeatMaps(self.cellData[self.maskZ])
-            defaultFileName = join(self.imData.dirs[self.imZ], labelFileName + "_heatmaps.tif")
+            data = getHeatMaps(self.label().celldata.cell_data)
+            defaultFileName = join(self.experiment().dir, labelFileName + "_heatmaps.tif")
             path, _ = QFileDialog.getSaveFileName(self, 
                             "save heatmaps as stack tif", 
                             defaultFileName)
@@ -2188,41 +2334,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.pWindow = None
     
     def getCurrImDir(self):
-        return self.imData.dirs[self.imZ]
-    
-    def saveData(self):
-        if self.imLoaded:
-        
-            if self.overrideNpyPath:
-                path = self.overrideNpyPath
-            else:
-                dir = os.getcwd()
-                name = self.sessionId
-                path = join(dir,name+".pkl")
-
-            imdata = {"Images": self.imData.channels,
-                        "Saturation": self.imData.saturation,
-                        "Dirs": self.imData.dirs,
-                        "Files": self.imData.files}
-            maskdata = {"Masks": self.maskData.channels,
-                        "Contours":self.maskData.contours}
-            if self.maskData.isDummy:
-                maskdata["Masks"] = ["Blank"]
-            otherdata = {"Channels": self.channelSelect.items(),
-                        "Labels": self.labelSelect.items()}
-            celldata = {"Cells": self.cellData}
-            i = 0
-            for item in self.cellData:
-                if isinstance(item, TimeSeriesData):
-                    i+=1
-            print("Saving ", i, "valid cell data objects")
-            data =  imdata | maskdata | otherdata | celldata
-
-            try:
-                with open(path, "wb") as f:
-                    pickle.dump(data, f)
-            except:
-                print("ERROR: cannot sive archive to", path)
+        return self.experiment().channels[self.imZ].dir
     
     def checkGPUs(self):
         self.checkTfGPU()
