@@ -47,27 +47,35 @@ def getLifeData(labels):
 
 def getPropDf(data):
     #newData = data.drop[data[data["labels"] == "population"].index]
-    return data.drop(columns = ["labels", "birth", "death"])
+    try:
+        return data.drop(columns = ["labels", "birth", "death"])
+    except:
+        return data.drop(columns = ["labels"])
 
-def exportCellData(data):
+def exportCellData(data, lifedata):
+    print(data)
     export = {"cell":[], "time":[]}
     propDf = getPropDf(data)
     for column in propDf.columns:
             export[column] = []
     
     for cell in data["labels"]:
-        firstT = int(data[data["labels"] == cell]["birth"])
-        endT = int(data[data["labels"] == cell]["death"])
+        firstT = int(lifedata[lifedata["cell"] == cell]["birth"])
+        endT = int(lifedata[lifedata["cell"] == cell]["death"])
+
+        print("cell", cell, firstT, endT)
 
         for i in range(firstT, endT+1):
             export["time"].append(i)
             export["cell"].append(cell)
 
         for props in propDf.columns:
-            vals = data[data["labels"] == cell][props].to_list()[firstT:endT+1]
+            vals = data[data["labels"] == cell]
+            vals = vals[props].tolist()[0][firstT:endT+1]
+            print(cell, props, vals)
             for prop in vals:
                 export[props].append(prop)
-
+    print(export)
     return pd.DataFrame(data = export)
 
 def getDaughterMatrix(self, lineageDF):
@@ -78,7 +86,7 @@ def getDaughterMatrix(self, lineageDF):
 def getHeatMaps(data):
     heatMaps = []
     for prop in getPropDf(data).columns:
-        heatMaps.append(np.array(data[prop].to_list()))
+        heatMaps.append(np.array(data[prop].tolist()))
     return np.array(heatMaps)
 
 def getCellData(labels, intensity_ims = None, intensity_im_names = None):

@@ -12,6 +12,56 @@ import logging
 import pathlib
 import sys
 import os
+from PIL import Image
+
+def write_images_to_dir(path, ims, extension = ".tif"):
+    dir = os.path.dirname(path)
+    if os.path.exists(path):
+        return
+    os.mkdir(path)
+    if "." not in extension:
+        extension = "." + extension
+    for i, im in enumerate(ims):
+        name = f"im_{i}{extension}"
+        fname = os.path.join(path, name)
+        skimage.io.imsave(fname, im)
+
+
+def overlay_images(phase_img, mask_img, colorized_mask):
+    # Convert numpy arrays to PIL images
+    mask = mask_img.copy()
+    mask[mask>0] = 255
+    microscopy_pil = Image.fromarray(convertGreyToRGB(phase_img))
+    mask_pil = Image.fromarray(mask)
+    colorized_pil = Image.fromarray(colorized_mask)
+
+    # Convert images to 'RGBA' mode
+    microscopy_pil = microscopy_pil.convert("RGBA")
+    colorized_pil = colorized_pil.convert("RGBA")
+    mask_pil = mask_pil.convert("L")
+
+    # Overlay images
+    microscopy_pil.paste(colorized_pil, (0, 0), mask_pil)
+
+    # Convert PIL image back to numpy array
+    result = np.array(microscopy_pil)
+
+    return result
+
+
+def get_frames_with_no_cells(masks):
+    no_cell_frames = []
+    for i, mask in enumerate(masks):
+        if np.all(mask==0):
+            no_cell_frames.append(i)
+    return no_cell_frames
+
+def get_end_of_cells(masks):
+    for i in reversed(range(masks.shape[0])):
+        if np.any(masks[i]!=0):
+            return i
+
+
 
 def get_filename(path):
     _, name_with_extension = os.path.split(path)
@@ -181,6 +231,7 @@ def normalize_im(im_o, clip = True):
 def convertGreyToRGB(im):
     image = skimage.util.img_as_ubyte(normalize_im(im))
     image_3D = cv2.merge((image,image,image))
+    #return cv2.cvtColor(image, cv2.COLOR_GRAY2RGBA)
     return image_3D
     # rgba = cv2.cvtColor(rgb, cv2.COLOR_RGB2RGBA)
     # rgba[:, :, 3] = 1

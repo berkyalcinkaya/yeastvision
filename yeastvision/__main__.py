@@ -48,11 +48,11 @@ torch.cuda.empty_cache()
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 import warnings
 import copy
-warnings.filterwarnings("ignore")
+#warnings.filterwarnings("ignore")
 configure_tf_memory_growth()
 
-global logger
-logger, log_file = logger_setup()
+# global logger
+# logger, log_file = logger_setup()
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -154,7 +154,7 @@ class MainWindow(QtWidgets.QMainWindow):
     
     @property
     def maxT(self):
-        return max(self.channel().max_t(), self.label().max_t())
+        return self.channel().max_t()
     @maxT.setter
     def maxT(self, num):
         return
@@ -213,6 +213,22 @@ class MainWindow(QtWidgets.QMainWindow):
     def handleFinished(self, error = False):
         self.closeThread(self.threads[-1])
         self.updateThreadDisplay()
+    
+    def clearCurrMask(self):
+        self.currMask[self.currMask>0] = 0
+        contours  = self.getCurrContours()
+        contours[:,:] =0 
+        self.label().save()
+        self.drawMask()
+    
+    def labelCurrMask(self):
+        mask = label(self.currMask)
+        contours = self.getCurrContours()
+        contours = get_mask_contour(self.currMask)
+        self.getCurrMaskSet()[self.tIndex] = mask
+        self.getCurrContourSet()[self.tIndex] = contours
+        self.label().save()
+        self.drawMask()
     
     def setEmptyDisplay(self, initial = False):
         self.tIndex = 0
@@ -302,12 +318,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     #     self.cellData.append(None)
     #     self.newData()
-    
-    def handleDummyMasks(self, add = True):
-        if add:
-            self.maskData.addZ(self.maskData.channels[self.maskZ][0,:,:,:])
-        self.maskData.removeDummys()
-        self.maskZ = 0
     
     def addBlankMasks(self):
         if not self.imLoaded:
@@ -522,7 +532,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.trackButton.setToolTip("Track current cell labels")
         self.l.addWidget(self.trackButton, rowspace+1, 5,1,2)
 
-        self.trackObjButton = QPushButton('track to cell')
+        self.trackObjButton = QPushButton('track label to cell')
         #self.trackObjButton.setFixedWidth(90)
         #self.trackObjButton.setFixedHeight(20)
         self.trackObjButton.setFont(self.medfont)
@@ -906,13 +916,13 @@ class MainWindow(QtWidgets.QMainWindow):
         return self.experiment().labels[i].has_lineage_data()
     
     def getLabelsWithPopulationData(self):
-        return [population for i,population in enumerate(self.cellData) if self.hasCellData(i = i)]
+        return [population.celldata for i,population in enumerate(self.experiment().labels) if self.hasCellData(i = i)]
     
     def getCellData(self):
         if not self.maskLoaded or not self.hasCellData():
             return None
         else:
-            return self.cellData
+            return self.label().celldata
     
     def getTimeSeriesDataName(self, tsObj):
         index = tsObj.i
@@ -924,7 +934,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.hasCellData():
             return pd.DataFrame.from_dict(self.cellDataFormat)
         elif self.maskLoaded and self.hasCellData():
-            return self.cellData[self.maskZ].get_cell_info()
+            return self.label().celldata.get_cell_info()
         
     def getLineages(self):
         dlg = GeneralParamDialog({}, [], "Lineage Construction", self, labelSelects=["bud necks", "cells"])
@@ -932,46 +942,46 @@ class MainWindow(QtWidgets.QMainWindow):
             data = dlg.getData()
             neckI = self.labelSelect.findText(data["bud necks"])
             cellI = self.labelSelect.findText(data["cells"])
-            necks = self.maskData.channels[neckI][0,:,:,:]
-            cells = self.maskData.channels[cellI][0,:,:,:]
+            necks = self.experiment().get_label("labels", idx = neckI)
+            cells = self.experiment().get_label("labels", idx = cellI)
         else:
             return 
         
         
-        if isinstance(self.cellData[cellI], LineageData):
-            self.cellData[cellI].add_lineages(cells, necks)
+        if isinstance(self.experiment().labels[cellI].celldata, LineageData):
+            self.experiment().labels[cellI].celldata.add_lineages(cells, necks)
         else:
-            if isinstance(self.cellData[cellI], TimeSeriesData):
-                life = self.cellData[cellI].life_data
-                cell_data = self.cellData[cellI].cell_data
+            if isinstance(self.experiment().labels[cellI].celldata, TimeSeriesData):
+                life = self.experiment().labels[cellI].celldata.life_data
+                cell_data = self.experiment().labels[cellI].celldata.cell_data
             else:
                 life, cell_data = None, None
 
-            self.cellData[cellI] = LineageData(cellI, cells, buds = necks, cell_data=cell_data, life_data=life)
+            self.experiment().labels[cellI].celldata = LineageData(cellI, cells, buds = necks, cell_data=cell_data, life_data=life)
 
-        self.saveData()
+        self.experiment().labels[cellI].save()
         self.checkDataAvailibility()
     
     def getMatingLineages(self, cellI, matingI):
-        mating = self.maskData.channels[matingI][0,:,:,:]
-        cells = self.maskData.channels[cellI][0,:,:,:]
+        mating = self.experiment().get_label("labels", idx = matingI)
+        cells = self.experiment().get_label("labels", idx = cellI)
 
-        if isinstance(self.cellData[cellI], LineageData):
-            self.cellData[cellI].add_mating(cells, mating)
+        if isinstance(self.experiment().labels[cellI].celldata, LineageData):
+            self.experiment().labels[cellI].celldata.add_mating(cells, mating)
         else:
-            if isinstance(self.cellData[cellI], TimeSeriesData):
-                life = self.cellData[cellI].life_data
-                cell_data = self.cellData[cellI].cell_data
+            if isinstance(self.experiment().labels[cellI].celldata, TimeSeriesData):
+                life = self.experiment().labels[cellI].celldata.life_data
+                cell_data = self.experiment().labels[cellI].celldata.cell_data
             else:
                 life, cell_data = None, None
 
-            self.cellData[cellI] = LineageData(cellI, cells, mating = mating, cell_data=cell_data, life_data=life)
+            self.experiment().labels[cellI].celldata = LineageData(cellI, cells, mating = mating, cell_data=cell_data, life_data=life)
 
-        self.saveData()
+        self.experiment().labels[cellI].save()
         self.checkDataAvailibility()
     
-
-        
+    def saveData(self):
+        pass
     
     def getCellDataLabelProps(self):
         label_props = LABEL_PROPS.copy()
@@ -987,7 +997,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return sorted(IM_PROPS + extra_props)
         else:
             im_props = []
-            columns  = self.cellData[self.maskZ].columns
+            columns  = self.label().celldata.columns
             for column in columns:
                 for prop in IM_PROPS + extra_props:
                     if prop in column:
@@ -1092,7 +1102,8 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.maskData.channels[self.maskZ][0, self.tIndex,:,:][newStroke]=newColor
         contourMask = self.experiment().get_label("contours", idx = self.maskZ, t = self.tIndex)
         cellMask = self.experiment().get_label("labels", idx = self.maskZ, t = self.tIndex)
-        self.label().set_contours(self.addCellContour(contourMask, cellMask, newColor))
+        self.label().npzdata["contours"][self.tIndex,:,:] = (self.addCellContour(contourMask, cellMask, newColor))
+        self.label().save()
 
     def updateDataDisplay(self, x = None,y = None, val = None):
         #dataString = f"Session Id: {self.sessionId}"
@@ -1106,12 +1117,12 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.imLoaded:
             dataString += f'\n{self.channel().get_files(self.tIndex)}'
 
-            dataString += f" | IMAGE: {self.channel().get_string(self.tIndex)}"
+            dataString += f" | IMAGE: {self.channel().get_string(self.tIndex)}, T: {self.tIndex}/{self.channel().max_t()}"
             
             if self.maskLoaded:
-                dataString += f"  |  MASK: {self.label().get_string(self.tIndex)}"
+                dataString += f"  |  MASK: {self.label().get_string(self.tIndex)}, T: {self.tIndex}/{self.label().max_t()}"
 
-            dataString += f"  |  TIME: {self.tIndex}/{self.maxT}"
+            #dataString += f"  |  TIME: {self.tIndex}/{self.maxT}"
 
             if self.maskLoaded:
                 dataString += f"  |  REGIONS: {self.numObjs}"
@@ -1130,9 +1141,9 @@ class MainWindow(QtWidgets.QMainWindow):
         stroke = self.currMask == cellNum
         self.strokes.append((stroke,cellNum))
         self.currMask[stroke] = 0
-        self.maskData.contours[self.maskZ][self.tIndex,:,:][stroke]=0
+        self.label().npzdata["contours"][self.tIndex,:,:][stroke]=0
         self.drawMask()
-        self.saveData()
+        self.label().save()
 
     def getMaskCmap(self):
         cmap = plt.get_cmap("tab20",20) # returns Ncolors from the jet colormap
@@ -1209,9 +1220,13 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.loadExperiment(files[0])
     
+    def userSelectExperiment(self):
+        dir = QFileDialog.getExistingDirectory(self, "Choose Experiment Directory")
+        self.loadExperiment(dir)
+    
     def loadExperiment(self,file):
         print("new_experiment")
-        dlg = GeneralParamDialog({"num_channels":1}, [None], "", self)
+        dlg = GeneralParamDialog({"num_channels":1}, [int], "", self)
         if dlg.exec():
             num_channels = int(dlg.getData()["num_channels"])
         else:
@@ -1274,15 +1289,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.computeMaxT()
             self.updateDisplay()
 
-    def loadImageFiles(self, file):
-        self.toStatusBar("Loading Image...")
-        self.imData.load(file)
-        self.newIms(name = file.split("/")[-1].split(".")[0])
-
-    def loadMaskFiles(self, file):
-        self.maskData.load(file)
-        self.newMasks(name = (file.split("/")[-1].split(".")[0]).replace("-", "_"))
-
     def loadMasks(self, masks, exp_idx = None, name = None, contours = None):
         if type(masks) is tuple:
             mask1, mask2 = np.expand_dims(masks[0],0), np.expand_dims(masks[1],0)
@@ -1306,8 +1312,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if (event.key() == QtCore.Qt.Key_Delete or event.key() == QtCore.Qt.Key_Backspace) and self.selectedCells:
             for selectedCell in self.selectedCells.copy():
+                self.deselectCell(selectedCell)
                 self.deleteCell(selectedCell)
-                self.selectedCells.remove(selectedCell)
         
 
         if event.key() == QtCore.Qt.Key_Y:
@@ -1350,6 +1356,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.tIndex-=1
                 else:
                     self.tIndex = self.maxT
+            print(self.tIndex)
 
         if event.key() == QtCore.Qt.Key_Up:
             if event.modifiers() & QtCore.Qt.ControlModifier:
@@ -1406,7 +1413,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.currMask = self.getCurrMask()
         self.numObjs  = count_objects(self.currMask)
         self.currMaskDtype = str(self.currMask.dtype)
-        print("Data tyoe:", self.currMaskDtype)
 
         if self.cellNumButton.isChecked():
             self.clearCellNums()
@@ -1442,7 +1448,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addSpecificContours(contour, [mother, daughter], [[255,0,0,255], [0,255,0,255]])
     
     def getDaughters(self, cellNum):
-        potentialDaughters = self.cellData[self.maskZ].daughters[cellNum-1]
+        potentialDaughters = self.label().celldata.daughters[cellNum-1]
         daughters = list(np.where(potentialDaughters)[0]+1)
         return daughters
         
@@ -1592,7 +1598,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.pWindow.updateSingleCellPlots()
     
     def getMotherFromLineageData(self,cell):
-        ld = self.cellData[self.maskZ].mothers
+        ld = self.label().celldata.mothers
         mother = ld["mother"].iloc[cell-1]
         if pd.notna(mother):
             return (int(mother))
@@ -1753,21 +1759,15 @@ class MainWindow(QtWidgets.QMainWindow):
         if autorun and self.trainTStop < self.maxT:
             im = self.getCurrMaskSet()[self.trainTStop:self.trainTStop+1,:,:]
             newIms, newProbIms = modelCls.run(im,None,weightPath)
-
-            if self.trainTStop>self.maskData.maxT:
-                addMethod = self.maskData.addToZ
-            else:
-                addMethod = self.maskData.insert
-            
-            if not self.hasProbIm():
-                newProbIms = None
-            addMethod(newIms, self.trainTStop, self.maskZ, newProbIms=newProbIms)
-            self.drawMask()
+            self.tIndex = self.trainTStop
+            self.label().insert(newIms, self.tIndex, new_prob_im = newProbIms)
         elif self.trainTStop == self.maxT:
+            self.tIndex = self.trainTStop
             print("Not enough data to autorun")
+        self.drawMask()
 
     def hasProbIm(self):
-        return self.maskData.channels[self.maskZ].shape[0]>1
+        return self.label().has_probability
 
     def getTrainData(self):
         ims = self.getCurrImSet()
@@ -1779,25 +1779,23 @@ class MainWindow(QtWidgets.QMainWindow):
             self.showError(f"Masks of shape {maskShape} does not match images of shape {imShape}")
             raise IndexError
         
-        imT, maskT = ims.shape[0], labels.shape[0]
+        imT, maskT = len(ims), len(labels)
+        maskT = get_end_of_cells(labels)
+        no_cell_frames = get_frames_with_no_cells(labels)
 
-        if len(self.imData.files[self.imZ]) == imT:
-            self.trainFiles = [os.path.split(path)[1].split(".")[0] for path in self.imData.files[self.imZ]]
+        files = self.channel().get_file_names()
+        print(files)
+        if len(files) == imT:
+            self.trainFiles = files
         else:
-            self.trainFiles = [f"Index {i}" for i in range(ims.shape[0])]
+            self.trainFiles = [f"index_{i}" for i in range(len(ims))]
 
 
         self.trainTStop = min(imT, maskT)
-        for i,label in enumerate(labels[:self.trainTStop+1,:,:]):
-            if np.all(label==0):
-                break
-        self.trainTStop = i
 
-        self.trainIms = [im for im in ims[:self.trainTStop+1,:,:]]
-        self.trainLabels = [im for im in labels[:self.trainTStop+1,:,:]]
-        self.trainFiles = self.trainFiles[:self.trainTStop+1]
-
-        print(len(self.trainIms), len(self.trainLabels))
+        self.trainIms = [im for i,im in enumerate(ims[:self.trainTStop+1]) if i not in no_cell_frames]
+        self.trainLabels = [im for i,im in enumerate(labels[:self.trainTStop+1]) if i not in no_cell_frames]
+        self.trainFiles = [file for i, file in enumerate(self.trainFiles[:self.trainTStop+1]) if i not in no_cell_frames]
 
     
     def getModelNames(self):
@@ -1882,12 +1880,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if evalDlg.exec():
             data = evalDlg.getData()
             validationName = data[labelSelects[0]]
-            masksTrue = self.maskData.channels[self.labelSelect.items().index(validationName)][0,:,:,:]
+            masksTrueIndex = self.labelSelect.items().index(validationName)
+            masksTrue = self.experiment().labels[masksTrueIndex].npzdata["labels"]
 
             toValidate = {}
             for labelName in params:
                 if data[labelName]:
-                    toValidate[labelName] = (self.maskData.channels[self.labelSelect.items().index(labelName)][0,:,:,:])
+                    toValidate[labelName] = (self.experiment().labels[self.labelSelect.items().index(labelName)].npzdata["labels"])
             
             ious = [0.25, 0.50, 0.75, 0.90]
             statsDict = self.getStatsDict(masksTrue, toValidate, ious)
@@ -2150,50 +2149,82 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.imLoaded:
             self.showError("No Images Loaded")
             return
-        defaultFileName = join(self.getCurrImDir(), self.channelSelect.currentText().replace(" ", "") + ".tif")
+        defaultFileName = join(self.getCurrImDir(), self.channelSelect.currentText().replace(" ", ""))
         path, _ = QFileDialog.getSaveFileName(self, 
-                            "save image as greyscale stack tif", 
+                            "save images to a directory", 
                             defaultFileName)
         if path:
-            imsave(path, self.getCurrImSet().astype(np.uint16))
+            write_images_to_dir(path, self.getCurrImSet())
     
-
     def saveMasks(self):
         if not self.maskLoaded:
             self.showError("No masks to save")
-        defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", "") + ".tif")
+        defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", ""))
         path, _ = QFileDialog.getSaveFileName(self, 
-                            "save mask as greyscale stack tif (uint16)", 
+                            "save masks to a directory", 
                             defaultFileName)
         if path:
-            imsave(path, self.getCurrMaskSet().astype(np.uint16))
+            write_images_to_dir(path, self.getCurrMaskSet())
     
     def saveFigure(self):
         if (not self.imLoaded):
             self.showError("No Images Loaded")
             return
 
-        defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", "") + "-figure.tif")
+        defaultFileName = join(self.getCurrImDir(), self.labelSelect.currentText().replace(" ", "") + "-figure")
         path, _ = QFileDialog.getSaveFileName(self, 
-                            "save figure as stack tif (uint16)", 
+                            "save figures to directory", 
                             defaultFileName)
         if path:
-            imsave(path, self.createFigure())
+            print(path)
+            write_images_to_dir(path, self.createFigure())
+    
+    def createMaskOverlay(self):
+        return
+        if (not self.imLoaded):
+            self.showError("No Images Loaded")
+            return
+
+        defaultFileName = join(self.getCurrImDir(), "label_overlay_figure")
+        path, _ = QFileDialog.getSaveFileName(self, 
+                            "save figures to directory", 
+                            defaultFileName)
+        if path:
+            print(path)
+            write_images_to_dir(path, self.overlayMasks())
+    
+    def overlayMasks(self):
+        
+        def use_label(name):
+            return data[name]["contours"] or data[name]["labels"]
+
+
+        dlg = FigureDialog(self)
+        if dlg.exec():
+            data = dlg.get_data()
+            im = self.getCurrIm()
+            
+        
+
+
+    def zNormalization(self):
+        pass 
 
     def createFigure(self):
         ims = self.getCurrImSet()
-        ims = np.array([convertGreyToRGB(im) for im in ims], dtype = np.uint8)
+        colored_masks = []
         masks = []
         currT = self.tIndex
-        for i in range(self.imData.maxT+1):
+        for i in range(self.channel().max_t()+1):
             self.tIndex = i
             self.updateDisplay()
-            masks.append(self.pg_mask.image[:,:,0:3])
+            colored_masks.append(self.pg_mask.image[:,:,:])
+            masks.append(self.currMask)
+        figures = np.array([overlay_images(ims[i], masks[i], colored_masks[i]) for i in range(len(masks))])
+        print(figures.shape, figures.dtype)
         self.tIndex = currT
         self.updateDisplay()
-        masks = np.array(masks, dtype = np.uint8)
-        np.putmask(ims, masks>0, masks)
-        return ims
+        return figures
     
     def saveCellData(self):
         if not self.maskLoaded:
@@ -2203,8 +2234,8 @@ class MainWindow(QtWidgets.QMainWindow):
         labelName = self.labelSelect.items()[self.maskZ]
         labelFileName = labelName.replace(" ", "")
         if self.hasCellData():
-            data = exportCellData(self.cellData[self.maskZ])
-            defaultFileName = join(self.imData.dirs[self.imZ], labelFileName + "_celldata.csv")
+            data = exportCellData(self.label().celldata.cell_data, self.label().celldata.get_cell_info())
+            defaultFileName = join(self.experiment().dir, labelFileName + "_celldata.csv")
             path, _ = QFileDialog.getSaveFileName(self, 
                             "save data as csv", 
                             defaultFileName)
@@ -2220,9 +2251,9 @@ class MainWindow(QtWidgets.QMainWindow):
         labelName = self.labelSelect.items()[self.maskZ]
         labelFileName = labelName.replace(" ", "")
         if self.hasLineageData():
-            motherdata, daughterdata = self.cellData[self.maskZ].mothers, self.cellData[self.maskZ].daughters
-            fname1= join(self.imData.dirs[self.imZ], labelFileName + "_mother_daughters.csv")
-            fname2 = join(self.imData.dirs[self.imZ], labelFileName + "_daughter_array.csv.csv")
+            motherdata, daughterdata = self.label().celldata.mothers, self.label().celldata.daughters
+            fname1= join(self.experiment().dir, labelFileName + "_mother_daughters.csv")
+            fname2 = join(self.experiment().dir, labelFileName + "_daughter_array.csv.csv")
             path, _ = QFileDialog.getSaveFileName(self, 
                             "save data as csv", 
                             fname1)
@@ -2232,6 +2263,7 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.showError(f"No Cell Data for {labelName}")
     
+    
     def saveHeatMaps(self):
         if not self.maskLoaded:
             self.showError("No Label Data Loaded")
@@ -2240,8 +2272,8 @@ class MainWindow(QtWidgets.QMainWindow):
         labelName = self.labelSelect.items()[self.maskZ]
         labelFileName = labelName.replace(" ", "")
         if self.hasCellData():
-            data = getHeatMaps(self.cellData[self.maskZ])
-            defaultFileName = join(self.imData.dirs[self.imZ], labelFileName + "_heatmaps.tif")
+            data = getHeatMaps(self.label().celldata.cell_data)
+            defaultFileName = join(self.experiment().dir, labelFileName + "_heatmaps.tif")
             path, _ = QFileDialog.getSaveFileName(self, 
                             "save heatmaps as stack tif", 
                             defaultFileName)
@@ -2303,40 +2335,6 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def getCurrImDir(self):
         return self.experiment().channels[self.imZ].dir
-    
-    def saveData(self):
-        if self.imLoaded:
-        
-            if self.overrideNpyPath:
-                path = self.overrideNpyPath
-            else:
-                dir = os.getcwd()
-                name = self.sessionId
-                path = join(dir,name+".pkl")
-
-            imdata = {"Images": self.imData.channels,
-                        "Saturation": self.imData.saturation,
-                        "Dirs": self.imData.dirs,
-                        "Files": self.imData.files}
-            maskdata = {"Masks": self.maskData.channels,
-                        "Contours":self.maskData.contours}
-            if self.maskData.isDummy:
-                maskdata["Masks"] = ["Blank"]
-            otherdata = {"Channels": self.channelSelect.items(),
-                        "Labels": self.labelSelect.items()}
-            celldata = {"Cells": self.cellData}
-            i = 0
-            for item in self.cellData:
-                if isinstance(item, TimeSeriesData):
-                    i+=1
-            print("Saving ", i, "valid cell data objects")
-            data =  imdata | maskdata | otherdata | celldata
-
-            try:
-                with open(path, "wb") as f:
-                    pickle.dump(data, f)
-            except:
-                print("ERROR: cannot sive archive to", path)
     
     def checkGPUs(self):
         self.checkTfGPU()

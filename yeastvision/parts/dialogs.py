@@ -2,7 +2,7 @@ from PyQt5 import QtGui, QtCore
 
 import pyqtgraph as pg
 from PyQt5.QtWidgets import (QApplication, QTreeWidgetItem, QPushButton, QDialog,
-                            QDialogButtonBox, QLineEdit, QFormLayout, QCheckBox,  QSpinBox, QLabel, 
+                        QDialogButtonBox, QLineEdit, QFormLayout, QCheckBox,  QSpinBox, QDoubleSpinBox, QLabel, 
                             QWidget, QComboBox, QGridLayout, QHBoxLayout, QSizePolicy, QHeaderView, QVBoxLayout,
                             QScrollArea, QTreeWidget)
 from PyQt5.QtCore import Qt
@@ -11,6 +11,62 @@ import os
 import datetime
 from yeastvision.parts.guiparts import *
 from yeastvision.plot.plot import PlotProperty
+
+class FigureDialog(QDialog):
+    def __init__(self, parent):
+        super().__init__()
+        self.parent = parent
+        self.layout = QGridLayout()
+        self.row = 0
+
+        self.label_widgets = {}
+        self.label_names = self.parent.experiment().get_label_names()
+        self.make_top_row()
+        for i, label_name in enumerate(self.label_names):
+            self.add_row(label_name, i)
+
+    
+        QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        self.buttonBox = QDialogButtonBox(QBtn)
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+        self.layout.addWidget(self.buttonBox, self.row, 0)
+        
+        self.setLayout(self.layout)
+
+    def make_top_row(self):
+        for i, header in enumerate(["label name", "contour", "full label", "order"]):
+            self.layout.addWidget(QLabel(header), self.row, i,1,1)
+        self.row+=1
+    
+    def add_row(self, label_name, i):
+        self.label_widgets[label_name] = {}
+        self.layout.addWidget(QLabel(label_name), self.row, 0,1,1)
+
+        contour_check = QCheckBox()
+        self.label_widgets[label_name]["contours"] = contour_check
+        self.layout.addWidget(contour_check, self.row,1,1,1)
+
+        label_check = QCheckBox()
+        self.label_widgets[label_name]["labels"] = label_check
+        self.layout.addWidget(label_check, self.row,2,1,1)
+
+        order_spin = QSpinBox()
+        order_spin.setMaximum(len(self.label_names)-1)
+        order_spin.setValue(i)
+        self.label_widgets[label_name]["order"] = order_spin
+        self.layout.addWidget(order_spin, self.row, 3,1,1)
+
+        self.row+=1
+    
+    def get_data(self):
+        data = self.label_widgets.copy()
+        for name in data.keys():
+            data[name]["contours"] = data[name]["contours"].isChecked()
+            data[name]["labels"] = data[name]["labels"].isChecked()
+            data[name]["order"] = data[name]["order"].value()
+        return data
+
 
 class DirReaderDialog(QDialog):
     def __init__(self, dir, fnames):
@@ -70,6 +126,8 @@ class GeneralParamDialog(QDialog):
         self.dropDowns = {}
         self.checkBoxes = {}
         self.lineEdits = {}
+        self.spinBoxes = {}
+        self.dSpinBoxes = {}
 
         if self.params:
             self.splitHyperParams()
@@ -99,6 +157,10 @@ class GeneralParamDialog(QDialog):
                 self.checkBoxes[paramName] = self.params[paramName]
             elif paramType is None:
                 self.lineEdits[paramName] = self.params[paramName]
+            elif paramType is int:
+                self.spinBoxes[paramName] = self.params[paramName]
+            elif paramType is float:
+                self.dSpinBoxes[paramName] = self.params[paramName]
     
     def populateFormLayout(self):
         self.dropDownData  = {}
@@ -129,6 +191,19 @@ class GeneralParamDialog(QDialog):
             lineEdit.setText(str(defaultVal))
             self.lineEditData[labelName] = lineEdit
             self.formLayout.addRow(self.produceLabel(labelName), lineEdit)
+        
+        self.spinBoxData = {}
+        for boxName, defaultVal in self.spinBoxes.items():
+            spinBox = QSpinBox(self)
+            spinBox.setValue(int(defaultVal))
+            self.spinBoxData[boxName] = spinBox
+            self.formLayout.addRow(self.produceLabel(boxName), spinBox)
+        for boxName, defaultVal in self.dSpinBoxes.items():
+            spinBox = QDoubleSpinBox(self)
+            spinBox.setValue(float(defaultVal))
+            self.spinBoxData[boxName] = spinBox
+            self.formLayout.addRow(self.produceLabel(boxName), spinBox)
+
     
     def addParentComboBox(self, parentComboBox, name = "Channel", addNA = False):
         channelSelect = QComboBox()
@@ -146,7 +221,8 @@ class GeneralParamDialog(QDialog):
         dropDownData = {k:v.currentText() for k,v in self.dropDownData.items()}
         lineEditData = {k:float(v.text()) for k,v in self.lineEditData.items()}
         boolData = {k:v.isChecked() for k,v in self.checkBoxData.items()}
-        return dropDownData | lineEditData | boolData
+        spinData = {k:v.value() for k,v in self.spinBoxData.items()}
+        return dropDownData | lineEditData | boolData | spinData
 
 
 
@@ -187,6 +263,18 @@ class ModelParamDialog(GeneralParamDialog):
             lineEdit.setText(str(defaultVal))
             self.lineEditData[labelName] = lineEdit
             self.formLayout.addRow(self.produceLabel(labelName), lineEdit)
+    
+        self.spinBoxData = {}
+        for boxName, defaultVal in self.spinBoxes.items():
+            spinBox = QSpinBox(self)
+            spinBox.setValue(int(defaultVal))
+            self.spinBoxData[boxName] = spinBox
+            self.formLayout.addRow(self.produceLabel(boxName), spinBox)
+        for boxName, defaultVal in self.dSpinBoxes.items():
+            spinBox = QDoubleSpinBox(self)
+            spinBox.setValue(float(defaultVal))
+            self.spinBoxData[boxName] = spinBox
+            self.formLayout.addRow(self.produceLabel(boxName), spinBox)
 
     def channelSelectIndexChanged(self):
         channelIndex = self.parent.channelSelect.findText(self.dropDownData["Channel"].currentText())
@@ -217,9 +305,9 @@ class ModelParamDialog(GeneralParamDialog):
         validTs = list(range(maxT+1))
         validTs = [str(t) for t in validTs]
         self.dropDownData[f"{prefix}Start"].addItems(validTs)
-        self.dropDownData[f"{prefix}Start"].setCurrentIndex(0)
+        self.dropDownData[f"{prefix}Start"].setCurrentIndex(self.parent.tIndex)
         self.dropDownData[f"{prefix}Stop"].addItems(validTs)
-        self.dropDownData[f"{prefix}Stop"].setCurrentIndex(len(validTs)-1)
+        self.dropDownData[f"{prefix}Stop"].setCurrentIndex(self.parent.tIndex)
     
     def showErrorMessage(self):
         if not self.errorAlrShown:
@@ -429,6 +517,18 @@ class ArtilifeParamDialog(ModelParamDialog):
             lineEdit.setText(str(defaultVal))
             self.lineEditData[labelName] = lineEdit
             self.formLayout.addRow(self.produceLabel(labelName), lineEdit)
+    
+        self.spinBoxData = {}
+        for boxName, defaultVal in self.spinBoxes.items():
+            spinBox = QSpinBox(self)
+            spinBox.setValue(int(defaultVal))
+            self.spinBoxData[boxName] = spinBox
+            self.formLayout.addRow(self.produceLabel(boxName), spinBox)
+        for boxName, defaultVal in self.dSpinBoxes.items():
+            spinBox = QDoubleSpinBox(self)
+            spinBox.setValue(float(defaultVal))
+            self.spinBoxData[boxName] = spinBox
+            self.formLayout.addRow(self.produceLabel(boxName), spinBox)
         
         self.addArtilifeTDropDowns(name = "mat")
         self.addArtilifeTDropDowns(name = "spore")

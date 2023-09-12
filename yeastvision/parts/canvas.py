@@ -166,7 +166,7 @@ class ImageDraw(pg.ImageItem):
         print("adding set")
         if len(self.parent.currStroke)>3:
             print("\tlength requirement")
-            ny, nx = self.parent.label().x(), self.parent.label().y
+            ny, nx = self.parent.label().x(), self.parent.label().y()
             img = Image.new('L', (ny, nx), 0)
             ID.Draw(img).polygon(self.parent.currStroke, outline=1, fill=1)
             polygon = np.array(img).astype(bool)

@@ -6,6 +6,7 @@ import numpy as np
 from .utils import *
 import copy
 from tqdm import tqdm
+from yeastvision.track.data import LineageData, TimeSeriesData
 
 
 
@@ -45,11 +46,8 @@ class Experiment():
         else:
             return False
     
-    def load_channels_from_npz_files(self):
-        npz_files = get_files(self.dir, extension="npz")
-        if self.npz_path in npz_files:
-            npz_files.remove(self.npz_path)
-        self.npz_channel_files = npz_files
+    def load_channels_from_npz_files(self, npz_channel_files):
+        self.npz_channel_files = npz_channel_files
         for path in self.npz_channel_files:
             _, name = os.path.split(path)
             if InterpolatedChannel.text_id in name:
@@ -292,6 +290,8 @@ class Files():
         return f"{self.shape} {self.dtype}"
     
     def get_files(self, t):
+        if t > self.max_t():
+            return ""
         return self.files[t]
 
     def max_t(self):
@@ -305,6 +305,9 @@ class Files():
 
     def y(self):
         return self.shape[0]
+
+    def get_file_names(self):
+        return [get_file_name(file) for file in self.files]
 
 
 class Channel(Files):
@@ -344,6 +347,7 @@ class ChannelNoDirectory(Channel):
         
         self.get_properties()
         self.compute_saturation()
+        self.files = [self.path]
 
     def make_path(self):
         return os.path.join(self.dir, self.name+".npz")
@@ -365,6 +369,9 @@ class ChannelNoDirectory(Channel):
 
     def get_files(self, t):
         return self.path
+    
+    def get_file_names(self):
+        return [get_file_name(self.path)]
 
 class InterpolatedChannel(ChannelNoDirectory):
     text_id = "_interp"
@@ -458,11 +465,10 @@ class Label(Files):
             self.load()
 
         def has_cell_data(self):
-            print(self.celldata)
-            return self.celldata is not None
+            return isinstance(self.celldata, TimeSeriesData)
         
         def has_lineage_data(self):
-            return self.lineagedata is not None
+            return isinstance(self.celldata, LineageData)
         
         def get_dir_and_name_from_npz_path(self):
             self.dir, head = os.path.split(self.npz_path)
@@ -494,6 +500,7 @@ class Label(Files):
             self.dtype = str(labels[0].dtype)
             self.t = len(labels)
             self.has_probability = np.any(data["probability"][:,:,:]!=0)
+            print("has probability:", self.has_probability)
             del labels
             del data
 
@@ -511,7 +518,7 @@ class Label(Files):
         def unload_data_attrs(self):
             self.labels = None
             self.contours = None
-            self.has_probability = None
+            self.probability = None
 
         def get_data_dict(self):
             data = {}
@@ -520,6 +527,13 @@ class Label(Files):
             data["celldata"] = np.array([self.celldata])
             data["lineagedata"] = np.array([self.lineagedata])
             return data
+        
+        def insert(self, new_mask, t, new_prob_im = None):
+            self.npzdata["labels"][t] = new_mask
+            self.npzdata["contours"][t]  = get_mask_contour(new_mask)
+            if self.has_probability:
+                self.npzdata["probability"][t] = new_prob_im
+            self.save()
 
         def extract_probability(self, raw_arrays):
             if len(raw_arrays.shape) == 4:
@@ -579,9 +593,3 @@ class Label(Files):
             self.contours = contours
             self.save()
             self.unload_data_attrs()
-
-            
-
-class TrainChannel(Channel):
-    def __init__(self):
-        pass

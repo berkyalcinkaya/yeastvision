@@ -125,7 +125,6 @@ class Artilife(CustomCPWrapper):
             cellData = getLifeData(model.masks)
             model.addSmallCells(ims, cellData)
             model.masks = trackYeasts(model.masks)
-            del model.masks
 
         print("finished")
         mask, probs = model.masks, model.cellprobs
@@ -329,7 +328,7 @@ class ArtilifeFullLifeCycle(Artilife):
         mating = (model.matMasks, model.matprobs)
         tetra = (model.tetraMasks, model.tetraprobs)
 
-        del model
+        del modelf
 
         return {"artilife": arti,
                 "mating": mating,

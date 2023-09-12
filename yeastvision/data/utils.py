@@ -9,6 +9,10 @@ image_extensions = ['.tif','.tiff',
                             '.JPG','.JPEG','.PNG','.BMP',
                             '.PBM','.PGM','.PPM','.PXM','.PNM','.JP2']
 
+def get_file_name(path):
+    _,path = os.path.split(path)
+    return path
+
 def get_files(dir, extension):
     return sorted(glob.glob(os.path.join(dir, "*"+extension)))
 
@@ -32,7 +36,7 @@ def is_mask_npz(file):
     return "labels" in np.load(file).files
 
 def is_image_npz(file):
-    return "ims" in np.load(file).file
+    return "ims" in np.load(file).files
 
 
 def get_extensions_in_dir(dir):
