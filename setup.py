@@ -18,7 +18,8 @@ requires = [
 "tqdm",
 "trackpy",
 "torchvision==0.13.0",
-"memory-profiler"]
+"memory-profiler",
+"QSwitchControl"]
 
 try:
     import torch
@@ -33,7 +34,8 @@ except:
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision.models", "yeastvision.ims", "yeastvision.ims.rife_model",
+packages = ["yeastvision","yeastvision.data",  "yeastvision.plot", "yeastvision.track", 
+"yeastvision.models", "yeastvision.ims", "yeastvision.ims.rife_model",
             "yeastvision.ims.rife_model.pytorch_msssim", "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
             "yeastvision.models.artilife", "yeastvision.models.artilife.budSeg", "yeastvision.models.artiBud",
             "yeastvision.models.matSeg", "yeastvision.models.tetradSeg", "yeastvision.models.budNET", 
@@ -42,7 +44,7 @@ packages = ["yeastvision", "yeastvision.plot", "yeastvision.track", "yeastvision
 
 setup(
     name = "yeastvision",
-    version = "0.1.15",
+    version = "0.1.18",
     description = "Deep learning-enabled image analysis of the yeast full life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",

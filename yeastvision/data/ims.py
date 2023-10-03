@@ -14,6 +14,8 @@ class Experiment():
 
     def __init__(self, dir, num_channels = 1):
         self.dir = dir
+        print(self.dir)
+        print(os.path.split(dir))
         _, self.name = os.path.split(self.dir)
         self.num_channels = num_channels
         self.num_labels = 0

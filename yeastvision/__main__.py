@@ -50,6 +50,7 @@ import warnings
 import copy
 #warnings.filterwarnings("ignore")
 configure_tf_memory_growth()
+from collections import OrderedDict
 
 # global logger
 # logger, log_file = logger_setup()
@@ -160,6 +161,17 @@ class MainWindow(QtWidgets.QMainWindow):
         return
     def computeMaxT(self):
         self.tIndex =  min(self.tIndex, self.maxT)
+    
+    @property
+    def maskLoaded(self):
+        if not self.experiments:
+            return False
+        else:
+            return self.experiment().has_labels()
+    @maskLoaded.setter
+    def maskLoaded(self, b):
+        return
+
 
     @property
     def imZ(self):
@@ -237,17 +249,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tChanged = False
         self.experiments = []
         self.experiment_index = -1
-
         if not initial:
-            self.overrideNpyPath = None
-            self.sessionId = self.getCurrTimeStr()
-            self.updateDataDisplay()
             self.emptying = True
-            self.empyting = False
-
+            self.experimentSelect.clear()
 
         self.setEmptyIms(initial = initial)
         self.setEmptyMasks(initial = initial)
+
+        if not initial:
+            self.updateDataDisplay()
+            self.emptying = False
+        
         self.saveData()
     
     def setEmptyIms(self, initial = False):
@@ -276,7 +288,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cmap = self.getMaskCmap()
         self.floatCmap = self.getFloatCmap()
         self.maskColors = self.cmap.copy()
-        self.maskData = MaskData(self)
         self.maskChanged = False
         self.prevMaskOn = True
         self.maskOn = True
@@ -749,11 +760,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def channelSelectEdit(self, text):
         curr_text = self.channelSelect.currentText()
         idx = self.channelSelect.currentIndex()
-        text = str(text)
-        if isinstance(self.channel(), InterpolatedChannel) and InterpolatedChannel.text_id not in text:
-            self.showError(f"Removal of the {InterpolatedChannel.text_id} text id from the name of this channel will disable certain features upon reloading")
-        if self.experiment().new_channel_name(idx, text):
-            self.channelSelect.setItemText(idx, str(text))
+        if not self.emptying:
+            text = str(text)
+            if isinstance(self.channel(), InterpolatedChannel) and InterpolatedChannel.text_id not in text:
+                self.showError(f"Removal of the {InterpolatedChannel.text_id} text id from the name of this channel will disable certain features upon reloading")
+            if self.experiment().new_channel_name(idx, text):
+                self.channelSelect.setItemText(idx, str(text))
+        else:
+            self.channelSelect.setItemText(idx, "")
 
 
     def channelSelectIndexChange(self,index):
@@ -1226,18 +1240,19 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def loadExperiment(self,file):
         print("new_experiment")
+        if file.endswith("/") or file.endswith('\\'):
+            file = file[:-1]                         
         dlg = GeneralParamDialog({"num_channels":1}, [int], "", self)
         if dlg.exec():
             num_channels = int(dlg.getData()["num_channels"])
         else:
             return
-        
         self.experiment_index+=1
         new_experiment = Experiment(file, num_channels=num_channels)
         self.experiments.append(new_experiment)
         self.experimentSelect.addItem(new_experiment.name)
         self.experimentSelect.setCurrentIndex(self.experiment_index)
-    
+
     def setDataSelects(self):
         self.clearDataSelects()
         self.channelSelect.addItems(self.experiment().get_channel_names())
@@ -1246,21 +1261,21 @@ class MainWindow(QtWidgets.QMainWindow):
         
     
     def experimentChange(self):
-        print("experiment_change")
-        self.imLoaded = True
-        print(self.experiment_index)
-        print(self.experiments)
-        self.setDataSelects()
-        self.experiment_index = self.experimentSelect.currentIndex()
-        self.tIndex, self.maskZ, self.imZ = 0,0,0
-        self.imChanged, self.maskChanged = True, True
-        self.enableImageOperations()
-        if self.experiment().has_labels():
-            self.maskLoaded = True
-            self.enableMaskOperations()
-        self.updateDisplay()
+        if not self.emptying:
+            print("experiment_change")
+            self.imLoaded = True
+            print(self.experiment_index)
+            print(self.experiments)
+            self.setDataSelects()
+            self.experiment_index = self.experimentSelect.currentIndex()
+            self.tIndex, self.maskZ, self.imZ = 0,0,0
+            self.imChanged, self.maskChanged = True, True
+            self.enableImageOperations()
+            if self.experiment().has_labels():
+                self.maskLoaded = True
+                self.enableMaskOperations()
+            self.updateDisplay()
 
-    
     def clearDataSelects(self):
         self.labelSelect.clear()
         self.channelSelect.clear()
@@ -1281,6 +1296,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def newMasks(self, masks = None, files = None, dir = None, name = None, exp_idx = None):
         if exp_idx is None:
             exp_idx = self.experiment_index
+        enable = False
+        if not self.experiments[exp_idx].has_labels():
+            enable = True
         self.experiments[exp_idx].add_label(files = files, arrays = masks, name = name)
 
         if exp_idx == self.experiment_index:
@@ -1288,6 +1306,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.maskZ = len(self.experiment().labels)-1
             self.computeMaxT()
             self.updateDisplay()
+            if enable:
+                self.enableMaskOperations()
 
     def loadMasks(self, masks, exp_idx = None, name = None, contours = None):
         if type(masks) is tuple:
@@ -1491,6 +1511,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return self.experiments[self.experiment_index].get_channel(idx = self.imZ, t = self.tIndex)
     
     def getCurrMask(self):
+        if not self.experiment().has_labels():
+            return np.zeros((512,512), dtype = np.uint8)
         if self.tIndex > self.label().max_t():
             return np.zeros((512,512), dtype = np.uint8)
         if self.maskOn:
@@ -2180,29 +2202,54 @@ class MainWindow(QtWidgets.QMainWindow):
             write_images_to_dir(path, self.createFigure())
     
     def createMaskOverlay(self):
-        return
         if (not self.imLoaded):
             self.showError("No Images Loaded")
             return
 
-        defaultFileName = join(self.getCurrImDir(), "label_overlay_figure")
+        defaultFileName = join(self.getCurrImDir(), "label_overlay_figure.png")
         path, _ = QFileDialog.getSaveFileName(self, 
                             "save figures to directory", 
                             defaultFileName)
         if path:
             print(path)
-            write_images_to_dir(path, self.overlayMasks())
+            imsave(path, self.overlayMasks())
     
     def overlayMasks(self):
         
-        def use_label(name):
+        def use_label(name, data):
             return data[name]["contours"] or data[name]["labels"]
+
+        def get_labels_to_use(data):
+            new_data = copy.deepcopy(data)
+            for label in new_data.keys():
+                if not use_label(label,data):
+                    del data[label]
+            return sort_by_nested_key(data, "order")
+        
+        def sort_by_nested_key(nested_dict, sort_key):
+            # Sorting the outer dictionary based on a specific key of the inner dictionaries
+            sorted_dict = sorted(nested_dict.items(), key=lambda x: x[1][sort_key])
+            return OrderedDict(sorted_dict)
 
 
         dlg = FigureDialog(self)
         if dlg.exec():
-            data = dlg.get_data()
+            data = get_labels_to_use(dlg.get_data())
             im = self.getCurrIm()
+            to_overlay = []
+            is_contours = []
+            t =  self.tIndex
+            for label, values in data.items():
+                if values["contours"]:
+                    to_overlay.append(self.experiment().get_label("contours", name=label, t=t))
+                    is_contours.append(True)
+                if values["labels"]:
+                    to_overlay.append(self.experiment().get_label("labels", name=label, t=t))
+                    is_contours.append(False)
+            return overlay_masks_on_image(im, to_overlay, is_contours, alpha = 50)
+
+
+
             
         
 

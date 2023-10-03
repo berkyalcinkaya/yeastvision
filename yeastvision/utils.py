@@ -14,6 +14,51 @@ import sys
 import os
 from PIL import Image
 
+def colorize_mask(mask, rgba_color):
+    """Apply an RGBA color to non-zero pixels in a binary mask.
+
+    Parameters:
+    - mask: 2D numpy array representing a binary mask.
+    - rgba_color: Tuple of 4 values representing the desired RGBA color.
+
+    Returns:
+    - 3D numpy array with shape (height, width, 4) representing an RGBA image.
+    """
+    # Initialize an empty RGBA image of the same size as the mask
+    rgba_image = np.zeros((*mask.shape, 4), dtype=np.uint8)
+
+    # Assign the specified RGBA color to non-zero pixels in the mask
+    rgba_image[mask > 0] = rgba_color
+
+    return rgba_image
+
+def overlay_masks_on_image(phase_img, masks, is_contour, alpha=100):
+    # Predefined colors with transparency
+    colors = [
+        [255, 0, 0, alpha],
+        [0, 0, 255, alpha],
+        [0, 255, 0, alpha],
+        [255, 255, 0, alpha],
+        [0, 255, 255, alpha],
+        [255, 218,0, alpha]
+    ]
+
+    # Convert the 2D numpy array to a PIL Image
+    phase_image_pil = Image.fromarray(convertGreyToRGB(phase_img)).convert("RGBA")
+
+    for color_idx, mask in enumerate(masks):
+        color = colors[color_idx].copy()
+
+        if is_contour[color_idx]:
+            color[-1]=255
+        # Convert binary mask to a PIL Image
+        mask_binary = binarize(mask)*255
+        colored_mask = Image.fromarray(colorize_mask(mask_binary, color))
+        phase_image_pil.paste(colored_mask, (0, 0), Image.fromarray(mask_binary))
+
+    result_array = np.asarray(phase_image_pil, dtype=np.uint8)
+    return result_array
+
 def write_images_to_dir(path, ims, extension = ".tif"):
     dir = os.path.dirname(path)
     if os.path.exists(path):
@@ -25,6 +70,9 @@ def write_images_to_dir(path, ims, extension = ".tif"):
         name = f"im_{i}{extension}"
         fname = os.path.join(path, name)
         skimage.io.imsave(fname, im)
+
+def save_image(path, im, extension  = ".tif"):
+    pass
 
 
 def overlay_images(phase_img, mask_img, colorized_mask):

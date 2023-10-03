@@ -54,7 +54,7 @@ class ImageDraw(pg.ImageItem):
     
     def mouseClickEvent(self, ev):
         print("click event")
-        if not self.parent.imLoaded:
+        if not self.parent.imLoaded or not self.parent.maskLoaded:
             return
         
         cellNum = self.parent.currMask[int(ev.pos().y()), int(ev.pos().x())]
@@ -96,13 +96,12 @@ class ImageDraw(pg.ImageItem):
                 self.brushColorSelected = True
 
     def mouseDragEvent(self, ev):
-        print("drag")
         if ev.button() == QtCore.Qt.LeftButton:
             self.parent.view.mouseDragEvent(ev)
             ev.ignore()
             return
         
-        if not self.parent.imLoaded:
+        if not self.parent.imLoaded or not self.parent.maskLoaded:
             return
         
         # mask must be on for drawing
