@@ -5,12 +5,28 @@ from PyQt5.QtWidgets import (QApplication, QTreeWidgetItem, QPushButton, QDialog
                         QDialogButtonBox, QLineEdit, QFormLayout, QCheckBox,  QSpinBox, QDoubleSpinBox, QLabel, 
                             QWidget, QComboBox, QGridLayout, QHBoxLayout, QSizePolicy, QHeaderView, QVBoxLayout,
                             QScrollArea, QTreeWidget)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QTimer
 import numpy as np
 import os
 import datetime
 from yeastvision.parts.guiparts import *
 from yeastvision.plot.plot import PlotProperty
+
+class TimedPopup(QDialog):
+    def __init__(self, text, seconds):
+        super().__init__()
+        self.setWindowTitle('Popup')
+        label = QLabel(text)
+        layout = QVBoxLayout()
+        layout.addWidget(label)
+        self.setLayout(layout)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.accept)
+        self.timer.start(seconds*100)  # 10 seconds timeout
+
+    def closeEvent(self, event):
+        self.timer.stop()
+        super().closeEvent(event)
 
 class FigureDialog(QDialog):
     def __init__(self, parent):

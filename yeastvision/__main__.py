@@ -151,6 +151,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.experiments = []
         self.experiment_index = -1
 
+        self.newInterpolation = False
+
         self.win.show()
     
     @property
@@ -185,8 +187,9 @@ class MainWindow(QtWidgets.QMainWindow):
         except AttributeError:
             self.imChanged = True
             self._imZ  = num
-        # if self.imData.maxTs[self._imZ] < self.tIndex:
-        #     self.tIndex = 0
+        if self.experiments:
+            if self.experiment().channels[self._imZ].max_t() < self.tIndex:
+                self.tIndex = 0
     
     @property
     def maskZ(self):
@@ -207,6 +210,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 #     self.
             except IndexError:
                 pass
+        if self.experiments and self.experiment().has_labels():
+            if self.experiment().labels[self._maskZ].max_t() < self.tIndex:
+                self.tIndex = 0
         
     
     @property
@@ -430,7 +436,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dataDisplay.setMinimumWidth(300)
         # self.dataDisplay.setMaximumWidth(300)
         self.dataDisplay.setStyleSheet(self.labelstyle)
-        self.dataDisplay.setFont(self.smallfont)
+        self.dataDisplay.setFont(self.medfont)
         self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
         self.updateDataDisplay()
         self.l.addWidget(self.dataDisplay, rowspace-1,cspace,1,20)
@@ -763,7 +769,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.emptying:
             text = str(text)
             if isinstance(self.channel(), InterpolatedChannel) and InterpolatedChannel.text_id not in text:
-                self.showError(f"Removal of the {InterpolatedChannel.text_id} text id from the name of this channel will disable certain features upon reloading")
+                if not self.newInterpolation:
+                    self.showError(f"Removal of the {InterpolatedChannel.text_id} text id from the name of this channel will disable certain features upon reloading")
             if self.experiment().new_channel_name(idx, text):
                 self.channelSelect.setItemText(idx, str(text))
         else:
@@ -864,6 +871,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.experiment_index = exp_idx
             self.maskZ = z
             self.drawMask()
+            self.showTimedPopup(f"{self.labelSelect.currentText()} has been tracked")
         
 
     def trackButtonClick(self):
@@ -1023,6 +1031,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.errorDialog.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding)
         self.errorDialog.setFixedWidth(500)
         self.errorDialog.showMessage(message)
+
+    def showTimedPopup(self, text, time = 30):
+        new_text =f"<b>{text}</b>"
+        popup = TimedPopup(new_text, time)
+        popup.exec_()
+
 
 
     def closeThread(self, thread):
@@ -1239,7 +1253,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.loadExperiment(dir)
     
     def loadExperiment(self,file):
-        print("new_experiment")
         if file.endswith("/") or file.endswith('\\'):
             file = file[:-1]                         
         dlg = GeneralParamDialog({"num_channels":1}, [int], "", self)
@@ -1252,6 +1265,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.experiments.append(new_experiment)
         self.experimentSelect.addItem(new_experiment.name)
         self.experimentSelect.setCurrentIndex(self.experiment_index)
+        self.showExperimentMessage(new_experiment)
+    
+    def showExperimentMessage(self, newExp):
+        channels = ", ".join(newExp.get_channel_names())
+        message = f"NEW EXPERIMENT: {newExp.name} | CHANNELS: {channels}"
+        if newExp.has_labels():
+            labels = ",".join(newExp.get_label_names())
+            message+=f" | LABELS: {labels}"
+        self.showTimedPopup(message, time = 60)
+
+
 
     def setDataSelects(self):
         self.clearDataSelects()
@@ -1292,6 +1316,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.addItem(self.experiments[self.experiment_index].channels[self.imZ].name)
         self.computeMaxT()
         self.drawIm()
+        self.showTimedPopup(f"{name} HAS BEEN ADDED TO CHANNELS OF EXPERIMENT {self.experiments[self.experiment_index].name} ")
     
     def newMasks(self, masks = None, files = None, dir = None, name = None, exp_idx = None):
         if exp_idx is None:
@@ -1308,13 +1333,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.updateDisplay()
             if enable:
                 self.enableMaskOperations()
-
+        if name is None:
+            name = "new_masks"
+        self.showTimedPopup(f"{name} HAS BEEN ADDED TO LABELS OF EXPERIMENT {self.experiments[self.experiment_index].name} ")
+        
     def loadMasks(self, masks, exp_idx = None, name = None, contours = None):
         if type(masks) is tuple:
             mask1, mask2 = np.expand_dims(masks[0],0), np.expand_dims(masks[1],0)
-            print("mask1", mask1.dtype, "mask2", mask2.dtype)
             masks = np.concatenate((mask1, mask2), axis = 0)
-        print("new masks:", masks.shape)
         self.newMasks(masks, name = name, exp_idx=exp_idx)
     
     def isUpperHalf(self,ev):
@@ -1981,9 +2007,15 @@ class MainWindow(QtWidgets.QMainWindow):
         new_channel = InterpolatedChannel(interpolation=interpolation, ims = ims, dir = experiment.dir , name = name, annotations=annotations)
         experiment.add_channel_object(new_channel)
         self.imZ+=1
-        self.channelSelect.addItem(self.experiment().channels[self.imZ].name)
+        new_name = self.experiment().channels[self.imZ].name
+        self.newInterpolation = True
+        self.channelSelect.addItem(new_name)
+        self.newInterpolation = False
         self.computeMaxT()
         self.drawIm()
+        self.showTimedPopup(f"{name} HAS BEEN ADDED TO CHANNELS OF EXPERIMENT {self.experiments[self.experiment_index].name} ")
+        
+
 
     def computeModels(self):
         #check_gpu()
@@ -2089,52 +2121,53 @@ class MainWindow(QtWidgets.QMainWindow):
     #     self.addProcessedIms(newIms, files, currName+"-setNormalized", dtype = np.float32)
 
     def doGaussian(self):
+        dlg = GeneralParamDialog({"sigma": 1}, [float], "Enter Params for Gaussian Blur", self)
+        if dlg.exec():
+            sigma  = dlg.getData()["sigma"]
+        else:
+            return
         curr_im = self.channel()
         annotation_name = "gaussian"
         annotations = None
         if isinstance(curr_im, ChannelNoDirectory):
-            annotations = copy.deepcopy(curr_im.annotations)
+            annotations = copy.deepcopy(curr_im.annotations).tolist()
             for ann in annotations:
                 ann.append(annotation_name)
         else:
             annotations = [[annotation_name] for i in range(len(curr_im.ims))]
 
-        newIms = im_funcs.do_gaussian(curr_im.ims)
+        newIms = im_funcs.do_gaussian(curr_im.ims, sigma)
         self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+"-gaussian", annotations = annotations )
 
     def doMedian(self):
+        dlg = GeneralParamDialog({"kernel_size": 3}, [int], "Size of(Symmetric) Kernel for Median Blur", self)
+        if dlg.exec():
+            kernel_size  = dlg.getData()["kernel_size"]
+        else:
+            return
         curr_im = self.channel()
         annotation_name = "median"
+        annotations = self.add_annotations(curr_im, annotation_name)
+        newIms = im_funcs.do_median(curr_im.ims, kernel_size)
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
+
+    def add_annotations(self, curr_im, annotation_name):
         if isinstance(curr_im, ChannelNoDirectory):
-            annotations = copy.deepcopy(curr_im.annotations)
+            annotations = (copy.deepcopy(curr_im.annotations)).tolist()
             for ann in annotations:
                 ann.append(annotation_name)
         else:
             annotations = [[annotation_name] for i in range(len(curr_im.ims))]
-        
-        newIms = im_funcs.do_median(curr_im.ims)
-        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
-    
-    # def doDeflicker(self):
-    #     files = self.imData.files[self.imZ]
-    #     currName = self.channelSelect.currentText()
-    #     newIms = im_funcs.deflicker(self.getCurrImSet())
-    #     self.addProcessedIms(newIms, files, currName+"-deflickered")
+        return annotations
     
     def doRescale(self):
         curr_im = self.channel()
         ims  = curr_im.ims
         newIms = self.rescaleFromUser(ims)
         newSize = str(newIms[0].shape)
-        annotations =None
+        annotations = None
         annotation_name = f"rescaled_to_{newSize}"
-        if isinstance(curr_im, ChannelNoDirectory):
-            annotations = copy.deepcopy(curr_im.annotations)
-            for ann in annotations:
-                ann.append(annotation_name)
-        else:
-            annotations = [[annotation_name] for i in range(len(curr_im.ims))]
-
+        annotations = self.add_annotations(curr_im, annotation_name)
         self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
 
     def rescaleFromUser(self, ims):

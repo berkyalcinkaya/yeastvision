@@ -364,7 +364,7 @@ class ChannelNoDirectory(Channel):
         np.savez(self.path, annotations = self.annotations, ims = self.ims)
     
     def get_string(self,t):
-        if self.annotations is not None and self.annotations[t] != []:
+        if self.annotations is not None:
             return f"{super().get_string(t)} ,  {(','.join(self.annotations[t])).upper()}"
         else:
             return super().get_string(t)
@@ -392,12 +392,10 @@ class InterpolatedChannel(ChannelNoDirectory):
             self.dir = dir
             self.name = name 
             self.ims = ims
-            print(self.ims.shape)
-            print(len(self.ims))
             self.path = os.path.join(self.dir, self.name+".npz")
             print("annotations", annotations)
             if annotations is not None:
-                self.annotations = copy.deepcopy(annotations)
+                self.annotations = self.extend_annotations(annotations)
             else:
                 self.annotations = [[] for _ in range(len(self.ims))]
             self.add_interpolation_to_annotations()
@@ -408,6 +406,14 @@ class InterpolatedChannel(ChannelNoDirectory):
         
         self.get_properties()
         self.compute_saturation()
+    
+    def extend_annotations(self, prev_annotations):
+        if type(prev_annotations)  is not list:
+            prev_annotations = prev_annotations.tolist()
+        new_annotations_blank = [[] for i in range(len(self.ims))]
+        for i,prev_ann in enumerate(prev_annotations):
+            new_annotations_blank[i] = prev_annotations[i]
+        return new_annotations_blank
 
     def save_to_npz(self):
         np.savez(self.path, annotations = self.annotations, ims = self.ims, interpolation = self.interp_annotations)

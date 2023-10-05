@@ -8,11 +8,12 @@ import warnings
 def do_adapt_hist(ims):
     return [equalize_adapthist(im) for im in ims]
 
-def do_median(ims):
-    return [median(im,np.ones((3,3))) for im in ims]
+def do_median(ims, kernel_dim):
+    kernel = np.ones((kernel_dim, kernel_dim))
+    return [median(im,kernel) for im in ims]
 
-def do_gaussian(ims):
-    return [gaussian(im, np.ones((3,3))) for im in ims]
+def do_gaussian(ims, sigma):
+    return [gaussian(im, sigma = sigma) for im in ims]
 
 
 def rolling_mean(data, window):
