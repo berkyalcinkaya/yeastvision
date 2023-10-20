@@ -37,6 +37,9 @@ def menubar(parent):
     # cannot add a threadd for rescale because of error with parent from other thread
     rescale.triggered.connect(lambda: parent.doRescale())
     preMenu.addAction(rescale)
+    zNorm =  QAction("Z-normalize channel", parent)
+    zNorm.triggered.connect(parent.doZNorm)
+    preMenu.addAction(zNorm)
 
     exportMenu = mainMenu.addMenu("Export")
     imSave = QAction("Save Images", parent)

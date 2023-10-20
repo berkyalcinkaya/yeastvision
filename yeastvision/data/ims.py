@@ -408,7 +408,7 @@ class InterpolatedChannel(ChannelNoDirectory):
         self.compute_saturation()
     
     def extend_annotations(self, prev_annotations):
-        if type(prev_annotations)  is not list:
+        if isinstance(prev_annotations, list):
             prev_annotations = prev_annotations.tolist()
         new_annotations_blank = [[] for i in range(len(self.ims))]
         for i,prev_ann in enumerate(prev_annotations):
@@ -507,8 +507,7 @@ class Label(Files):
             self.shape = labels[0].shape
             self.dtype = str(labels[0].dtype)
             self.t = len(labels)
-            self.has_probability = np.any(data["probability"][:,:,:]!=0)
-            print("has probability:", self.has_probability)
+            self.has_probability = bool(np.any(data["probability"][:,:,:]!=0))
             del labels
             del data
 
@@ -586,10 +585,7 @@ class Label(Files):
             return os.path.join(self.dir, self.name+".npz")
         
         def save(self):
-            print("saving")
             self.write_to_npz()
-            #self.load()
-            #self.unload_data_attrs()
         
         def set_data(self, labels, contours):
             self.labels = labels

@@ -153,6 +153,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.newInterpolation = False
 
+        self.numObjs = 0
+
         self.win.show()
     
     @property
@@ -469,6 +471,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setMinimumWidth(100)
         self.channelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.channelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.channelSelect.setMinimumWidth(200)
         setattr(self.channelSelect, "items", lambda: [self.channelSelect.itemText(i) for i in range(self.channelSelect.count())])
 
 
@@ -488,6 +491,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.l.setAlignment(self.labelSelect, QtCore.Qt.AlignLeft)
         setattr(self.labelSelect, "items", lambda: [self.labelSelect.itemText(i) for i in range(self.labelSelect.count())])
         self.labelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.labelSelect.setMinimumWidth(200)
         self.labelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 
         label = QLabel('Drawing:')#[\u2191 \u2193]')
@@ -569,14 +573,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMotherDaughters = False
         self.showLineages = False
         self.lineageButton.clicked.connect(self.getLineages)
-        self.l.addWidget(self.lineageButton, rowspace+2, 5,1,2, Qt.AlignBottom)
+        self.l.addWidget(self.lineageButton, rowspace+3, 5,1,2)
 
-        self.interpolateButton = QPushButton("Enhance Tracking Through Frame Interpolation")
+        self.interpolateButton = QPushButton("interpolate movie")
         self.interpolateButton.setStyleSheet(self.styleInactive)
         self.interpolateButton.setFont(self.medfont)
         self.interpolateButton.setEnabled(False)
         self.interpolateButton.clicked.connect(self.interpolateButtonClicked)
-        self.l.addWidget(self.interpolateButton, rowspace+3, 5,1,4)
+        self.l.addWidget(self.interpolateButton, rowspace+2, 5,1,2)
+
+        self.interpRemoveButton = QPushButton("remove interpolation")
+        self.interpRemoveButton.setStyleSheet(self.styleInactive)
+        self.interpRemoveButton.setFont(self.medfont)
+        self.interpRemoveButton.setEnabled(False)
+        self.interpRemoveButton.clicked.connect(self.interpRemoveButtonClicked)
+        self.l.addWidget(self.interpRemoveButton, rowspace+2, 7,1,2)
 
 
         line = QVLine()
@@ -666,7 +677,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.probOnCheck.setStyleSheet(self.checkstyle)
         self.probOnCheck.setFont(self.medfont)
         self.probOnCheck.setEnabled(False)
-        self.probOnCheck.setShortcut(QtCore.Qt.Key_P)
+        self.probOnCheck.setShortcut(QtCore.Qt.Key_F)
         self.probOnCheck.stateChanged.connect(self.toggleProb)
         self.l.addWidget(self.probOnCheck, rowspace+2, 18,1,2)
 
@@ -690,6 +701,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
         self.showMotherDaughtersButton.setEnabled(False)
         self.l.addWidget(self.showMotherDaughtersButton, rowspace+4, 16, 1,2)
+
+        self.showTreeButton = QCheckBox("lineage tree")
+        self.showTreeButton.setStyleSheet(self.checkstyle)
+        self.showTreeButton.setFont(self.medfont)
+        #self.showTreeButton.stateChanged.connect()
+        self.showTreeButton.setEnabled(False)
+        self.l.addWidget(self.showTreeButton, rowspace+4, 18, 1,2)
 
         # self.autoSaturationButton = QPushButton("Auto")
         # self.autoSaturationButton.setFixedWidth(45)
@@ -745,6 +763,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.artiButton.setStyleSheet(self.styleUnpressed)
         self.interpolateButton.setEnabled(True)
         self.interpolateButton.setStyleSheet(self.styleUnpressed)
+        self.interpRemoveButton.setEnabled(True)
+        self.interpRemoveButton.setStyleSheet(self.styleUnpressed)
         self.channelSelect.setEnabled(True)
     
     def toggleDrawing(self,b):
@@ -790,6 +810,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setCurrentIndex(index)
 
     def labelSelectEdit(self, text):
+        if self.emptying:
+            return
         idx = self.labelSelect.currentIndex()
         text = str(text)
         if self.experiment().new_label_name(idx, text):
@@ -1097,7 +1119,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plotWindowOn = self.plotButton.isChecked()
 
         if self.plotWindowOn:
-            self.buildPlotWindow()   
+            if self.hasCellData():
+                self.buildPlotWindow()
+            else:
+                self.showError("No Timeseries Data Available - Track Cell First")   
         elif self.pWindow is not None:
             self.pWindow.close()
             self.pWindow = None
@@ -1125,7 +1150,6 @@ class MainWindow(QtWidgets.QMainWindow):
         return contourMask
 
     def addRecentDrawing(self):
-        print("adding recent drawing")
         newStroke, newColor = self.strokes[-1]
         #self.maskData.channels[self.maskZ][0, self.tIndex,:,:][newStroke]=newColor
         contourMask = self.experiment().get_label("contours", idx = self.maskZ, t = self.tIndex)
@@ -1135,8 +1159,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def updateDataDisplay(self, x = None,y = None, val = None):
         #dataString = f"Session Id: {self.sessionId}"
+        print(x,y,val)
         dataString = ""
-        if x!=None and y!=None and val is not None and x>=0 and y>=0 and x<self.currIm.shape[1] and y<self.currIm.shape[1]:
+        if x is not None and y is not None and val is not None and x>=0 and y>=0 and x<self.currIm.shape[1] and y<self.currIm.shape[0]:
             self.labelX, self.labelY = x,y
             if self.probOn:
                 val = self.experiment().get_label("probability", idx = self.maskZ, t = self.tIndex)[y,x]/255
@@ -1274,7 +1299,6 @@ class MainWindow(QtWidgets.QMainWindow):
             labels = ",".join(newExp.get_label_names())
             message+=f" | LABELS: {labels}"
         self.showTimedPopup(message, time = 60)
-
 
 
     def setDataSelects(self):
@@ -1437,10 +1461,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.updateDisplay()
 
     def toggleMask(self):
-        if not self.maskOnCheck.isChecked():
-            self.hideMask()
-        else:
-            self.addMask()
+        if not self.emptying:
+            if not self.maskOnCheck.isChecked():
+                self.hideMask()
+            else:
+                self.addMask()
     
     def toggleProb(self):
         self.probOn = self.probOnCheck.isChecked()
@@ -1457,6 +1482,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def drawMask(self):
         self.currMask = self.getCurrMask()
+        print(self.currMask.dtype, self.currMask.shape)
         self.numObjs  = count_objects(self.currMask)
         self.currMaskDtype = str(self.currMask.dtype)
 
@@ -2095,6 +2121,9 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         self.runLongTask(worker, self.interpolationFinished, self.interpolateButton)
+    
+    def interpRemoveButtonClicked(self):
+        pass 
 
     def doAdaptHist(self):
         curr_im = self.channel()
@@ -2128,16 +2157,9 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         curr_im = self.channel()
         annotation_name = "gaussian"
-        annotations = None
-        if isinstance(curr_im, ChannelNoDirectory):
-            annotations = copy.deepcopy(curr_im.annotations).tolist()
-            for ann in annotations:
-                ann.append(annotation_name)
-        else:
-            annotations = [[annotation_name] for i in range(len(curr_im.ims))]
-
+        annotations = self.add_annotations(curr_im, annotation_name)
         newIms = im_funcs.do_gaussian(curr_im.ims, sigma)
-        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+"-gaussian", annotations = annotations )
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations)
 
     def doMedian(self):
         dlg = GeneralParamDialog({"kernel_size": 3}, [int], "Size of(Symmetric) Kernel for Median Blur", self)
@@ -2165,7 +2187,6 @@ class MainWindow(QtWidgets.QMainWindow):
         ims  = curr_im.ims
         newIms = self.rescaleFromUser(ims)
         newSize = str(newIms[0].shape)
-        annotations = None
         annotation_name = f"rescaled_to_{newSize}"
         annotations = self.add_annotations(curr_im, annotation_name)
         self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
@@ -2188,6 +2209,13 @@ class MainWindow(QtWidgets.QMainWindow):
             return rescaleBySize((int(data["new row"]), int(data["new col"])), ims)
         else:
             return
+    
+    def doZNorm(self):
+        curr_im = self.channel()
+        annotation_name = "z-normalized"
+        annotations = self.add_annotations(curr_im, annotation_name)
+        newIms = im_funcs.z_normalize_images(self.getCurrImSet())
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
     
     def deactivateButton(self, button):
         button.setEnabled(False)

@@ -5,6 +5,26 @@ from skimage import img_as_ubyte, img_as_uint, img_as_float
 import numpy as np
 import warnings
 
+def z_normalize_images(images):
+    """
+    Perform Z-normalization on a list of images.
+
+    Parameters:
+    - images: a list of numpy arrays representing images.
+
+    Returns:
+    - a list of z-normalized images.
+    """
+    normalized_images = []
+    for image in images:
+        mean = np.mean(image)
+        std = np.std(image)
+        if std == 0:  # Prevent division by zero
+            std = 1
+        normalized_image = (image - mean) / std
+        normalized_images.append(normalized_image)
+    return normalized_images
+
 def do_adapt_hist(ims):
     return [equalize_adapthist(im) for im in ims]
 

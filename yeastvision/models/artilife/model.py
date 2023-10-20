@@ -119,12 +119,14 @@ class Artilife(CustomCPWrapper):
         
         print("formatting return")
         model.masks = np.array(model.masks, dtype = np.uint16)
-
+        print("before", model.masks.shape)
         if model.params["Time Series"]:
             model.masks = trackYeasts(model.masks)
             cellData = getLifeData(model.masks)
             model.addSmallCells(ims, cellData)
             model.masks = trackYeasts(model.masks)
+            del model.budSeg
+            
 
         print("finished")
         mask, probs = model.masks, model.cellprobs
@@ -328,7 +330,7 @@ class ArtilifeFullLifeCycle(Artilife):
         mating = (model.matMasks, model.matprobs)
         tetra = (model.tetraMasks, model.tetraprobs)
 
-        del modelf
+        del model
 
         return {"artilife": arti,
                 "mating": mating,

@@ -69,9 +69,13 @@ You may receive the following error upon upgrading `torch` and `torchvision`:
 ~~~
 AttributeError: partially initialized module 'charset_normalizer' has no attribute 'md__mypyc' (most likely due to a circular import)
 ~~~
-This is solved by upgrading the charselt_normalizer package with the following command: `pip install --force-reinstall charset-normalizer==3.1.0`
+This is solved by upgrading the charselt_normalizer package with the following command: 
 
-Report any other installation errors.
+`pip install --force-reinstall charset-normalizer==3.1.0`
+
+If you get a version error for `numpy`, run the following commands:
+
+`pip uninstall numpy; pip install numpy==1.24`
 
 # Run yeastvision locally
 
@@ -80,9 +84,57 @@ The quickest way to start is to open the GUI from a command line terminal. Activ
 yeastvision
 ~~~~
 
-To get started, drop an image or directory of images into the GUI. 
+## To begin, drag and drop a directory containing images, flourescence channels, and masks into the GUI.
+A single directory represents an experiment and will be added to a drop down at the top of the GUI after being loaded either through drag and drop, or the file dropdown.
 
-**Masks can be loaded by dropping them into the top half of the screen.**
+Multiple directories can be added, and you can toggle through experiments as you analyze them in the GUI. 
+
+As you utilize GUI features, all GUI-generated labels and images will be stored in the experiment directory as .npz files. Deleting these files will result in a loss of this GUI-generated data. 
+
+### Directory Conventions: Ensure the GUI can parse your data 
+*Yeastvision* is hardcoded to recognize several standard conventions when loading an experiment directory:
+1. <u>**A directory must contain images** to be analyzed but does not have to contain masks</u>
+2. A single file within the directory should contain a single image only.
+3. All channel and mask types should be present in the same number of time points. 
+
+__Naming: Files should be named accordingly to their channel and mask type__:
+1. Each data type in the directory should have a standard id to identify it.
+2. The id should directly follow the file extension
+3. Any image that acts as a label should have `_mask` in the id.
+4. Ensure that distinct channels have distinct ids.
+
+Here is an example of an experiment with two time points, two channels, and two pre-generated labels, sorted by name:
+
+*im001_channel1.tif, im001_channel2.tif, im001_mask1.tif, im1_mask002.tif, im002_channel1.tif, im002_channel2.tif, im002_mask1.tif, im002_mask2.tif*
+
+## Keyboard Shortcuts
+
+| Command     | Function |
+| ----------- | ----------|
+| up/down     | scroll through channnels|
+| cntrl + up/down|  Scroll through labels | 
+| right/left arrows | scroll through timeseries |
+| cntrl + right/left | scroll through timeseries by 3 |
+| O | outline Drawing |
+| B | brush Drawing |
+| E | eraser |
+| .| increment brush size |
+| , | decrecement brush size
+| Delete/Backspace | Delete Selected Cell |
+| c | show current label contours |
+| f | toggle probability (if present) |
+| space bar | toggle mask display |
+| p | show plot window |
+
+## Troubleshooting: Common Problems
+
+| Problem     | Solution |
+| ----------- | ----------- |
+| Cannot scroll through images/masks on the display | Click on the display to bring focus back to this widget|
+| Loaded images without masks but cannot draw | An existing label must be present to draw: Add a blank label with File -> Add Blank Label |
+
+
+
 
 
 

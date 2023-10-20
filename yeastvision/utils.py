@@ -14,6 +14,7 @@ import sys
 import os
 from PIL import Image
 
+
 def colorize_mask(mask, rgba_color):
     """Apply an RGBA color to non-zero pixels in a binary mask.
 

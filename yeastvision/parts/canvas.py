@@ -53,11 +53,13 @@ class ImageDraw(pg.ImageItem):
                                  int(np.floor(kernel.shape[1]/2))]
     
     def mouseClickEvent(self, ev):
-        print("click event")
         if not self.parent.imLoaded or not self.parent.maskLoaded:
             return
         
-        cellNum = self.parent.currMask[int(ev.pos().y()), int(ev.pos().x())]
+        try:
+            cellNum = self.parent.currMask[int(ev.pos().y()), int(ev.pos().x())]
+        except IndexError:
+            return
         
         if ev.button() == QtCore.Qt.LeftButton and self.parent.maskOn:
             if cellNum!=0:
@@ -224,14 +226,11 @@ class ImageDraw(pg.ImageItem):
             #     for kx,x in enumerate(np.arange(tx[0], tx[1], 1, int)):
             #         iscent = np.logical_and(kx==kcent[0], ky==kcent[1])
             #         self.currStroke.append([self.parent.maskZ, x, y, iscent])
-            print("appending stroke")
             self.parent.currStroke.append((int(pos2.x()), int(pos2.y())))
         self.parent.addRecentDrawing()
 
     
     def drawAt(self, p, ev=None):
-        print("drawAt")
-        print(self.parent.drawType)
         pos = [int(p.y()), int(p.x())]
         dk = self.drawKernel
         kc = self.drawKernelCenter
@@ -273,14 +272,12 @@ class ImageDraw(pg.ImageItem):
         self.setImage(self.parent.maskColors[self.parent.currMask], autolevels  = False)
         #self.parent.label().save()
         if self.parent.drawType == "Brush":
-            print("brush drawtype, adding recent")
             self.parent.addRecentDrawing()
         if self.parent.drawType == "Outline":
             # for ky,y in enumerate(np.arange(ty[0], ty[1], 1, int)):
             #     for kx,x in enumerate(np.arange(tx[0], tx[1], 1, int)):
             #         iscent = np.logical_and(kx==kcent[0], ky==kcent[1])
             #         self.currStroke.append([self.parent.maskZ, x, y, iscent])
-            print("appending stroke")
             self.parent.currStroke.append((int(p.x()), int(p.y())))
 
     
