@@ -8,6 +8,14 @@ import matplotlib.pyplot as plt
 from yeastvision.track.utils import normalize_dict_by_sum
 from tqdm import tqdm
 from skimage.morphology import skeletonize
+import matplotlib.cm as cm
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+
+
 
 def count_objects(labeledMask):
     return np.count_nonzero(np.unique(labeledMask))

@@ -14,6 +14,102 @@ import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
+def plot_tree(matrix, selected_cells=[]):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    y_positions = {}
+    current_y = 0  # Starting position
+
+    # Bright color list for selected cells
+    bright_colors = [
+        '#FF0000',  # Bright red
+        '#00FF00',  # Bright green
+        '#0000FF',  # Bright blue
+        '#FF00FF',  # Bright magenta
+        '#00FFFF',  # Bright cyan
+        '#FFFF00',  # Bright yellow
+    ]
+
+    default_horizontal_color = 'blue'
+    default_vertical_color = 'red'
+
+    if selected_cells:
+        cell_colors = {selected_cells[i]: bright_colors[i % len(bright_colors)] for i in range(len(selected_cells))}
+    else:
+        cell_colors = {}
+
+    def plot_lineage(mother, y):
+        daughters = matrix[matrix[:, 3] == mother]
+        daughters = daughters[daughters[:, 1].argsort()[::-1]]
+
+        mother_color = cell_colors.get(mother, default_horizontal_color)
+
+        for daughter in daughters:
+            cell_index, birth_frame, death_frame, _ = daughter
+            y += 1
+
+            while y in y_positions.values():
+                y += 1
+
+            horizontal_color = mother_color if cell_index in cell_colors or mother_color != default_horizontal_color else default_horizontal_color
+            vertical_color = mother_color if mother_color != default_horizontal_color else default_vertical_color
+            
+            ax.plot([birth_frame, death_frame], [y, y], color=horizontal_color)
+            ax.text(death_frame, y, str(int(cell_index)), color=horizontal_color, verticalalignment='center',
+                    horizontalalignment='left')
+            ax.plot([birth_frame, birth_frame], [y_positions[mother], y], color=vertical_color)
+
+            y_positions[cell_index] = y
+            y = plot_lineage(cell_index, y)
+
+        return y
+
+    no_mothers = matrix[matrix[:, 3] == -1]
+    for row in no_mothers:
+        cell_index, birth_frame, death_frame, _ = row
+        color = cell_colors.get(cell_index, default_horizontal_color)
+        ax.plot([birth_frame, death_frame], [current_y, current_y], color=color)
+        ax.text(death_frame, current_y, str(int(cell_index)), color=color, verticalalignment='center',
+                horizontalalignment='left')
+        y_positions[cell_index] = current_y
+        current_y = plot_lineage(cell_index, current_y) + 1
+
+    ax.set_ylim(-1, current_y + 1)
+    ax.set_xlabel('Frame')
+    ax.get_yaxis().set_visible(False)
+    plt.grid(False)
+    ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    plt.tight_layout()
+    return fig
+
+
+
+class LineageTreeWindow(QWidget):
+    def __init__(self, parent, matrix, selected_cells=[]):
+        super().__init__()
+        self.parent = parent
+        self.matrix = matrix
+        self.selected_cells = selected_cells
+        self.initUI()
+
+    def initUI(self):
+        layout = QVBoxLayout()
+
+        # Create the matplotlib canvas and add it to the layout
+        fig = plot_tree(self.matrix, self.selected_cells)
+        canvas = FigureCanvas(fig)
+        layout.addWidget(canvas)
+
+        # Optionally add more widgets like buttons to the layout
+        # button = QPushButton('Close')
+        # button.clicked.connect(self.close)
+        # layout.addWidget(button)
+
+        self.setLayout(layout)
+        self.setWindowTitle('Cell Lineage Tree')
+        self.show()
+    def closeEvent(self, event):
+        self.parent.showTreeButton.setCheckState(False)
+
 
 class PlotProperty():
     def __init__(self, parent, plotType, setName, property, populationName = None):
@@ -136,8 +232,6 @@ class EvalWindow(QWidget):
                 ax.set_xlabel("IOU Matching Threshold")
         ax.set_title(title)
         plt.tight_layout()
-
-
 
 
 class PlotWindow(QWidget):

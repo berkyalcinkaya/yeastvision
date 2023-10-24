@@ -25,9 +25,6 @@ class Population():
         return data
     
 
-
-
-
 class PopulationReplicate():
     populations = {}
     def __init__(self, experiment_idx, population_name, ts):
@@ -41,8 +38,6 @@ class PopulationReplicate():
         else:
             PopulationReplicate.populations[self.population].replicates.append(self.ts)
 
-
-        
 
 class TimeSeriesData():
     name: str

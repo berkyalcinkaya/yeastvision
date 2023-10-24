@@ -52,6 +52,7 @@ class Experiment():
         self.npz_channel_files = npz_channel_files
         for path in self.npz_channel_files:
             _, name = os.path.split(path)
+            print("Loading npz channel:", name, "is interpolated:", InterpolatedChannel.text_id in name )
             if InterpolatedChannel.text_id in name:
                 self.add_channel_object(InterpolatedChannel(npz_path=path))
             else:
@@ -376,7 +377,7 @@ class ChannelNoDirectory(Channel):
         return [get_file_name(self.path)]
 
 class InterpolatedChannel(ChannelNoDirectory):
-    text_id = "_interp"
+    text_id = "interp"
     def __init__(self, interpolation = None, npz_path = None, ims = None, dir = None, name = None, annotations = None):
         if npz_path is not None:
             self.dir, fname = os.path.split(npz_path)
@@ -408,7 +409,7 @@ class InterpolatedChannel(ChannelNoDirectory):
         self.compute_saturation()
     
     def extend_annotations(self, prev_annotations):
-        if isinstance(prev_annotations, list):
+        if not isinstance(prev_annotations, list):
             prev_annotations = prev_annotations.tolist()
         new_annotations_blank = [[] for i in range(len(self.ims))]
         for i,prev_ann in enumerate(prev_annotations):

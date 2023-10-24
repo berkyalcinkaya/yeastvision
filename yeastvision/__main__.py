@@ -139,6 +139,7 @@ class MainWindow(QtWidgets.QMainWindow):
             
 
         self.pWindow = None
+        self.lineageWindow = None
         self.plotPropsBeenChecked = False
         self.toPlot = None
         self.emptying = False
@@ -189,6 +190,12 @@ class MainWindow(QtWidgets.QMainWindow):
         except AttributeError:
             self.imChanged = True
             self._imZ  = num
+        
+        if num>=0:
+            try:
+                self.checkInterpolation()
+            except IndexError:
+                pass
         if self.experiments:
             if self.experiment().channels[self._imZ].max_t() < self.tIndex:
                 self.tIndex = 0
@@ -208,8 +215,6 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 self.checkProbability()
                 self.checkDataAvailibility()
-                # if self.pWindow:
-                #     self.
             except IndexError:
                 pass
         if self.experiments and self.experiment().has_labels():
@@ -452,7 +457,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.experimentSelect.setFocusPolicy(QtCore.Qt.NoFocus)
         self.experimentSelect.setFont(self.medfont)
         self.experimentSelect.currentIndexChanged.connect(self.experimentChange)
-        print("connecting")
         self.l.addWidget(self.experimentSelect, 0, 3, 1,2)
         
         self.channelSelectLabel = QLabel("Channel: ")
@@ -589,7 +593,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.interpRemoveButton.clicked.connect(self.interpRemoveButtonClicked)
         self.l.addWidget(self.interpRemoveButton, rowspace+2, 7,1,2)
 
-
         line = QVLine()
         line.setStyleSheet('color:white;')
         self.l.addWidget(line, rowspace,9,6,1)
@@ -600,6 +603,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.l.addWidget(label, rowspace,10,1,5)
         
         #----------UNETS-----------
+        self.artiButton = QPushButton(u'artilife full lifecycle')
+        self.artiButton.setEnabled(False)
+        self.artiButton.setFont(self.medfont)
+        self.artiButton.clicked.connect(self.computeArtilifeModel)
+        self.artiButton.setStyleSheet(self.styleInactive)
+        self.l.addWidget(self.artiButton, rowspace+1, 10, 1,5, Qt.AlignTop)
+
         self.GB = QGroupBox("Unets")
         self.GB.setStyleSheet("QGroupBox { border: 1px solid white; color:white; padding: 10px 0px;}")
         self.GBLayout = QGridLayout()
@@ -622,21 +632,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.GBLayout.addWidget(self.modelButton, 0,7,1,2)
         self.modelButton.setEnabled(False)
         self.modelButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.GB, rowspace+1,10,3,5, Qt.AlignTop | Qt.AlignHCenter)
+        self.l.addWidget(self.GB, rowspace+2,10,3,5, Qt.AlignTop | Qt.AlignHCenter)
 
-        self.artiButton = QPushButton(u'artilife full lifecycle')
-        self.artiButton.setEnabled(False)
-        self.artiButton.setFont(self.medfont)
-        self.artiButton.clicked.connect(self.computeArtilifeModel)
-        self.artiButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.artiButton, rowspace+3, 10, 1,5, Qt.AlignTop)
 
         #------Flourescence Segmentation -----------pp-p-
-        self.segButton = QPushButton(u'blob detection')
-        self.segButton.setEnabled(False)
-        self.segButton.clicked.connect(self.doFlou)
-        self.segButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.segButton, rowspace+4,10,3,5, Qt.AlignTop)
+        # self.segButton = QPushButton(u'blob detection')
+        # self.segButton.setEnabled(False)
+        # self.segButton.clicked.connect(self.doFlou)
+        # self.segButton.setStyleSheet(self.styleInactive)
+        # self.l.addWidget(self.segButton, rowspace+4,10,3,5, Qt.AlignTop)
 
         #----------------------------------s-------------
 
@@ -672,7 +676,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.maskOnCheck.stateChanged.connect(self.toggleMask)
         self.l.addWidget(self.maskOnCheck, rowspace+2, 16,1,2)
 
-
         self.probOnCheck = QCheckBox("Probability")
         self.probOnCheck.setStyleSheet(self.checkstyle)
         self.probOnCheck.setFont(self.medfont)
@@ -705,7 +708,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showTreeButton = QCheckBox("lineage tree")
         self.showTreeButton.setStyleSheet(self.checkstyle)
         self.showTreeButton.setFont(self.medfont)
-        #self.showTreeButton.stateChanged.connect()
+        self.showTreeButton.stateChanged.connect(self.toggleLineageTreeWindow)
         self.showTreeButton.setEnabled(False)
         self.l.addWidget(self.showTreeButton, rowspace+4, 18, 1,2)
 
@@ -761,11 +764,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelButton.setStyleSheet(self.styleUnpressed)
         self.artiButton.setEnabled(True)
         self.artiButton.setStyleSheet(self.styleUnpressed)
-        self.interpolateButton.setEnabled(True)
-        self.interpolateButton.setStyleSheet(self.styleUnpressed)
-        self.interpRemoveButton.setEnabled(True)
-        self.interpRemoveButton.setStyleSheet(self.styleUnpressed)
         self.channelSelect.setEnabled(True)
+        self.checkInterpolation()
     
     def toggleDrawing(self,b):
         if b:
@@ -787,8 +787,7 @@ class MainWindow(QtWidgets.QMainWindow):
         curr_text = self.channelSelect.currentText()
         idx = self.channelSelect.currentIndex()
         if not self.emptying:
-            text = str(text)
-            if isinstance(self.channel(), InterpolatedChannel) and InterpolatedChannel.text_id not in text:
+            if isinstance(self.experiment().channels[idx], InterpolatedChannel) and InterpolatedChannel.text_id not in text:
                 if not self.newInterpolation:
                     self.showError(f"Removal of the {InterpolatedChannel.text_id} text id from the name of this channel will disable certain features upon reloading")
             if self.experiment().new_channel_name(idx, text):
@@ -860,6 +859,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.drawMask()
     
     def trackObjButtonClick(self):
+        if self.label().max_t() == 0:
+            self.showError("Error: More than one frame must be present to track")
+            return 
+        
         labelsToTrack =  self.labelSelect.currentText()
         dlg  = GeneralParamDialog({}, [], f"Track {labelsToTrack}", self, labelSelects=["Cytoplasm Label"])
 
@@ -897,6 +900,9 @@ class MainWindow(QtWidgets.QMainWindow):
         
 
     def trackButtonClick(self):
+        if self.label().max_t() == 0:
+            self.showError("Error: More than one frame must be present to track")
+            return
 
         idxToTrack = self.maskZ
         cells = self.getCurrMaskSet()
@@ -933,7 +939,6 @@ class MainWindow(QtWidgets.QMainWindow):
             mask_obj.celldata.update_cell_data(masks, channels = viableIms, channel_names = viableImNames)
         else:
             mask_obj.celldata = TimeSeriesData(idx, masks, channels = viableIms, channel_names=viableImNames)
-            print(mask_obj.celldata)
 
         mask_obj.save()
         self.checkDataAvailibility()  
@@ -989,9 +994,8 @@ class MainWindow(QtWidgets.QMainWindow):
             necks = self.experiment().get_label("labels", idx = neckI)
             cells = self.experiment().get_label("labels", idx = cellI)
         else:
-            return 
-        
-        
+            return
+  
         if isinstance(self.experiment().labels[cellI].celldata, LineageData):
             self.experiment().labels[cellI].celldata.add_lineages(cells, necks)
         else:
@@ -1005,6 +1009,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.experiment().labels[cellI].save()
         self.checkDataAvailibility()
+        self.showTreeButton.setCheckState(True)
+    
+
     
     def getMatingLineages(self, cellI, matingI):
         mating = self.experiment().get_label("labels", idx = matingI)
@@ -1100,7 +1107,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pg_mask.image = image
         self.pg_mask.updateImage()
     
-        
+
+    def toggleLineageTreeWindow(self):
+        self.lineageWindowOn = self.showTreeButton.isChecked()
+
+        if self.lineageWindowOn:
+            self.showTree()
+        elif self.lineageWindow is not None:
+            self.lineageWindow.close()
+            self.lineageWindow = None
+    
+    def showTree(self):
+        data = self.label().celldata.get_cell_info()
+        data = data.drop(columns = ["confidence"])
+        data =  data.fillna(-1)
+        data = data.to_numpy()
+        self.lineageWindow = plot.LineageTreeWindow(self, data, selected_cells=self.selectedCells)
+
         
     def buildPlotWindow(self):
         win = PlotWindowCustomize(self)
@@ -1113,7 +1136,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.pWindow = plot.PlotWindow(self, self.toPlot)
         self.pWindow.show()
-    
+
         
     def togglePlotWindow(self):
         self.plotWindowOn = self.plotButton.isChecked()
@@ -1159,7 +1182,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def updateDataDisplay(self, x = None,y = None, val = None):
         #dataString = f"Session Id: {self.sessionId}"
-        print(x,y,val)
         dataString = ""
         if x is not None and y is not None and val is not None and x>=0 and y>=0 and x<self.currIm.shape[1] and y<self.currIm.shape[0]:
             self.labelX, self.labelY = x,y
@@ -1291,6 +1313,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.experimentSelect.addItem(new_experiment.name)
         self.experimentSelect.setCurrentIndex(self.experiment_index)
         self.showExperimentMessage(new_experiment)
+        self.checkInterpolation()
     
     def showExperimentMessage(self, newExp):
         channels = ", ".join(newExp.get_channel_names())
@@ -1310,10 +1333,7 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def experimentChange(self):
         if not self.emptying:
-            print("experiment_change")
             self.imLoaded = True
-            print(self.experiment_index)
-            print(self.experiments)
             self.setDataSelects()
             self.experiment_index = self.experimentSelect.currentIndex()
             self.tIndex, self.maskZ, self.imZ = 0,0,0
@@ -1360,6 +1380,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if name is None:
             name = "new_masks"
         self.showTimedPopup(f"{name} HAS BEEN ADDED TO LABELS OF EXPERIMENT {self.experiments[self.experiment_index].name} ")
+        self.checkInterpolation()
         
     def loadMasks(self, masks, exp_idx = None, name = None, contours = None):
         if type(masks) is tuple:
@@ -1426,7 +1447,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.tIndex-=1
                 else:
                     self.tIndex = self.maxT
-            print(self.tIndex)
 
         if event.key() == QtCore.Qt.Key_Up:
             if event.modifiers() & QtCore.Qt.ControlModifier:
@@ -1482,7 +1502,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def drawMask(self):
         self.currMask = self.getCurrMask()
-        print(self.currMask.dtype, self.currMask.shape)
         self.numObjs  = count_objects(self.currMask)
         self.currMaskDtype = str(self.currMask.dtype)
 
@@ -1528,8 +1547,6 @@ class MainWindow(QtWidgets.QMainWindow):
         contour = self.getCurrContours().copy()
         color = np.array(self.goldColor)
         if self.selectedCells:
-            print(self.selectedCells)
-            print(self.selectedCellContourColors)
             for i, cell in enumerate(self.selectedCells):
                 color = self.selectedCellContourColors[i]
                 self.addSpecificContours(contour, [cell], [color])
@@ -1557,7 +1574,6 @@ class MainWindow(QtWidgets.QMainWindow):
             return np.zeros((512,512))
         if self.probOn:
             im =  self.floatCmap[self.experiment().get_label("probability", idx = self.maskZ, t = self.tIndex)].astype(np.uint8)
-            print(im.shape, im.min(), im.max(), im.dtype)
             return im
         else:
             return self.experiments[self.experiment_index].get_channel(idx = self.imZ, t = self.tIndex)
@@ -1638,7 +1654,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.showLineages:
             self.deselectAllCells()
             for num in self.getDaughters(cellNum)+[cellNum]:
-                print(num)
                 self.selectedCells.append(num)
                 self.selectedCellContourColors.append([255,0,0,255])
                 self.maskColors[num,:] = np.array(self.goldColor, dtype = np.uint8)
@@ -1650,7 +1665,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.maskColors[cellNum,:] = np.array(self.goldColor, dtype = np.uint8)
             motherNum = self.getMotherFromLineageData(cellNum)
             if motherNum:
-                print("selecting mother", motherNum, "for cell", cellNum)
                 if motherNum not in self.selectedCells:
                     self.selectedCells.append(motherNum)
                     self.selectedCellContourColors.append([0,255,0,255])
@@ -1680,7 +1694,6 @@ class MainWindow(QtWidgets.QMainWindow):
             return None
 
     def deselectCell(self, num):
-        print("deselecting", num)
         self.maskColors[num,:] = self.cmap[num,:].copy()
         del self.selectedCellContourColors[self.selectedCells.index(num)]
         self.selectedCells.remove(num)
@@ -2030,6 +2043,7 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def interpolationFinished(self, ims, exp_idx, name, annotations, interpolation):
         experiment = self.experiments[exp_idx]
+        print(len(ims))
         new_channel = InterpolatedChannel(interpolation=interpolation, ims = ims, dir = experiment.dir , name = name, annotations=annotations)
         experiment.add_channel_object(new_channel)
         self.imZ+=1
@@ -2040,6 +2054,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.computeMaxT()
         self.drawIm()
         self.showTimedPopup(f"{name} HAS BEEN ADDED TO CHANNELS OF EXPERIMENT {self.experiments[self.experiment_index].name} ")
+        self.checkInterpolation()
         
 
 
@@ -2099,6 +2114,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 "t":self.tIndex}
 
     def interpolateButtonClicked(self):
+        if self.label().max_t() == 0:
+            self.showError("Error: More than one frame must be present to interpolate")
+
         dlg = GeneralParamDialog({"2x":False, "4x": False, "8x": False, "16x": False}, [bool,bool,bool,bool], "choose interpolation level", self)
         if dlg.exec():
             data = dlg.getData()
@@ -2116,14 +2134,28 @@ class MainWindow(QtWidgets.QMainWindow):
             ims = curr_im.ims
             currName = curr_im.name
  
-            worker = InterpolationWorker(ims, f"{currName}_{data}interp", curr_im.annotations, self.experiment_index, interpolation, interpolate, exp)
+            worker = InterpolationWorker(ims, f"{currName}_{interpolation}x{InterpolatedChannel.text_id}", curr_im.annotations, self.experiment_index, interpolation, interpolate, exp)
         else:
             return
 
         self.runLongTask(worker, self.interpolationFinished, self.interpolateButton)
     
     def interpRemoveButtonClicked(self):
-        pass 
+        assert isinstance(self.channel(), InterpolatedChannel)
+        lengthsMatch = self.channel().max_t() == self.label().max_t()
+        if not lengthsMatch:
+            self.showError("Error: Length of label must match length of interpolated channel to perform this operation")
+            return
+
+        interp_bool = self.channel().interp_annotations
+        print(interp_bool)
+        masks = self.getCurrMaskSet()
+        contours = self.getCurrContourSet()
+        newMasks = [mask for i, mask in enumerate(masks) if interp_bool[i]]
+        newContours = [mask for i, mask in enumerate(contours) if interp_bool[i]]
+        print()
+        currMaskName = self.labelSelect.currentText()
+        self.loadMasks(newMasks, name = f"{currMaskName}_removeinterpolation", contours=newContours)
 
     def doAdaptHist(self):
         curr_im = self.channel()
@@ -2259,7 +2291,6 @@ class MainWindow(QtWidgets.QMainWindow):
                             "save figures to directory", 
                             defaultFileName)
         if path:
-            print(path)
             write_images_to_dir(path, self.createFigure())
     
     def createMaskOverlay(self):
@@ -2272,7 +2303,6 @@ class MainWindow(QtWidgets.QMainWindow):
                             "save figures to directory", 
                             defaultFileName)
         if path:
-            print(path)
             imsave(path, self.overlayMasks())
     
     def overlayMasks(self):
@@ -2329,7 +2359,6 @@ class MainWindow(QtWidgets.QMainWindow):
             colored_masks.append(self.pg_mask.image[:,:,:])
             masks.append(self.currMask)
         figures = np.array([overlay_images(ims[i], masks[i], colored_masks[i]) for i in range(len(masks))])
-        print(figures.shape, figures.dtype)
         self.tIndex = currT
         self.updateDisplay()
         return figures
@@ -2440,6 +2469,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.pWindow:
             self.pWindow.close()
             self.pWindow = None
+        if self.lineageWindow:
+            self.lineageWindow.close()
+            self.lineageWindow = None
     
     def getCurrImDir(self):
         return self.experiment().channels[self.imZ].dir
@@ -2458,8 +2490,43 @@ class MainWindow(QtWidgets.QMainWindow):
         hasLineages = self.hasLineageData()
         self.hasLineageBox.setChecked(hasLineages)
         self.hasCellDataBox.setChecked(self.hasCellData())
+        self.plotButton.setEnabled(self.hasCellData())
         self.showMotherDaughtersButton.setEnabled(hasLineages)
         self.showLineageButton.setEnabled(hasLineages)
+        self.showTreeButton.setEnabled(hasLineages)
+    
+    def checkInterpolation(self):
+        hasMasks = self.experiment().has_labels()
+        currIsInterp = isinstance(self.channel(), InterpolatedChannel)
+
+        if not currIsInterp or not hasMasks:
+            self.disableInterpRemove()
+        else:
+            self.enableInterpRemove()
+        
+        if currIsInterp:
+            self.disableInterp()
+        else:
+            self.enableInterp()
+
+    def disableInterp(self):
+        self.interpolateButton.setEnabled(False)
+        self.interpolateButton.setStyleSheet(self.styleInactive)
+    
+    def enableInterp(self):
+        self.interpolateButton.setEnabled(True)
+        self.interpolateButton.setStyleSheet(self.styleUnpressed)
+
+    
+    def disableInterpRemove(self):
+        self.interpRemoveButton.setEnabled(False)
+        self.interpRemoveButton.setStyleSheet(self.styleInactive)
+    
+    def enableInterpRemove(self):
+        self.interpRemoveButton.setEnabled(True)
+        self.interpRemoveButton.setStyleSheet(self.styleUnpressed)
+
+
 
 @profile
 def main():

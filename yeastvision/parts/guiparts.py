@@ -1,7 +1,8 @@
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtGui import QPainter
-from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame)
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame,
+                            QStyledItemDelegate, QListView)
+from PyQt5.QtCore import Qt, QRect
 
 
 class QHLine(QFrame):

@@ -1,3 +1,4 @@
+from http.cookiejar import CookiePolicy
 import cv2
 from skimage.io import imread
 import matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ from skimage.util import img_as_ubyte
 from .rife_model.RIFE import Model
 import os
 from yeastvision.ims import rife_model
+import copy
 
 RIFE_DIR = rife_model.__path__[0]
 
@@ -43,7 +45,8 @@ def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
         for im in ims:
             read_buffer.put(im)
         return read_buffer
-
+    final_im = copy.deepcopy(ims[-1])
+    final_im = cv2.normalize(final_im, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     ims = ims = [reformat(im) for im in ims]
     lastframe = ims[0]
     h,w,_ = lastframe.shape
@@ -116,7 +119,6 @@ def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
         lastframe = frame
         if break_flag:
             break
-        print(i)
         i+=1
     del model
-    return np.array([im[:,:,0] for im in write_buffer], dtype = np.uint8)
+    return np.array([im[:,:,0] for im in write_buffer] + [final_im], dtype = np.uint8)
