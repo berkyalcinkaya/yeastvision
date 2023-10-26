@@ -133,6 +133,24 @@ Here is an example of an experiment with two time points, two channels, and two 
 | Cannot scroll through images/masks on the display | Click on the display to bring focus back to this widget|
 | Loaded images without masks but cannot draw | An existing label must be present to draw: Add a blank label with File -> Add Blank Label |
 
+# GUI Features
+
+## Model Retraining
+1. Load Training Masks
+2. Select the model to be retrained from the mainscreen model dropdown 
+3. Click Menu->Models->Retrain
+4. Ensure training data is correct and choose model suffix (default is date-time)
+5. Select hyperparameters (default should work for most use cases)
+6. Train the model, using terminal to gauge progress. 
+7. The custom model will auto-run on the next available image in the training set, if there is not a mask already on this image. 
+8. If you are happy with the new model, go to Menu->Models->Load Custom Models, and the model will be added to the model dropdown. Otherwise, retrain with new data
+
+### Retraining Tips
+- Training takes very long without a GPU even though it possible to retrain using only CPU. 
+- When you are initially producing a training set, leave some blank masks towards the end of the movie so that the training procedure has room to auto-run
+- The path to the new weights will be printed on the terminal. 
+- Ensure that the fullname of the retrained model is present in the weights filename upon trying to load it via the models menu. This ensures that GUI can associate the weights with the correct model architecture 
+
 
 
 
