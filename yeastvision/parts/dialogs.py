@@ -223,7 +223,7 @@ class GeneralParamDialog(QDialog):
     
     def addParentComboBox(self, parentComboBox, name = "Channel", addNA = False):
         channelSelect = QComboBox()
-        channelSelect.setFixedWidth(120)
+        channelSelect.setFixedWidth(200)
         channelSelect.addItems([parentComboBox.itemText(i) for i in range(parentComboBox.count())])
         channelSelect.setCurrentIndex(parentComboBox.currentIndex())
         self.formLayout.addRow(self.produceLabel(name), channelSelect)
@@ -433,7 +433,7 @@ class FlouParamDialog(QDialog):
 
     def addParentComboBox(self, parentComboBox, name = "Channel", addNA = False):
         channelSelect = QComboBox()
-        channelSelect.setFixedWidth(120)
+        channelSelect.setFixedWidth(200)
         channelSelect.addItems([parentComboBox.itemText(i) for i in range(parentComboBox.count())])
         channelSelect.setCurrentIndex(parentComboBox.currentIndex())
         self.formLayout.addRow(self.produceLabel(name), channelSelect)
@@ -584,7 +584,7 @@ class ArtilifeParamDialog(ModelParamDialog):
         artiWeights = QComboBox()
         artiWeights.addItems(artilifeWeights)
         self.dropDownData["artiWeights"] = artiWeights
-        artiWeights.setFixedWidth(120)
+        artiWeights.setFixedWidth(200)
         artiWeights.setEnabled(True)
         artiWeights.setCurrentIndex(0)
         self.formLayout.addRow(QLabel("artilife weights"), artiWeights)

@@ -96,6 +96,7 @@ As you utilize GUI features, all GUI-generated labels and images will be stored 
 1. <u>**A directory must contain images** to be analyzed but does not have to contain masks</u>
 2. A single file within the directory should contain a single image only.
 3. All channel and mask types should be present in the same number of time points. 
+4. All files should include an appropriate file extension, and file extensions should remain consistent across data types
 
 __Naming: Files should be named accordingly to their channel and mask type__:
 1. Each data type in the directory should have a standard id to identify it.

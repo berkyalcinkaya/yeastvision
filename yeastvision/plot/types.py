@@ -66,7 +66,7 @@ class SingleCellUpdatePlot():
     
             i = 0
             for cellnum, dataset in data.items():
-                color = self.parent.cmaps[0][i][0:-1]
+                color = self.parent.cmap[i][0:-1]
                 self.plot.plot(dataset, name = str(cellnum), pen = tuple(color))
                 i+=1
             

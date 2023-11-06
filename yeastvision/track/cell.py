@@ -53,7 +53,6 @@ def getPropDf(data):
         return data.drop(columns = ["labels"])
 
 def exportCellData(data, lifedata):
-    print(data)
     export = {"cell":[], "time":[]}
     propDf = getPropDf(data)
     for column in propDf.columns:
@@ -62,8 +61,6 @@ def exportCellData(data, lifedata):
     for cell in data["labels"]:
         firstT = int(lifedata[lifedata["cell"] == cell]["birth"])
         endT = int(lifedata[lifedata["cell"] == cell]["death"])
-
-        print("cell", cell, firstT, endT)
 
         for i in range(firstT, endT+1):
             export["time"].append(i)
@@ -83,11 +80,16 @@ def getDaughterMatrix(self, lineageDF):
     daughterMatrix = np.zeros((arraysize, arraysize))
     return daughterMatrix
 
-def getHeatMaps(data):
-    heatMaps = []
-    for prop in getPropDf(data).columns:
-        heatMaps.append(np.array(data[prop].tolist()))
-    return np.array(heatMaps)
+def getPotentialHeatMapNames(data):
+    return getPropDf(data).columns
+
+
+def getHeatMaps(data, chosen):
+    heatMaps = {}
+    for prop in chosen:
+        hm = data[prop].tolist()
+        heatMaps[prop] = (np.array(hm))
+    return heatMaps
 
 def getCellData(labels, intensity_ims = None, intensity_im_names = None):
     total_labels = np.unique(labels) # all indeces of cells present in the movie

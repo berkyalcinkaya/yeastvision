@@ -133,7 +133,7 @@ class PlotProperty():
         return self.labelSelect.items()[self.labelIdx]
     
     def get_timeseries_obj(self):
-        return self.parent.cellData[self.labelIdx]
+        return self.parent.experiment().labels[self.labelIdx].celldata
     
     @staticmethod
     def cluster_property(plot_property_list):

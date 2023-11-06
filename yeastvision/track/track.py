@@ -1,3 +1,4 @@
+from skimage.io import imsave
 import numpy as np
 from skimage.measure import regionprops
 from skimage.morphology import thin, skeletonize, opening, dilation, erosion
@@ -31,7 +32,7 @@ def extract_cell_frames(ims):
         if found_cells:
             if np.all(im==0):
                 break
-    return i
+    return i+1
 
 def trackYeasts(ims):
     stop_i = extract_cell_frames(ims)
@@ -60,7 +61,7 @@ def trackYeasts(ims):
         # gap_cells=np.array((10,122)).astype(np.uint64) 
         # cells_tr =  cells_tr + gap_cells
         if gap_cells.size==0 :
-            cells_tr = tr_cells;
+            cells_tr = tr_cells
         else:
         # cells_tr = np.array([tr_cells, gap_cells]) # !
         # cells_tr =  (tr_cells) + (gap_cells)
@@ -109,7 +110,7 @@ def trackYeasts(ims):
         newcells=np.unique(ISB)
         newcells = newcells[1:len(newcells)]
         Iblank=Iblank0  # plt.imshow(Iblank)
-        A=1;
+        A=1
         
         if newcells.size>0 :
             for it2 in newcells :
@@ -120,7 +121,7 @@ def trackYeasts(ims):
         IS1=masks[:,:,it0] # plt.imshow(IS1)
 
 
-    ccell2=np.unique(masks[:,:,len(masks[0][0])-1]);
+    ccell2=np.unique(masks[:,:,len(masks[0][0])-1])
     ccell2 = ccell2[1:len(ccell2)] # remove zero since its background
     Mask2 = np.zeros((masks.shape[0], masks.shape[1], len(masks[0][0])))
 

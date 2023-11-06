@@ -14,8 +14,6 @@ class Experiment():
 
     def __init__(self, dir, num_channels = 1):
         self.dir = dir
-        print(self.dir)
-        print(os.path.split(dir))
         _, self.name = os.path.split(self.dir)
         self.num_channels = num_channels
         self.num_labels = 0
@@ -52,7 +50,6 @@ class Experiment():
         self.npz_channel_files = npz_channel_files
         for path in self.npz_channel_files:
             _, name = os.path.split(path)
-            print("Loading npz channel:", name, "is interpolated:", InterpolatedChannel.text_id in name )
             if InterpolatedChannel.text_id in name:
                 self.add_channel_object(InterpolatedChannel(npz_path=path))
             else:
@@ -366,7 +363,7 @@ class ChannelNoDirectory(Channel):
     
     def get_string(self,t):
         if self.annotations is not None:
-            return f"{super().get_string(t)} ,  {(','.join(self.annotations[t])).upper()}"
+            return f"{super().get_string(t)}, {(','.join(self.annotations[t])).upper()}"
         else:
             return super().get_string(t)
 
@@ -589,10 +586,12 @@ class Label(Files):
             self.write_to_npz()
         
         def set_data(self, labels, contours):
+            print("setting data")
             self.labels = labels
             self.contours = contours
             self.save()
             self.unload_data_attrs()
+            self.load()
         
         def set_contours(self, contours):
             self.contours = contours

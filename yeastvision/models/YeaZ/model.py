@@ -32,7 +32,6 @@ class YeaZ(CustomModel):
         padded = np.pad(im, ((0, row_add), (0, col_add)))
         results = self.model(padded[np.newaxis,:,:,np.newaxis])
         res = np.array(results[0,:,:,0])
-        print(res.max())
         return res[:nrow, :ncol]
     
     def threshold(self, im):
@@ -46,7 +45,7 @@ class YeaZ(CustomModel):
         """
         th = float(self.params["Threshold"])
         im2 = np.array(im).copy()
-        if th == None:
+        if th is None:
             th = skimage.filters.threshold_isodata(im2)
         bi = im2
         bi[bi > th] = 255
@@ -56,6 +55,7 @@ class YeaZ(CustomModel):
     def getMask(self, pred):
         th = self.threshold(pred)
         seg  = segment(th,pred, min_distance = int(self.params["Minimum Cell Distance"]))
+        seg[th==0]=0
         return seg
 
 

@@ -20,7 +20,7 @@ from yeastvision.parts.dialogs import *
 from yeastvision.track.track import track_to_cell, trackYeasts
 from yeastvision.track.data import LineageData, TimeSeriesData
 from yeastvision.track.lineage import LineageConstruction
-from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, getCellData, exportCellData, getHeatMaps, getDaughterMatrix
+from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, getCellData, exportCellData, getHeatMaps, getDaughterMatrix, getPotentialHeatMapNames
 import cv2
 from yeastvision.disk.reader import loadPkl, ImageData, MaskData
 import importlib
@@ -864,7 +864,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return 
         
         labelsToTrack =  self.labelSelect.currentText()
-        dlg  = GeneralParamDialog({}, [], f"Track {labelsToTrack}", self, labelSelects=["Cytoplasm Label"])
+        dlg  = GeneralParamDialog({}, [], f"tracking {labelsToTrack}", self, labelSelects=["Cytoplasm Label"])
 
         if dlg.exec():
             self.deactivateButton(self.trackObjButton)
@@ -875,7 +875,7 @@ class MainWindow(QtWidgets.QMainWindow):
             cells = self.experiment().get_label("labels", idx = cellIdx)
             obj = self.getCurrMaskSet()
 
-            task = partial(track_to_cell, obj, cells)
+            task = track_to_cell
             worker = TrackWorker(task, cells, self.maskZ, self.experiment_index, obj)            
             self.runLongTask(worker,self.trackFinished, self.trackObjButton)
 
@@ -892,11 +892,17 @@ class MainWindow(QtWidgets.QMainWindow):
             newContours = tracked.copy()
             newContours[np.logical_not(contours>0)] = 0
             self.experiments[exp_idx].labels[z].set_data(tracked, newContours)
-            self.updateCellData(idx = z, exp_idx = exp_idx)
+            curr_label = self.labelSelect.currentText()
+            try:
+                self.updateCellData(idx = z, exp_idx = exp_idx)
+            except IndexError:
+                self.showError(f'''Unable to produce data for {curr_label}, 
+                               likely due to poor label quality or difficulty producing accurate tracks.
+                                Correct tracks and/or label accuracy and try again''')
             self.experiment_index = exp_idx
             self.maskZ = z
             self.drawMask()
-            self.showTimedPopup(f"{self.labelSelect.currentText()} has been tracked")
+            self.showTimedPopup(f"{curr_label} has been tracked")
         
 
     def trackButtonClick(self):
@@ -1201,6 +1207,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
             if self.maskLoaded:
                 dataString += f"  |  REGIONS: {self.numObjs}"
+
+                if self.selectedCells:
+                    sCellsString = ",".join([str(cNum) for cNum in self.selectedCells])
+                    dataString += f"  |  SELECTED CELLS: {sCellsString}"
         self.dataDisplay.setText(dataString)
     
     def experiment(self):
@@ -1302,7 +1312,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def loadExperiment(self,file):
         if file.endswith("/") or file.endswith('\\'):
             file = file[:-1]                         
-        dlg = GeneralParamDialog({"num_channels":1}, [int], "", self)
+        dlg = GeneralParamDialog({"num_channels":1}, [int], "number of channels", self)
         if dlg.exec():
             num_channels = int(dlg.getData()["num_channels"])
         else:
@@ -1613,7 +1623,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.win.underMouse() and self.labelX and self.labelY:
                 x,y = self.labelX, self.labelY
                 val = self.currMask[y,x]
-                if int(val)==0 or not self.maskOn:
+                if not self.maskOn:
                     val = self.currIm[y,x]
             else:
                 x,y,val = None,None,None
@@ -2086,7 +2096,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.activateButton(self.modelButton)
 
-    
     def computeArtilifeModel(self):
         modelType = "artilife"
         modelClass = ArtilifeFullLifeCycle
@@ -2153,33 +2162,16 @@ class MainWindow(QtWidgets.QMainWindow):
         contours = self.getCurrContourSet()
         newMasks = [mask for i, mask in enumerate(masks) if interp_bool[i]]
         newContours = [mask for i, mask in enumerate(contours) if interp_bool[i]]
-        print()
         currMaskName = self.labelSelect.currentText()
         self.loadMasks(newMasks, name = f"{currMaskName}_removeinterpolation", contours=newContours)
 
     def doAdaptHist(self):
         curr_im = self.channel()
         annotation_name = "adaptive_hist_eq"
-        annotations = None
-        if isinstance(curr_im, ChannelNoDirectory):
-            annotations = copy.deepcopy(curr_im.annotations)
-            for ann in annotations:
-                ann.append(annotation_name)
-
+        curr_im = self.channel()
+        annotations = self.add_annotations(curr_im, annotation_name)
         newIms = im_funcs.do_adapt_hist(self.getCurrImSet())
         self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
-      
-    # def doNormalizeByIm(self):
-    #     files = self.imData.files[self.imZ]
-    #     currName = self.channelSelect.currentText()
-    #     newIms = [normalize_im(im) for im in self.getCurrImSet()]
-    #     self.addProcessedIms(newIms, files, currName+"-imNormalized", dtype = np.float32)
-    
-    # def doNormalizeBySet(self):
-    #     files = self.imData.files[self.imZ]
-    #     currName = self.channelSelect.currentText()
-    #     newIms = normalize_im(self.getCurrImSet())
-    #     self.addProcessedIms(newIms, files, currName+"-setNormalized", dtype = np.float32)
 
     def doGaussian(self):
         dlg = GeneralParamDialog({"sigma": 1}, [float], "Enter Params for Gaussian Blur", self)
@@ -2409,12 +2401,24 @@ class MainWindow(QtWidgets.QMainWindow):
         labelName = self.labelSelect.items()[self.maskZ]
         labelFileName = labelName.replace(" ", "")
         if self.hasCellData():
-            data = getHeatMaps(self.label().celldata.cell_data)
-            defaultFileName = join(self.experiment().dir, labelFileName + "_heatmaps.tif")
-            path, _ = QFileDialog.getSaveFileName(self, 
-                            "save heatmaps as stack tif", 
-                            defaultFileName)
-            imsave(path, data) 
+            celldata = self.label().celldata.cell_data
+            potential_heatmaps = getPotentialHeatMapNames(celldata)
+            print(potential_heatmaps)
+            dlg = GeneralParamDialog({name:False for name in potential_heatmaps}, 
+                                     [bool]*len(potential_heatmaps), 
+                                     "heatmap property selection", self)
+            if dlg.exec():
+                chosen = [name for name, status in dlg.getData().items() if status]
+                heatmaps = getHeatMaps(celldata, chosen)
+                base_dir = QFileDialog.getExistingDirectory(self, caption = "save heatmap directory to specified location")
+                dir = join(base_dir, f"{labelName}_heatmaps")
+                if not os.path.exists(dir):
+                    os.mkdir(dir)
+                for name, heatmap in heatmaps.items():
+                    out_path = join(dir, name+"_heatmap.tif")
+                    imsave(out_path, heatmap)
+            else:
+                return
         else:
             self.showError(f"No Cell Data for {labelName}")
 
