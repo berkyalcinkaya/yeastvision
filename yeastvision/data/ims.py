@@ -12,7 +12,7 @@ from yeastvision.track.data import LineageData, TimeSeriesData
 
 class Experiment():
 
-    def __init__(self, dir, num_channels = 1):
+    def __init__(self, dir, num_channels = 1, v = True):
         self.dir = dir
         _, self.name = os.path.split(self.dir)
         self.num_channels = num_channels
@@ -21,11 +21,24 @@ class Experiment():
         self.channels = []
         self.labels = []
 
+        if v:
+            print("Loading experiment from", self.dir, "with", num_channels, "channels")
+
         im_npzs, mask_npzs = get_im_mask_npzs(self.dir)
+        if v:
+            print("Found", len(im_npzs), "image .npz files")
+            print(im_npzs)
+            print()
+            print("Found", len(mask_npzs), "mask .npz files")
+            print(mask_npzs)
+            
         if mask_npzs:
             self.load_with_mask_npzs(mask_npzs, num_channels)
         else:
-            self.load_from_dir(num_channels)
+            if v:
+                print()
+                print("no mask npzs detected. Attempting to load from directory", self.dir)
+            self.load_from_dir(num_channels, v = v)
         
         if im_npzs:
             self.load_channels_from_npz_files(im_npzs)
@@ -119,11 +132,18 @@ class Experiment():
     def has_labels(self):
         return self.num_labels>0
 
-    def load_from_dir(self, num_channels):
+    def load_from_dir(self, num_channels, v = False):
         channels = [[] for i in range(num_channels)]
         
         files_image_only = sorted(get_image_files(self.dir, remove_masks=True))
         files = sorted(get_image_files(self.dir))
+
+        if v:
+            print("Found the following image files (anything with _mask remove):")
+            print(files_image_only)
+            print()
+            print("All files (images and masks included)")
+            print(files)
 
         num_images = len(files_image_only)/num_channels
         num_labels = int(len(files)/num_images - num_channels)

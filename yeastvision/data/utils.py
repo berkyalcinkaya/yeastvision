@@ -30,8 +30,6 @@ def get_im_mask_npzs(dir):
                 ims.append(file)
     return ims,masks
 
-
-
 def is_mask_npz(file):
     return "labels" in np.load(file).files
 
@@ -55,9 +53,11 @@ def has_label_npz(dir):
 
 def get_filetype(path):
     _, ext = os.path.splitext(path)
+    print("\t \t path", ext)
     return ext
 
 def is_image(path):
+    print("\t determining if", path, "is an image file")
     return get_filetype(path) in image_extensions
 
 def all_files(dir):
@@ -66,14 +66,7 @@ def all_files(dir):
 
 def get_image_files(dir, remove_masks = False):
     files = all_files(dir)
-    i = 0
-    while not is_image(files[i]):
-        i+=1
-        if i == len(files):
-            print("No images detected")
-            return
-    ext = get_filetype(files[i])
-    all_ims = glob.glob(os.path.join(dir, f"*{ext}"))  
+    all_ims = [im for im in files if is_image(im)]
     if remove_masks:
         return [im for im in all_ims if "masks" not in im]
     else:

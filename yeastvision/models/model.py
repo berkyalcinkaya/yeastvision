@@ -58,7 +58,7 @@ class Model():
     
     def train(self, ims, masks, params):
         batchsize = 8
-        weightPath = join(params["dir"], "models", params["model_name"])
+        weightPath = join(params["dir"], "models", params["model_name"])+".h5"
         ims = [self.preprocess(im) for im in ims]
         masks = [self.preprocess_masks(mask) for mask in masks]
         ims = patchify_for_train(ims)
@@ -66,14 +66,13 @@ class Model():
         ims = np.array(ims)
         masks = np.array(masks)
         model = self.model
-        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=params["learning_rate"]),
-                loss=self.loss)
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=params["learning_rate"]), 
+        loss = model.loss)
         model.fit(ims, masks,
             batch_size=batchsize,
             epochs=int(params["n_epochs"]))
 
         # Save the trained model (optional)
-        print(weightPath)
         model.save(weightPath)
 
     @classmethod

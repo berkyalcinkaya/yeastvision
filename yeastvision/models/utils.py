@@ -165,6 +165,7 @@ def jaccard_coef(y_true, y_pred):
     return (intersection + 1.0) / (K.sum(y_true_f) + K.sum(y_pred_f) - intersection + 1.0)
 
 def jaccard_coef_loss(y_true, y_pred):
+    print(y_true, y_pred)
     return -jaccard_coef(y_true, y_pred)  # -1 ultiplied as we want to minimize this value as loss function
 
 
