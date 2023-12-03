@@ -25,12 +25,8 @@ def do_install():
             if "._" not in file_name:
                 # Get the name of the file without the extension
                 file_name_without_extension = os.path.splitext(file_name)[0]
-
-                if file_name_without_extension == "Bud_Seg":
-                    destination_directory = join(MODEL_DIR, "artilife/budSeg")
-                    print("\tlocated BudSeg weights -- moving to", destination_directory)
                 
-                elif file_name_without_extension == "flownet":
+                if file_name_without_extension == "flownet":
                     destination_directory = RIFE_DIR
                     print("\tlocated weights for movie interpolation -- moving to", destination_directory)
 

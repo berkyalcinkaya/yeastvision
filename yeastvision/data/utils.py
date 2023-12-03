@@ -53,11 +53,9 @@ def has_label_npz(dir):
 
 def get_filetype(path):
     _, ext = os.path.splitext(path)
-    print("\t \t path", ext)
     return ext
 
 def is_image(path):
-    print("\t determining if", path, "is an image file")
     return get_filetype(path) in image_extensions
 
 def all_files(dir):
@@ -68,7 +66,7 @@ def get_image_files(dir, remove_masks = False):
     files = all_files(dir)
     all_ims = [im for im in files if is_image(im)]
     if remove_masks:
-        return [im for im in all_ims if "masks" not in im]
+        return [im for im in all_ims if "_mask" not in get_file_name(im)]
     else:
         return all_ims
 
@@ -76,7 +74,6 @@ def concatenate_arrays_by_dict(main_dict, new_dict):
     for key in main_dict.keys():
         new_data = new_dict[key]
         main_data = main_dict[key]
-        print(main_data.shape, new_data.shape)
         main_dict[key] = np.concatenate((main_data, new_data), axis = 0)
     return main_dict
 

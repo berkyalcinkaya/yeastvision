@@ -29,7 +29,7 @@ Yeastvision is ready to go for cpu-usage as soon as it downloaded. GPU-usage req
 3. Create a new environment with `conda create --name yeastvision python=3.10.0`. 
 4. Activate this new environment by running `conda activate yeastvision`
 5. Run `python -m pip install yeastvision` to download our package plus all dependencies
-6. Download the weights [online](https://drive.google.com/file/d/12FM_DaEQVNGsnDrK_YVX9huxqyVO8Nyb/view?usp=share_link). 
+6. Download the weights [online](https://drive.google.com/file/d/1M4Ke1r04E0r41kBMv1RzO6F_yIVLIVI1/view?usp=sharing). 
 7. Run `install-weights` in the same directory as the *yeastvision_weights.zip* file
 
 

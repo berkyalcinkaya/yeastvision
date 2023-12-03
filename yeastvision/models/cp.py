@@ -1,52 +1,75 @@
-from cellpose import models
 from yeastvision.models.model import Model as CustomModel
 import cv2
 import numpy as np
 from cellpose.transforms import normalize99
 import torch
+from cellpose.models import CellposeModel, size_model_path, SizeModel, Cellpose
+from cellpose.core import assign_device
 
 
-class CustomCellpose(models.Cellpose):
-    def __init__(self, gpu=True, model_type='cyto', pretrained_model = None, net_avg=False, device=None):
-        super(models.Cellpose, self).__init__()
+class CellposeAllowPreTrainedModel(Cellpose):
+    """ main model which combines SizeModel and CellposeModel, and allows for a pretrained model to be loaded
+    for cellpose model
+
+    Parameters
+    ----------
+
+    gpu: bool (optional, default False)
+        whether or not to use GPU, will check if GPU available
+
+    model_type: str (optional, default 'cyto')
+        'cyto'=cytoplasm model; 'nuclei'=nucleus model; 'cyto2'=cytoplasm model with additional user images
+
+    net_avg: bool (optional, default False)
+        loads the 4 built-in networks and averages them if True, loads one network if False
+
+    device: torch device (optional, default None)
+        device used for model running / training 
+        (torch.device('cuda') or torch.device('cpu')), overrides gpu input,
+        recommended if you want to use a specific GPU (e.g. torch.device('cuda:1'))
+    
+    pretrained_cp_model: path to custom cellpose weights (optional, default None)
+        weights for a pretrained CellposeModel model
+
+    """
+    def __init__(self, gpu=False, model_type='cyto', net_avg=False, device=None, pretrained_model = None):
+        super(Cellpose, self).__init__()
         self.torch = True
         
         # assign device (GPU or CPU)
-        sdevice, gpu = models.assign_device(self.torch, gpu)
+        sdevice, gpu = assign_device(self.torch, gpu)
         self.device = device if device is not None else sdevice
         self.gpu = gpu
-        print(device, gpu)
         
-        model_type = 'cyto' if pretrained_model else None
+        model_type = 'cyto' if model_type is None else model_type
         
         self.diam_mean = 30. #default for any cyto model 
         nuclear = 'nuclei' in model_type
         if nuclear:
             self.diam_mean = 17. 
         
-        self.cp = models.CellposeModel(device=self.device, gpu=self.gpu,
-                                pretrained_model= pretrained_model,
-                                model_type=None,
+        self.cp = CellposeModel(device=self.device, gpu=self.gpu,
+                                model_type=model_type,
                                 diam_mean=self.diam_mean,
-                                net_avg=net_avg)
+                                net_avg=net_avg,
+                                pretrained_model=pretrained_model)
         self.cp.model_type = model_type
         
-        self.pretrained_size = models.size_model_path(model_type, self.torch)
-
-        self.sz = models.SizeModel(device=self.device, pretrained_size=self.pretrained_size,
+        # size model not used for bacterial model
+        self.pretrained_size = size_model_path(model_type, self.torch)
+        self.sz = SizeModel(device=self.device, pretrained_size=self.pretrained_size,
                             cp_model=self.cp)
         self.sz.model_type = model_type
 
 
 class CustomCPWrapper(CustomModel):
     hyperparams  = {  
-    "Mean Diameter":0, 
-    "Flow Threshold":0.4, 
-    "Cell Probability Threshold": 0,
-    "Speed mode": False}
-    types = [None, None,None,bool]
+    "mean_diameter":-1.0, 
+    "flow_threshold":0.4, 
+    "cell_probability_threshold": 0}
+    types = [float, float,float]
     
-    loss = "categorical crossentropy"
+    loss = "categorical_crossentropy"
     trainparams = {
                 "learning_rate":0.1,
                 "weight_decay": 0.0001,
@@ -54,21 +77,34 @@ class CustomCPWrapper(CustomModel):
 
     def __init__(self, params, weights):
         super().__init__(params, weights)
-        if self.params["Mean Diameter"] == 0:
-            self.params["Mean Diameter"] = None
+
+        self.mean_diam = self.params["mean_diameter"]
+        self.do_size_estimation = self.mean_diam == -1
+        self.no_diam = self.mean_diam == 0
+        self.use_size_model = not self.no_diam
+
+        if self.use_size_model:
+            if self.do_size_estimation:
+                self.mean_diam = None
+            self.model  = CellposeAllowPreTrainedModel(gpu=True, model_type="cyto", pretrained_model=self.weights)
+        else:
+            self.model = CellposeModel(gpu=True, pretrained_model=self.weights, model_type="cyto")
+            self.model.cp = self.model # for consistency when calling train method
         
-        self.model = CustomCellpose(pretrained_model=self.weights)
-        self.cpAlone = self.model.cp
-        
+        self.eval_params = self.make_eval_arg_dict(params)
     
-    def processProbability(self, rawProb):
+    def make_eval_arg_dict(self, params):
+        return {"diameter":self.mean_diam,
+                "channels": [0,0],
+                "cellprob_threshold": params["cell_probability_threshold"],
+                "flow_threshold": params["flow_threshold"],
+                "do_3D": False}
+    
+    def process_probability(self, rawProb):
         return (np.clip(normalize99(rawProb.copy()), 0, 1) * 255).astype(np.uint8)
 
-    
     def train(self, ims, labels, params):
-        # ims must be 3D for cellpose
         ims = [cv2.merge((im,im,im)) for im in ims]
-        # call train the models.CellPoseModel
         self.model.cp.train(ims, labels, 
                                         channels=[0,0], 
                                         save_path=params["dir"], 
@@ -78,35 +114,21 @@ class CustomCPWrapper(CustomModel):
                                         weight_decay = params['weight_decay'], 
                                         n_epochs = int(params['n_epochs']),
                                         model_name = params["model_name"])
+    def get_masks_and_flows(self, ims):
+        if self.use_size_model:
+            masks, flows, _, _ = self.model.eval(ims, **self.eval_params)
+        else:
+            masks, flows, _ = self.model.eval(ims, **self.eval_params)
+        return masks,flows
 
     @classmethod
     @torch.no_grad()
     def run(cls, ims, params, weights):
         params = params if params else cls.hyperparams
-
         model = cls(params, weights)
         ims3D = [cv2.merge((im,im,im)) for im in ims]
-        assert len(ims3D[0].shape)==3
-
-        if not params["Mean Diameter"]:
-            evaluator = model.cpAlone
-            model.masks, flows, _ = evaluator.eval(ims3D, 
-                                                    diameter = model.params["Mean Diameter"], 
-                                                    channels = [0, 0],
-                                                    cellprob_threshold = model.params["Flow Threshold"], 
-                                                    do_3D=False)
-        else:
-            evaluator = model.model
-            model.masks, flows, _, model.diams = evaluator.eval(ims3D, 
-                                                    diameter = model.params["Mean Diameter"], 
-                                                    channels = [0, 0],
-                                                    cellprob_threshold = model.params["Flow Threshold"], 
-                                                    do_3D=False)
-        model.cellprobs = [flow[2] for flow in flows]
-        model.cellprobs = np.array((model.processProbability(model.cellprobs)), dtype = np.uint8)
-
-        masks = np.array(model.masks, dtype = np.uint16)
-        prob = model.cellprobs
-
+        masks, flows = model.get_masks_and_flows(ims3D)
+        cellprobs = [flow[2] for flow in flows]
+        cellprobs = np.array((model.process_probability(cellprobs)), dtype = np.uint8)
         del model
-        return masks, prob
+        return np.array(masks, dtype = np.uint16), cellprobs

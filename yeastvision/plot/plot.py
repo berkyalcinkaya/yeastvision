@@ -15,6 +15,27 @@ import pandas as pd
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
 def plot_tree(matrix, selected_cells=[]):
+    '''
+    PARAMETERS
+    -------------
+    matrix: np.ndarray
+        matrix that encodes lineage and cell info as follows:
+            column 0: cell idx (sorted numerically, 1-indexed)
+            column 1: cell birth frame (0 indexed)
+            column 2: cell death frame (0 indexed)
+            column 3: mother idx (-1 if has no mother)
+        lineage tree places initial, seed cells on seperate frames
+    
+    selected cell: list (optional, default [])
+        cells whose daughters should be highlighted
+    
+
+    RETURNS
+    ---------------
+    figure: matplotlib.pyplot.Figure
+        can be embedded into a GUI window or shown with matplotlib.pylot.show
+    
+    '''
     fig, ax = plt.subplots(figsize=(10, 6))
     y_positions = {}
     current_y = 0  # Starting position

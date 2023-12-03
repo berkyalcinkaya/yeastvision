@@ -37,15 +37,15 @@ with open("README.md", "r") as fh:
 packages = ["yeastvision","yeastvision.data",  "yeastvision.plot", "yeastvision.track", 
 "yeastvision.models", "yeastvision.ims", "yeastvision.ims.rife_model",
             "yeastvision.ims.rife_model.pytorch_msssim", "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
-            "yeastvision.models.artilife", "yeastvision.models.artilife.budSeg", "yeastvision.models.artiBud",
+            "yeastvision.models.proSeg", "yeastvision.models.budSeg", "yeastvision.models.budSeg",
             "yeastvision.models.matSeg", "yeastvision.models.tetradSeg", "yeastvision.models.budNET", 
             "yeastvision.models.vacNET", "yeastvision.models.YeaZ"]
 
 
 setup(
     name = "yeastvision",
-    version = "0.1.22",
-    description = "Deep learning-enabled image analysis of the yeast full life cycle",
+    version = "0.1.25",
+    description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
     long_description=long_description,

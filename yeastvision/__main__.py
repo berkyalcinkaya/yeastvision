@@ -42,7 +42,7 @@ from cellpose.metrics import average_precision
 from tqdm import tqdm
 from memory_profiler import profile
 from functools import partial
-from yeastvision.models.artilife.model import ArtilifeFullLifeCycle
+from yeastvision.models.proSeg.model import ArtilifeFullLifeCycle
 from yeastvision.data.ims import Experiment, ChannelNoDirectory, InterpolatedChannel
 torch.cuda.empty_cache() 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -1304,6 +1304,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 return
             else:
                 self.loadExperiment(files[0])
+        else:
+            self.showError("Please drop a directory containing images. Single image files are not accpeted")
     
     def userSelectExperiment(self):
         dir = QFileDialog.getExistingDirectory(self, "Choose Experiment Directory")
@@ -1318,7 +1320,14 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             return
         self.experiment_index+=1
-        new_experiment = Experiment(file, num_channels=num_channels)
+        
+        try:
+            new_experiment = Experiment(file, num_channels=num_channels)
+        except:
+            self.showError(f"Error laoding {file} as an experiment: directories must cannot contain only masks.")
+            self.experiment_index-=1
+            return
+        
         self.experiments.append(new_experiment)
         self.experimentSelect.addItem(new_experiment.name)
         self.experimentSelect.setCurrentIndex(self.experiment_index)
@@ -1911,7 +1920,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(self.modelNames)==0:
             self.showError("Weights Have Not Been Downloaded. Find the weights at https://drive.google.com/file/d/1J3R4JKILkQNM0Ap-MKxqv61oAxObSjBo/view?usp=drive_link. Then run install-weights in the same directory as the downloaded zip file.")
 
-    def getModelWeights(self, name = "artilife"):
+    def getModelWeights(self, name = "proSeg"):
         weights = []
         dirs = [dir for dir in glob.glob(join(MODEL_DIR,"*")) if (os.path.isdir(dir) and "__" not in dir)]
         for dir in dirs:
@@ -1943,11 +1952,10 @@ class MainWindow(QtWidgets.QMainWindow):
                         templates.append(template)
                     outputTup = (templates[0], templates[1])
                     self.loadMasks(outputTup, exp_idx=exp_idx, name = f"{imName}_{labelName}")
-            if params["Time Series"]:
-                if params["Mating Cells"]:
-                    mating_idx = self.maskZ -1
-                    cell_idx = self.maskZ
-                    self.getMatingLineages(cell_idx, mating_idx)
+            if params["Mating Cells"]:
+                mating_idx = self.maskZ -1
+                cell_idx = self.maskZ
+                self.getMatingLineages(cell_idx, mating_idx)
 
                 idx = self.maskZ - counter
                 self.updateCellData(idx = idx)
@@ -2123,7 +2131,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 "t":self.tIndex}
 
     def interpolateButtonClicked(self):
-        if self.label().max_t() == 0:
+        if self.channel().max_t() == 0:
             self.showError("Error: More than one frame must be present to interpolate")
 
         dlg = GeneralParamDialog({"2x":False, "4x": False, "8x": False, "16x": False}, [bool,bool,bool,bool], "choose interpolation level", self)

@@ -12,7 +12,7 @@ from yeastvision.track.data import LineageData, TimeSeriesData
 
 class Experiment():
 
-    def __init__(self, dir, num_channels = 1, v = True):
+    def __init__(self, dir, num_channels = 1, v = False):
         self.dir = dir
         _, self.name = os.path.split(self.dir)
         self.num_channels = num_channels
@@ -25,6 +25,7 @@ class Experiment():
             print("Loading experiment from", self.dir, "with", num_channels, "channels")
 
         im_npzs, mask_npzs = get_im_mask_npzs(self.dir)
+        
         if v:
             print("Found", len(im_npzs), "image .npz files")
             print(im_npzs)
@@ -136,8 +137,12 @@ class Experiment():
         channels = [[] for i in range(num_channels)]
         
         files_image_only = sorted(get_image_files(self.dir, remove_masks=True))
+        
+        if len(files_image_only) == 0:
+            print("DIRECTORY WITH ONLY MASKS DETECTED")
+            raise FileNotFoundError
+        
         files = sorted(get_image_files(self.dir))
-
         if v:
             print("Found the following image files (anything with _mask remove):")
             print(files_image_only)
