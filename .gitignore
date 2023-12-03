@@ -14,7 +14,7 @@ yeastvision.egg-info/
 /yeastvision/models/budNET/budNET.h5
 /yeastvision/models/matSeg/matSeg
 /yeastvision/models/tetradSeg/tetradSeg
-/yeastvision/models/artilife/budSeg/budSeg
+/yeastvision/models/budSeg/budSeg
 /yeastvision/models/vacNET/vacNET.h5
 /yeastvision/models/YeaZ/YeaZ_brightfield.hdf5
 /yeastvision/models/YeaZ/YeaZ_phasecontrast.hdf5
