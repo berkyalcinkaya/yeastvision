@@ -1,4 +1,5 @@
 #https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html
+from matplotlib import contour
 import torch
 import numpy as np
 from time import process_time
@@ -463,7 +464,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelectLabel.setStyleSheet(self.labelstyle)
         self.channelSelectLabel.setFont(self.smallfont)
         self.l.addWidget(self.channelSelectLabel, 0, self.mainViewCols-7,1,1)
-        self.channelSelect = QComboBox()
+        self.channelSelect = CustomComboBox(self.channelDelete, parent = self)
         self.channelSelect.setStyleSheet(self.dropdowns)
         self.channelSelect.setFont(self.medfont)
         self.channelSelect.currentIndexChanged.connect(self.channelSelectIndexChange)
@@ -483,7 +484,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.labelSelectLabel.setStyleSheet(self.labelstyle)
         self.labelSelectLabel.setFont(self.smallfont)
         self.l.addWidget(self.labelSelectLabel, 0, self.mainViewCols-4,1,1)
-        self.labelSelect = QComboBox()
+        self.labelSelect = CustomComboBox(self.labelDelete, parent = self)
         self.labelSelect.setStyleSheet(self.dropdowns)
         self.labelSelect.setFont(self.medfont)
         self.labelSelect.currentIndexChanged.connect(self.labelSelectIndexChange)
@@ -754,6 +755,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lineageButton.setEnabled(True)
         self.lineageButton.setStyleSheet(self.styleUnpressed)
     
+
+
+    def disableMaskOperations(self):
+        self.contourButton.setEnabled(False)
+        self.labelSelect.setEnabled(False)
+        self.trackButton.setEnabled(False)
+        self.trackObjButton.setEnabled(False)
+        self.trackButton.setStyleSheet(self.styleInactive)
+        self.trackObjButton.setStyleSheet(self.styleInactive)
+        self.cellNumButton.setEnabled(False)
+        self.maskOnCheck.setEnabled(False)
+        self.maskOnCheck.setChecked(False)
+        self.probOnCheck.setEnabled(False)
+        self.lineageButton.setEnabled(False)
+        self.lineageButton.setStyleSheet(self.styleInactive)
+    
+
+
     def enableImageOperations(self):
         self.brushSelect.setEnabled(True)
         self.brushTypeSelect.setEnabled(True)
@@ -781,7 +800,55 @@ class MainWindow(QtWidgets.QMainWindow):
         self.getModelNames()
         self.modelChoose.clear()
         self.modelChoose.addItems(sorted(self.modelNames))
-
+    
+    def channelDelete(self, index):
+        num_channels = self.experiment().num_channels
+        channel_to_remove = self.experiment().channels[index]
+        message = f'''Are you sure you want to remove channel {channel_to_remove.name}'''
+        if num_channels == 1:
+            if self.experiment().has_labels():
+                message = f'''Removing the last set of images will result 
+                            in an empty display with all masks removed as 
+                            well. Are you sure you want to remove channel 
+                            {channel_to_remove.name}'''
+        
+            
+            if self.doYesOrNoDialog("Confirmation", message):
+                self.setEmptyDisplay()
+            return False
+        else:
+            if self.doYesOrNoDialog("Confirmation", message):
+                self.experiment().delete_channel(index)
+                if index == num_channels - 1:
+                    self.imZ -= 1
+                self.updateDisplay()
+                return True
+            else:
+                return False
+        
+    def labelDelete(self, index):
+        num_labels = self.experiment().num_labels
+        label_to_remove = self.experiment().labels[index]
+        message = f'''Are you sure you want to remove label {label_to_remove.name}'''
+        if num_labels == 1:
+            if self.doYesOrNoDialog("Confirmation", message):
+                self.setEmptyMasks()
+                self.disableMaskOperations()
+            return False
+        else:
+            if self.doYesOrNoDialog("Confirmation", message):
+                self.experiment().delete_label(index)
+                if index == num_labels - 1:
+                    self.imZ -= 1
+                self.updateDisplay()
+                return True
+            else:
+                return False
+            
+        
+    def doYesOrNoDialog(self, title, message):
+        reply = QMessageBox.question(self, "Confirmation", message, QMessageBox.Yes | QMessageBox.No)
+        return reply == QMessageBox.Yes
 
     def channelSelectEdit(self, text):
         curr_text = self.channelSelect.currentText()
@@ -1935,7 +2002,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return weights
 
 
-    def segment(self, output, modelClass, ims, params, weightPath, modelType, exp_idx):
+    def segment(self, output, modelClass, ims, params, weightPath, modelType, exp_idx, mask_i):
         #check_gpu()
         tStart, tStop = int(params["T Start"]), int(params["T Stop"])
         imName = params["Channel"]
@@ -1961,19 +2028,71 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.updateCellData(idx = idx)
 
         else:
+            do_insert = mask_i is not None 
+            if do_insert and not self.check_valid_insert(exp_idx, mask_i, ims.shape):
+                self.showError("Masks must have same dimension along x and y to perform insertion. Loading generated masks as seperate mask channel")
+                do_insert = False
+
             templates = []
             for i in [0,1]:
                 template = np.zeros_like(ims, dtype = output[i].dtype)
                 template[tStart:tStop+1] = output[i]
                 templates.append(template)
             outputTup = (templates[0], templates[1])
-            self.loadMasks(outputTup, exp_idx=exp_idx, name = f"{imName}_{modelType}_{tStart}-{tStop}")
+
+            if do_insert:
+                self.do_segment_insert(exp_idx, mask_i, outputTup, tStart, tStop)
+            else:
+                self.loadMasks(outputTup, exp_idx=exp_idx, name = f"{imName}_{modelType}_{tStart}-{tStop}")
         
         torch.cuda.empty_cache()
         del modelClass
         del output
+
         #check_gpu()
+    
+    def check_valid_insert(self, exp_idx, mask_idx, ims_shape):
+        exp = self.experiments[exp_idx]
+        mask_template = exp.get_label("labels", idx = mask_idx)
+        return mask_template.shape[-1] == ims_shape[-1] and mask_template.shape[-2] == ims_shape[-2]
+
+    def extend_array_length(self, arr, new_length, dtype = np.uint16):
+        old_length  =len(arr)
+        r,c = arr.shape[1:]
+        zeroes = np.zeros((new_length,r,c), dtype = np.uint16)
+        zeroes[:old_length]=arr
+        del arr
+        return zeroes
+
+    def do_segment_insert(self, exp_idx, mask_idx, data_tup, tStart, tStop):
+        masks, probability = data_tup
+        contours = np.array([get_mask_contour(mask) for mask in masks])
+        exp = self.experiments[exp_idx]
+        mask_template = exp.get_label("labels", idx = mask_idx)
+        contour_template = exp.get_label("contours", idx = mask_idx)
+        if len(mask_template)<len(masks):
+            mask_template = self.extend_array_length(mask_template, len(masks), dtype = np.uint16)
+            contour_template = self.extend_array_length(contour_template, len(contours), dtype = np.uint16)
+        for i in range(tStart,tStop+1):
+            mask_template[i] = masks[i]
+            contour_template[i] = contours[i]
+        del masks
+        del contours
+
+        if exp.labels[mask_idx].has_probability:
+            prob_template = exp.get_label("probability", idx = mask_idx)
+            if len(prob_template) < len(probability):
+                prob_template = self.extend_array_length(prob_template, len(probability), dtype = np.float32)
+            for i in range(tStart,tStop+1):
+                prob_template[i] = probability[i]
+            del probability
+        else:
+            prob_template = probability
         
+        self.experiments[exp_idx].labels[mask_idx].set_data(mask_template, contour_template, prob_template)
+        self.updateDisplay()
+
+
     def evaluate(self):
         if not self.maskLoaded:
             return
@@ -2074,7 +2193,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showTimedPopup(f"{name} HAS BEEN ADDED TO CHANNELS OF EXPERIMENT {self.experiments[self.experiment_index].name} ")
         self.checkInterpolation()
         
-
+    def checkDoInsert(self, params):
+        for param in params:
+            if "insert into" in param:
+                return params[param]
 
     def computeModels(self):
         #check_gpu()
@@ -2094,10 +2216,18 @@ class MainWindow(QtWidgets.QMainWindow):
         
         if dlg.exec():
             params = dlg.getData()
+            do_insert = self.checkDoInsert(params)
+        
+            if do_insert:
+                mask_template_i = self.maskZ
+            else:
+                mask_template_i = None
+
             channel = params["Channel"]
             channelIndex = self.channelSelect.findText(channel)
             ims = self.experiment().get_channel(idx = channelIndex)
-            worker = SegmentWorker(modelClass,ims, params, self.experiment_index, weightPath, modelType)
+            worker = SegmentWorker(modelClass,ims, params, self.experiment_index, 
+                                   weightPath, modelType, mask_template_i =  mask_template_i)
             self.runLongTask(worker, 
                              self.segment,
                              self.modelButton)
@@ -2165,7 +2295,6 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         interp_bool = self.channel().interp_annotations
-        print(interp_bool)
         masks = self.getCurrMaskSet()
         contours = self.getCurrContourSet()
         newMasks = [mask for i, mask in enumerate(masks) if interp_bool[i]]

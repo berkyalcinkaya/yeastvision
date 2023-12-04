@@ -246,6 +246,10 @@ class GeneralParamDialog(QDialog):
 
 class ModelParamDialog(GeneralParamDialog):
     def __init__(self, hyperparamDict, paramtypes, modelName, parent = None):
+        if parent.experiment().has_labels() and modelName != "artilife":
+            curr_label = parent.label().name
+            hyperparamDict[f"insert into {curr_label}"] = False
+            paramtypes.append(bool)
         super().__init__(hyperparamDict, paramtypes, modelName, parent)
 
     def populateFormLayout(self):
@@ -317,6 +321,7 @@ class ModelParamDialog(GeneralParamDialog):
         timeSelectStop.setToolTip("Stop Time Point (Inclusive)")
         hbox.addWidget(timeSelectStart)
         hbox.addWidget(timeSelectStop)
+
         self.dropDownData["T Start"] = timeSelectStart
         self.dropDownData["T Stop"] = timeSelectStop
         self.formLayout.addRow(QLabel("Time Start/Stop"), hbox)

@@ -43,8 +43,8 @@ import torch
 
 class SegmentWorker(QtCore.QObject):
     '''Handles Multithreading'''
-    finished = QtCore.pyqtSignal(object, object, object, object, object, object, object)
-    def __init__(self, modelClass,ims, params, exp_idx, weightPath, modelType):
+    finished = QtCore.pyqtSignal(object, object, object, object, object, object, object, object)
+    def __init__(self, modelClass,ims, params, exp_idx, weightPath, modelType, mask_template_i = None):
         super(SegmentWorker,self).__init__()
         self.mc = modelClass
         self.ims = ims
@@ -52,6 +52,7 @@ class SegmentWorker(QtCore.QObject):
         self.weight = weightPath
         self.mType = modelType
         self.exp_idx = exp_idx
+        self.mask_i = mask_template_i
 
     def run(self):
         row, col = self.ims[0].shape
@@ -60,7 +61,7 @@ class SegmentWorker(QtCore.QObject):
 
         with torch.no_grad():
             output = self.mc.run(self.ims[tStart:tStop+1],self.params, self.weight)
-        self.finished.emit(output, self.mc,newImTemplate, self.params, self.weight, self.mType, self.exp_idx)
+        self.finished.emit(output, self.mc,newImTemplate, self.params, self.weight, self.mType, self.exp_idx, self.mask_i)
 
 class TrackWorker(QtCore.QObject):
     finished = QtCore.pyqtSignal(object, object, object)

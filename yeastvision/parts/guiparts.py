@@ -1,8 +1,75 @@
 from PyQt5 import QtGui, QtCore
-from PyQt5.QtGui import QPainter
-from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame,
+from PyQt5.QtGui import QPainter, QIcon, QPixmap
+from PyQt5.QtWidgets import (QMessageBox, QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame,
                             QStyledItemDelegate, QListView)
 from PyQt5.QtCore import Qt, QRect
+
+
+
+class RemoveItemDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super(RemoveItemDelegate, self).__init__(parent)
+
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+        
+        close_icon =  self.parent().style().standardIcon(QStyle.SP_DockWidgetCloseButton)
+        #close_icon = self.get_close_icon()
+        rect = self.get_close_button_rect(option.rect)
+        close_icon.paint(painter, rect)
+
+    def get_close_icon(self):
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(Qt.red)
+        painter.drawEllipse(0, 0, 16, 16)
+        painter.setPen(Qt.white)
+        painter.drawLine(4, 4, 12, 12)
+        painter.drawLine(4, 12, 12, 4)
+        painter.end()
+        close_icon = QIcon(pixmap)
+        return close_icon
+
+
+    def get_close_button_rect(self, item_rect):
+        icon_size = 16
+        return QRect(item_rect.right() - icon_size - 5, item_rect.center().y() - icon_size // 2, icon_size, icon_size)
+
+
+
+
+class CustomListView(QListView):
+    def __init__(self, combo, delete_method, parent=None):
+        super(CustomListView, self).__init__(parent)
+        self._combo = combo
+        self._delete_method = delete_method
+
+    def mousePressEvent(self, event):
+        combo = self._combo
+        delegate = combo.itemDelegate()
+        index_under_mouse = self.indexAt(event.pos())
+        print(index_under_mouse.row())
+
+        if isinstance(delegate, RemoveItemDelegate) and delegate.get_close_button_rect(self.visualRect(index_under_mouse)).contains(event.pos()):
+            if self._delete_method(int(index_under_mouse.row())):
+                combo.removeItem(index_under_mouse.row())
+        else:
+            super().mousePressEvent(event)
+
+
+
+class CustomComboBox(QComboBox):
+    def __init__(self, delete_method, parent=None):
+        super(CustomComboBox, self).__init__(parent)
+        self.setView(CustomListView(self, delete_method))
+        self.setItemDelegate(RemoveItemDelegate(self))
+
+    def addNewItem(self, name):
+        self.addItem(name)
+
+
 
 
 class QHLine(QFrame):
@@ -12,11 +79,15 @@ class QHLine(QFrame):
         self.setFrameShadow(QFrame.Sunken)
 
 
+
+
 class QVLine(QFrame):
     def __init__(self):
         super(QVLine, self).__init__()
         self.setFrameShape(QFrame.VLine)
         self.setFrameShadow(QFrame.Sunken)
+
+
 
 
 class ReadOnlyCheckBox(QCheckBox):
@@ -25,6 +96,8 @@ class ReadOnlyCheckBox(QCheckBox):
     
     def mousePressEvent(self, event):
         event.ignore()
+
+
 
 
 class MaskTypeButtons():

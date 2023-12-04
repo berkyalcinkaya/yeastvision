@@ -86,7 +86,7 @@ class Experiment():
     
     def get_label(self, mask_type, name = None, idx = None, t = None):
         if not self.has_labels():
-            return self.get_dummy_labels(full = t == None)
+            return self.get_dummy_labels(full = t is None)
         else:
             if mask_type!= self.mask_type:
                 self.set_mask_type(mask_type)
@@ -215,6 +215,14 @@ class Experiment():
 
         if increment_count:
             self.num_channels+=1
+    
+    def delete_channel(self, index):
+        self.num_channels -= 1
+        del self.channels[index]
+    
+    def delete_label(self, index):
+        self.num_labels -= 1
+        del self.labels[index]
 
     def add_label(self, files = None, arrays = None, increment_count = True, name = None, update_data = False):
         new_label = Label(fnames = files, mask_arrays=arrays, dir = self.dir, name = self.get_label_name(name = name))
@@ -610,10 +618,13 @@ class Label(Files):
         def save(self):
             self.write_to_npz()
         
-        def set_data(self, labels, contours):
-            print("setting data")
+        def set_data(self, labels, contours, probability = None):
             self.labels = labels
             self.contours = contours
+            if probability is not None:
+                self.has_probability = True
+                self.probability = self.probability
+            self.get_properties()
             self.save()
             self.unload_data_attrs()
             self.load()
