@@ -156,6 +156,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.newInterpolation = False
 
         self.numObjs = 0
+        self.deleting = False
 
         self.win.show()
     
@@ -261,8 +262,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bigTStep = 3
         self.maxT = 0
         self.tChanged = False
+
         self.experiments = []
         self.experiment_index = -1
+        
         if not initial:
             self.emptying = True
             self.experimentSelect.clear()
@@ -273,6 +276,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not initial:
             self.updateDataDisplay()
             self.emptying = False
+            self.enableImageOperations()
         
         self.saveData()
     
@@ -293,6 +297,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.channelSelect.clear()
             self.brushTypeSelect.setEnabled(False)
             self.brushTypeSelect.setCurrentIndex(-1)
+            self.disableImageOperations()
 
     def setEmptyMasks(self, initial = False):
         self.firstMaskLoad = True
@@ -318,6 +323,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.probOnCheck.setChecked(False)
             self.contourButton.setChecked(False)
             self.cellNumButton.setChecked(False)
+            self.disableMaskOperations()
 
     def getCurrTimeStr(self):
         now = datetime.now()
@@ -349,7 +355,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.showError("Load Images First")
             return
         blankMasks = np.zeros_like(self.getCurrImSet())
-        self.loadMasks(blankMasks, name = "Blank")
+        self.loadMasks(blankMasks, name = self.getNewLabelName("blank"))
 
     def make_viewbox(self):
         self.view = ViewBoxNoRightDrag(
@@ -464,7 +470,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelectLabel.setStyleSheet(self.labelstyle)
         self.channelSelectLabel.setFont(self.smallfont)
         self.l.addWidget(self.channelSelectLabel, 0, self.mainViewCols-7,1,1)
-        self.channelSelect = CustomComboBox(self.channelDelete, parent = self)
+        self.channelSelect = CustomComboBox(lambda x: self.deleteData(x, channel = True), parent = self)
         self.channelSelect.setStyleSheet(self.dropdowns)
         self.channelSelect.setFont(self.medfont)
         self.channelSelect.currentIndexChanged.connect(self.channelSelectIndexChange)
@@ -484,7 +490,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.labelSelectLabel.setStyleSheet(self.labelstyle)
         self.labelSelectLabel.setFont(self.smallfont)
         self.l.addWidget(self.labelSelectLabel, 0, self.mainViewCols-4,1,1)
-        self.labelSelect = CustomComboBox(self.labelDelete, parent = self)
+        self.labelSelect = CustomComboBox(lambda x: self.deleteData(x, label = True), parent = self)
         self.labelSelect.setStyleSheet(self.dropdowns)
         self.labelSelect.setFont(self.medfont)
         self.labelSelect.currentIndexChanged.connect(self.labelSelectIndexChange)
@@ -742,6 +748,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cpuCoreDisplay.setText(f"{threadCount}/{self.idealThreadCount} cores |")
 
     def enableMaskOperations(self):
+        self.brushSelect.setEnabled(True)
+        self.brushTypeSelect.setEnabled(True)
         self.contourButton.setEnabled(True)
         self.labelSelect.setEnabled(True)
         self.trackButton.setEnabled(True)
@@ -758,6 +766,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def disableMaskOperations(self):
+        self.brushSelect.setEnabled(False)
+        self.brushTypeSelect.setEnabled(False)
         self.contourButton.setEnabled(False)
         self.labelSelect.setEnabled(False)
         self.trackButton.setEnabled(False)
@@ -774,8 +784,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def enableImageOperations(self):
-        self.brushSelect.setEnabled(True)
-        self.brushTypeSelect.setEnabled(True)
         #self.saturationSlider.setEnabled(True)
         #self.autoSaturationButton.setEnabled(True)
         #self.autoSaturationButton.setStyleSheet(self.styleUnpressed)
@@ -785,6 +793,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.artiButton.setStyleSheet(self.styleUnpressed)
         self.channelSelect.setEnabled(True)
         self.checkInterpolation()
+    
+    def disableImageOperations(self):
+        self.brushSelect.setEnabled(False)
+        self.brushTypeSelect.setEnabled(False)
+        #self.saturationSlider.setEnabled(True)
+        #self.autoSaturationButton.setEnabled(True)
+        #self.autoSaturationButton.setStyleSheet(self.styleUnpressed)
+        self.modelButton.setEnabled(False)
+        self.modelButton.setStyleSheet(self.styleInactive)
+        self.artiButton.setEnabled(True)
+        self.artiButton.setStyleSheet(self.styleInactive)
+        self.channelSelect.setEnabled(False)
+
     
     def toggleDrawing(self,b):
         if b:
@@ -800,7 +821,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.getModelNames()
         self.modelChoose.clear()
         self.modelChoose.addItems(sorted(self.modelNames))
+
     
+    def deleteData(self, idx, channel = False, label = False):
+        self.deleting = True
+        val = None
+        if channel:
+            val =  self.channelDelete(idx)
+        elif label:
+            val = self.labelDelete(idx)
+        self.deleting = False
+        return val
+
+
     def channelDelete(self, index):
         num_channels = self.experiment().num_channels
         channel_to_remove = self.experiment().channels[index]
@@ -812,13 +845,14 @@ class MainWindow(QtWidgets.QMainWindow):
                             well. Are you sure you want to remove channel 
                             {channel_to_remove.name}'''
         
-            
             if self.doYesOrNoDialog("Confirmation", message):
+                self.experiment().delete_channel(index)
                 self.setEmptyDisplay()
             return False
         else:
             if self.doYesOrNoDialog("Confirmation", message):
                 self.experiment().delete_channel(index)
+                self.setDataSelects()
                 if index == num_channels - 1:
                     self.imZ -= 1
                 self.updateDisplay()
@@ -832,12 +866,15 @@ class MainWindow(QtWidgets.QMainWindow):
         message = f'''Are you sure you want to remove label {label_to_remove.name}'''
         if num_labels == 1:
             if self.doYesOrNoDialog("Confirmation", message):
+                self.experiment().delete_label(index)
+                self.setDataSelects()
                 self.setEmptyMasks()
                 self.disableMaskOperations()
             return False
         else:
             if self.doYesOrNoDialog("Confirmation", message):
                 self.experiment().delete_label(index)
+                self.setDataSelects()
                 if index == num_labels - 1:
                     self.imZ -= 1
                 self.updateDisplay()
@@ -851,16 +888,18 @@ class MainWindow(QtWidgets.QMainWindow):
         return reply == QMessageBox.Yes
 
     def channelSelectEdit(self, text):
-        curr_text = self.channelSelect.currentText()
-        idx = self.channelSelect.currentIndex()
-        if not self.emptying:
-            if isinstance(self.experiment().channels[idx], InterpolatedChannel) and InterpolatedChannel.text_id not in text:
-                if not self.newInterpolation:
-                    self.showError(f"Removal of the {InterpolatedChannel.text_id} text id from the name of this channel will disable certain features upon reloading")
-            if self.experiment().new_channel_name(idx, text):
-                self.channelSelect.setItemText(idx, str(text))
-        else:
-            self.channelSelect.setItemText(idx, "")
+        print("channel select edit")
+        if not self.deleting:
+            curr_text = self.channelSelect.currentText()
+            idx = self.channelSelect.currentIndex()
+            if not self.emptying:
+                if isinstance(self.experiment().channels[idx], InterpolatedChannel) and InterpolatedChannel.text_id not in text:
+                    if not self.newInterpolation:
+                        self.showError(f"Removal of the {InterpolatedChannel.text_id} text id from the name of this channel will disable certain features upon reloading")
+                if self.experiment().new_channel_name(idx, text):
+                    self.channelSelect.setItemText(idx, str(text))
+            else:
+                self.channelSelect.setItemText(idx, "")
 
 
     def channelSelectIndexChange(self,index):
@@ -876,7 +915,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setCurrentIndex(index)
 
     def labelSelectEdit(self, text):
-        if self.emptying:
+        if self.emptying or self.deleting:
             return
         idx = self.labelSelect.currentIndex()
         text = str(text)
@@ -1412,6 +1451,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def setDataSelects(self):
         self.clearDataSelects()
+        print(self.experiment().get_channel_names())
         self.channelSelect.addItems(self.experiment().get_channel_names())
         if self.experiment().has_labels():
             self.labelSelect.addItems(self.experiment().get_label_names())
@@ -2090,6 +2130,8 @@ class MainWindow(QtWidgets.QMainWindow):
             prob_template = probability
         
         self.experiments[exp_idx].labels[mask_idx].set_data(mask_template, contour_template, prob_template)
+        name = self.experiments[exp_idx].labels[mask_idx].name
+        self.showTimedPopup(f"{name} HAS BEEN UPDATED ")
         self.updateDisplay()
 
 

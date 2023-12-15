@@ -44,7 +44,7 @@ packages = ["yeastvision","yeastvision.data",  "yeastvision.plot", "yeastvision.
 
 setup(
     name = "yeastvision",
-    version = "0.1.25",
+    version = "0.1.26",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
@@ -54,6 +54,12 @@ setup(
     license = "BSD",
     packages = packages,
     install_requires = requires,
+    include_package_data=True,
+    classifiers=(
+        "Programming Language :: Python :: 3.10",
+        "License :: OSI Approved :: BSD License",
+        "Operating System :: OS Independent",
+    ),
     entry_points = {
         'console_scripts': [
           'yeastvision = yeastvision.__main__:main',

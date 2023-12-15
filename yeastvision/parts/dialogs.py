@@ -218,6 +218,7 @@ class GeneralParamDialog(QDialog):
             spinBox = QDoubleSpinBox(self)
             spinBox.setValue(float(defaultVal))
             spinBox.setMinimum(-1.0)
+            spinBox.setMaximum(1000.0)
             spinBox.setSingleStep(0.1)
             self.spinBoxData[boxName] = spinBox
             self.formLayout.addRow(self.produceLabel(boxName), spinBox)
@@ -296,6 +297,7 @@ class ModelParamDialog(GeneralParamDialog):
             spinBox = QDoubleSpinBox(self)
             spinBox.setMinimum(-1.0)
             spinBox.setSingleStep(0.1)
+            spinBox.setMaximum(1000.0)
             spinBox.setValue(float(defaultVal))
             self.spinBoxData[boxName] = spinBox
             self.formLayout.addRow(self.produceLabel(boxName), spinBox)
@@ -551,6 +553,7 @@ class ArtilifeParamDialog(ModelParamDialog):
             self.formLayout.addRow(self.produceLabel(boxName), spinBox)
         for boxName, defaultVal in self.dSpinBoxes.items():
             spinBox = QDoubleSpinBox(self)
+            spinBox.setMaximum(1000.0)
             spinBox.setValue(float(defaultVal))
             self.spinBoxData[boxName] = spinBox
             self.formLayout.addRow(self.produceLabel(boxName), spinBox)

@@ -189,7 +189,6 @@ class Experiment():
         for channel in channels:
             self.add_channel(channel, increment_count=False)
         for npz_path in tqdm(mask_npzs):
-            print(npz_path)
             self.labels.append(Label(npz_path=npz_path))
             self.num_labels+=1
 
@@ -218,10 +217,12 @@ class Experiment():
     
     def delete_channel(self, index):
         self.num_channels -= 1
+        self.channels[index].save()
         del self.channels[index]
     
     def delete_label(self, index):
         self.num_labels -= 1
+        self.labels[index].save()
         del self.labels[index]
 
     def add_label(self, files = None, arrays = None, increment_count = True, name = None, update_data = False):
@@ -341,6 +342,9 @@ class Files():
 
     def get_file_names(self):
         return [get_file_name(file) for file in self.files]
+
+    def save(self):
+        pass
 
 
 class Channel(Files):

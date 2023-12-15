@@ -77,28 +77,31 @@ class CustomCPWrapper(CustomModel):
 
     def __init__(self, params, weights):
         super().__init__(params, weights)
+        print(params)
 
         self.mean_diam = self.params["mean_diameter"]
         self.do_size_estimation = self.mean_diam == -1
         self.no_diam = self.mean_diam == 0
-        self.use_size_model = not self.no_diam
+        self.use_size_model = self.do_size_estimation
 
         if self.use_size_model:
             if self.do_size_estimation:
                 self.mean_diam = None
-            self.model  = CellposeAllowPreTrainedModel(gpu=True, model_type="cyto", pretrained_model=self.weights)
+            self.model  = CellposeAllowPreTrainedModel(gpu=True, pretrained_model=self.weights)
         else:
-            self.model = CellposeModel(gpu=True, pretrained_model=self.weights, model_type="cyto")
-            self.model.cp = self.model # for consistency when calling train method
-        
-        self.eval_params = self.make_eval_arg_dict(params)
+            self.model = CellposeModel(gpu=True, pretrained_model=self.weights)
+            if self.no_diam:
+                self.mean_diam = self.model.diam_labels
     
-    def make_eval_arg_dict(self, params):
-        return {"diameter":self.mean_diam,
+    def eval_params(self, params):
+        a = {"diameter":self.mean_diam,
                 "channels": [0,0],
                 "cellprob_threshold": params["cell_probability_threshold"],
                 "flow_threshold": params["flow_threshold"],
-                "do_3D": False}
+                "do_3D": False,
+                "min_size":-1}
+        print(a)
+        return a
     
     def process_probability(self, rawProb):
         return (np.clip(normalize99(rawProb.copy()), 0, 1) * 255).astype(np.uint8)
@@ -116,15 +119,16 @@ class CustomCPWrapper(CustomModel):
                                         model_name = params["model_name"])
     def get_masks_and_flows(self, ims):
         if self.use_size_model:
-            masks, flows, _, _ = self.model.eval(ims, **self.eval_params)
+            masks, flows, _, _ = self.model.eval(ims, **self.eval_params(self.params))
         else:
-            masks, flows, _ = self.model.eval(ims, **self.eval_params)
+            masks, flows, _ = self.model.eval(ims, **self.eval_params(self.params))
         return masks,flows
 
     @classmethod
     @torch.no_grad()
     def run(cls, ims, params, weights):
         params = params if params else cls.hyperparams
+        print(params)
         model = cls(params, weights)
         ims3D = [cv2.merge((im,im,im)) for im in ims]
         masks, flows = model.get_masks_and_flows(ims3D)

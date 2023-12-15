@@ -1,12 +1,33 @@
 # <p>  <b>YeastVision </b> </p>
-A GUI-based framework for segmentation, tracking, time series and full lifecycle analysis of Saccharomyces cerevisiae. 
 
-**Key Features:**
-- quickly load/generate and analyze multiple channels, masks, and experiments in the same window
-- retrainable cytoplasm, budneck, vacuole, mating, and tetrad segmentation
-- video interpolation algorithm (citation needed) to increase timeseries resolution up to 16x
-- fast, yeast-specific tracking and lineage construction, applicable mating and sporulating cells
-- built-in single-cell and population plotting from GUI-acquired cell data
+
+[![PyPI version](https://badge.fury.io/py/yeastvision.svg)](https://badge.fury.io/py/yeastvision)
+[![Downloads](https://pepy.tech/badge/yeastvision)](https://pepy.tech/project/yeastvision)
+[![Downloads](https://pepy.tech/badge/yeastvision/month)](https://pepy.tech/project/yeastvision)
+[![Python version](https://img.shields.io/pypi/pyversions/yeastvision)](https://pypistats.org/packages/yeastvision)
+[![License: GPL v3](https://img.shields.io/github/license/berkyalcinkaya/yeastvision)](https://github.com/berkyalcinkaya/yeastvision/blob/main/LICENSE)
+[![Contributors](https://img.shields.io/github/contributors-anon/berkyalcinkaya/yeastvision)](https://github.com/berkyalcinkaya/yeastvision/graphs/contributors)
+[![repo size](https://img.shields.io/github/repo-size/berkyalcinkaya/yeastvision)](https://github.com/berkyalcinkaya/yeastvision/)
+[![GitHub stars](https://img.shields.io/github/stars/berkyalcinkaya/yeastvision?style=social)](https://github.com/berkyalcinkaya/yeastvision/)
+[![GitHub forks](https://img.shields.io/github/forks/berkyalcinkaya/yeastvision?style=social)](https://github.com/berkyalcinkaya/yeastvision/)
+
+
+A GUI-based framework for segmentation, tracking, time-series analysis of the full Saccharomyces cerevisiae lifecycle.    
+
+<img src="yeastvision/docs/figs/lifecycle_general.png" title="Saccharomyces cerevisiae full lifecycle">
+<em>Yeastvision can identify and track a single cell throughout all of the stages above</em>
+
+<br/>
+
+<img src="yeastvision/docs/figs/gui.png" height = 350 title="yeastvision GUI window" align=right>
+
+### Key Features
+
+- A [generative video interpolation model](#timeseries-analysis-interpolation-tracking-and-plotting) to increase time-series resolution up to 16x
+- Load, analyze, and segment [multiple experiments containing numerous phase/flourescent channels](#directory-conventions-ensure-the-gui-can-parse-your-data)
+- [Segment](#segmentation) cytoplasm, vacuoles, buds, mating, and sporulating yeast cells
+- [Track and reconstruct lineages](#timeseries-analysis-interpolation-tracking-and-plotting) of large cell colonies
+- Extract and plot [time-series](#timeseries-analysis-interpolation-tracking-and-plotting) data in the GUI
 
 
 
@@ -16,20 +37,20 @@ A GUI-based framework for segmentation, tracking, time series and full lifecycle
 
 ### System requirements
 
-This package supports Linux, Windows and Mac OS. Mac Os should be later than Yosemite. This system has been heavily tested on Linux and Mac OS machines, and less thoroughly on Windows. 
+This package supports Linux, Windows and Mac OS (versions later than Yosemite). GPU support is available for NVIDIA GPU's. A GPU is recommended, but not required, to run `yeastvision`
  
 ### Instructions 
 
 If you have an older `yeastvision` environment you should remove it with `conda env remove -n yeastvision` before creating a new one. 
 
-Yeastvision is ready to go for cpu-usage as soon as it downloaded. GPU-usage requires some additional steps after download. To download:
+`yeastvision` is ready to go for cpu-usage as soon as it downloaded. GPU-usage requires some additional steps after download. To download:
 
 1. Install an [Anaconda](https://www.anaconda.com/products/distribution) distribution of Python. Note you might need to use an anaconda prompt if you did not add anaconda to the path.
 2. Open an anaconda prompt/command prompt
 3. Create a new environment with `conda create --name yeastvision python=3.10.0`. 
 4. Activate this new environment by running `conda activate yeastvision`
 5. Run `python -m pip install yeastvision` to download our package plus all dependencies
-6. Download the weights [online](https://drive.google.com/file/d/1M4Ke1r04E0r41kBMv1RzO6F_yIVLIVI1/view?usp=sharing). 
+6. Download the weights [online](https://drive.google.com/file/d/1PuI6UIwKyuAUBoRnzjlZWkuT5p6_PX_C/view?usp=sharing). 
 7. Run `install-weights` in the same directory as the *yeastvision_weights.zip* file
 
 
@@ -41,7 +62,7 @@ python -m pip install yeastvision --upgrade
 
 ### Using YeastVision with Nvidia GPU
 
-Again, enusre your yeastvision conda environment is active for the following commands.
+Again, ensure your yeastvision conda environment is active for the following commands.
 
 To use your NVIDIA GPU with python, you will first need to install the NVIDIA driver for your GPU, check out this [website](https://www.nvidia.com/Download/index.aspx?lang=en-us) to download it. Ensure it is downloaded and your GPU is detected by running `nvidia-smi` in the terminal.
 
@@ -119,6 +140,27 @@ Here is an example of an experiment with two time points, two channels, and two 
 
 # GUI Features
 
+## Segmentation
+
+<img src="yeastvision/docs/figs/lifecycle_segmentation.png" title="Saccharomyces cerevisiae full lifecycle">
+<em>Yeastvision contains models and tracking algorithms to analyze all stages of the yeast lifecycle</em>
+
+**Pixel flow-based models**
+
+| Model  | Segments |
+| ------ | -------- |
+| proSeg | proliferating cells (general cytoplasm segmentation) |
+| spoSeg | sporulating cells |
+| matSeg | mating cells
+| budSeg | bud-necks |
+
+**Conventional U-NET models**
+| Model  | Segments |
+| ------ | -------- |
+| budNET | bud-necks (optimized for crowded conditions) |
+| vacNET | vacuoles |
+
+
 ## Model Retraining
 1. Load Training Masks
 2. Select the model to be retrained from the mainscreen model dropdown 
@@ -136,6 +178,13 @@ Here is an example of an experiment with two time points, two channels, and two 
 - Ensure that the fullname of the retrained model is present in the weights filename upon trying to load it via the models menu. This ensures that GUI can associate the weights with the correct model architecture 
 
 ## Timeseries analysis: interpolation, tracking, and plotting
+1) Optional: Interpolate images to increase resolution, generating intermediate frames that improve tracking accuracy
+2) Segment and track the interpolated frame. Tracking automatically generates a cell data table that includes various morphological and image properties of each cell over each frame in the movie. 
+3) Optional: reconstruct proliferating cell lineages
+4) Remove interpolated frames from the mask, so that only frames present in the original movie exist in the final tracked movie
+5) Produce some initial plots of the data using the 'show plot window' button. This will allow you to view single cell and population averages over time.
+
+
 
 
 ## Keyboard Shortcuts
