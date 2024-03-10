@@ -1,5 +1,10 @@
-# <p>  <b>YeastVision </b> </p>
 
+
+# yeastvision 
+
+<img src="yeastvision/docs/figs/logo.png" height="200" align="right" vspace=10 hspace = 0>
+
+### A GUI-based framework for deep-learning enabled segmentation, tracking, time-series analysis of the full Saccharomyces cerevisiae lifecycle 
 
 [![PyPI version](https://badge.fury.io/py/yeastvision.svg)](https://badge.fury.io/py/yeastvision)
 [![Downloads](https://pepy.tech/badge/yeastvision)](https://pepy.tech/project/yeastvision)
@@ -11,11 +16,8 @@
 [![GitHub stars](https://img.shields.io/github/stars/berkyalcinkaya/yeastvision?style=social)](https://github.com/berkyalcinkaya/yeastvision/)
 [![GitHub forks](https://img.shields.io/github/forks/berkyalcinkaya/yeastvision?style=social)](https://github.com/berkyalcinkaya/yeastvision/)
 
-
-A GUI-based framework for segmentation, tracking, time-series analysis of the full Saccharomyces cerevisiae lifecycle.    
-
 <img src="yeastvision/docs/figs/lifecycle_general.png" title="Saccharomyces cerevisiae full lifecycle">
-<em>Yeastvision can identify and track a single cell throughout all of the stages above</em>
+<em>Yeastvision can identify and track a single cell throughout all life cycle stages</em>
 
 <br/>
 
@@ -23,12 +25,11 @@ A GUI-based framework for segmentation, tracking, time-series analysis of the fu
 
 ### Key Features
 
-- A [generative video interpolation model](#timeseries-analysis-interpolation-tracking-and-plotting) to increase time-series resolution up to 16x
-- Load, analyze, and segment [multiple experiments containing numerous phase/flourescent channels](#directory-conventions-ensure-the-gui-can-parse-your-data)
-- [Segment](#segmentation) cytoplasm, vacuoles, buds, mating, and sporulating yeast cells
-- [Track and reconstruct lineages](#timeseries-analysis-interpolation-tracking-and-plotting) of large cell colonies
-- Extract and plot [time-series](#timeseries-analysis-interpolation-tracking-and-plotting) data in the GUI
-
+- Enhance time-series resolution up to 16x using a generative video interpolation model
+- Load, analyze, and segment multiple experiments containing numerous phase/flourescent channels
+- Segment cytoplasm, vacuoles, buds, mating, and sporulating yeast cells
+- Track and reconstruct lineages of large cell colonies
+- Extract and plot time-series data in the GUI
 
 
 # Installation
@@ -41,34 +42,31 @@ This package supports Linux, Windows and Mac OS (versions later than Yosemite). 
  
 ### Instructions 
 
-If you have an older `yeastvision` environment you should remove it with `conda env remove -n yeastvision` before creating a new one. 
-
 `yeastvision` is ready to go for cpu-usage as soon as it downloaded. GPU-usage requires some additional steps after download. To download:
 
 1. Install an [Anaconda](https://www.anaconda.com/products/distribution) distribution of Python. Note you might need to use an anaconda prompt if you did not add anaconda to the path.
 2. Open an anaconda prompt/command prompt
-3. Create a new environment with `conda create --name yeastvision python=3.10.0`. 
-4. Activate this new environment by running `conda activate yeastvision`
-5. Run `python -m pip install yeastvision` to download our package plus all dependencies
-6. Download the weights [online](https://drive.google.com/file/d/1PuI6UIwKyuAUBoRnzjlZWkuT5p6_PX_C/view?usp=sharing). 
-7. Run `install-weights` in the same directory as the *yeastvision_weights.zip* file
+3. If you have an older `yeastvision` environment you should remove it with `conda env remove -n yeastvision` before creating a new one. 
+4. Create a new environment with `conda create --name yeastvision python=3.10.0`. 
+5. Activate this new environment by running `conda activate yeastvision`
+6. Run `python -m pip install yeastvision` to download our package plus all dependencies
+7. Download the weights [online](https://drive.google.com/file/d/1PuI6UIwKyuAUBoRnzjlZWkuT5p6_PX_C/view?usp=sharing). 
+8. Run `install-weights` in the same directory as the *yeastvision_weights.zip* file
 
 
-You should upgrade yeastvision (package [here](https://pypi.org/project/yeastvision/)) periodically as it is still in development. To do so, run the following in the environment:
+You should upgrade the [yeastvision package](https://pypi.org/project/yeastvision/) periodically as it is still in development. To do so, run the following in the environment:
 
 ~~~sh
 python -m pip install yeastvision --upgrade
 ~~~
 
-### Using YeastVision with Nvidia GPU
+### Using yeastvision with Nvidia GPU: PyTorch Configurations
 
-Again, ensure your yeastvision conda environment is active for the following commands.
+To use your NVIDIA GPU with python, you will first need to install a [NVIDIA driver](https://www.nvidia.com/Download/index.aspx?lang=en-us) for
+your GPU. Once downloaded, ensure that your
+GPU is detected by running `nvidia-smi` in the terminal.
 
-To use your NVIDIA GPU with python, you will first need to install the NVIDIA driver for your GPU, check out this [website](https://www.nvidia.com/Download/index.aspx?lang=en-us) to download it. Ensure it is downloaded and your GPU is detected by running `nvidia-smi` in the terminal.
-
-Yeastvision relies on two machine-learning frameworks: `tensorflow` and `pytorch`. We will need to configure both of these packages for gpu usage
-
-#### PyTorch
+Yeastvision relies on `pytorch` for implementation of the deep-learning models, which we will need to configure for gpu usage. Ensure your yeastvision conda environment is active for the following commands.
 
 First, we need to remove the CPU version of torch:
 ~~~
@@ -86,64 +84,43 @@ conda install pytorch==1.12.0 torchvision==0.13.0 cudatoolkit=11.3 -c pytorch
 
 After install you can check `conda list` for `pytorch`, and its version info should have `cuXX.X`, not `cpu`.
 
-#### Tensorflow
+# Running yeastvision
 
-All we need to do here is install the cuDNN package for tensorflow gpu usage
-~~~
-conda install cudnn=8.1.0
-~~~
+## Quickstart
+Activate the correct conda environment. In the command prompt, run either
+- `yeastvision -test` to open the GUI with our sample 10-frame movie.
+- `yeastvision` to open a blank GUI window. Drag and drop <ins>directory</ins> containing 2D-image files into the GUI to begin segmenting, labeling, or processing
 
-## Common Installation Problems
+Yeastvision accepts directories of image files, loaded through drag-and-drop or the file menu. Each file in the directory contains only a single 2D image, named with a standard image file extension.
 
-You may receive the following error upon upgrading `torch` and `torchvision`:
-~~~
-AttributeError: partially initialized module 'charset_normalizer' has no attribute 'md__mypyc' (most likely due to a circular import)
-~~~
-This is solved by upgrading the charselt_normalizer package with the following command: 
+**Note:** As you segment, interpolate, or process images, GUI-generated labels and images are stored in the loaded directory as `.npz` files. Deleting these files results in loss of the data. **Yeastvision expects directories to contain only files with valid image extensions or `.npz` files created in previous yeastvision sessions.**
 
-`pip install --force-reinstall charset-normalizer==3.1.0`
+## To load directories containing additional image channels and pre-generated masks, name your files properly:
+For experiments containing multiple channels and pre-generated labels, our GUI loading capabilities make it easy to:
+- Track pre-generated labels (a nucleus label, for example)
+- extract and plot fluorescence intensities
+- interpolate additional fluorescence channels.  
 
-If you get a version error for `numpy`, run the following commands:
+__When additional channels/masks are present in the directory, files should be named accordingly to their channel and mask type__:
+1. Each data type in the directory should have a standard id that directly precedes the file extension (ex: *_phase.tif, _channel2.png, _mask1.tif*)
+3. Any image that acts as a label should have `_mask` in the id (ex: *_mask_nucleus.tif, _mask_cytoplasm.jpg*).
+4. Ensure that each id has the same number of time points: Having 5 phase images but only 4 fluorescence images will raise an error.
 
-`pip uninstall numpy; pip install numpy==1.24`
+Here is an example of a directory with two time points, two channels, and two pre-generated labels, sorted by name:
 
-# Run yeastvision locally
+*im001_channel1.tif, im001_channel2.tif, <br>
+im001_mask1.tif, im001_mask1.tif, <br>
+im002_channel1.tif, im002_channel2.tif, <br>
+im002_mask1.tif, im002_mask2.tif* <br>
 
-The quickest way to start is to open the GUI from a command line terminal. Activate the correct conda environment, then run:
-~~~~
-yeastvision
-~~~~
 
-## To begin, drag and drop a directory containing images, flourescence channels, and masks into the GUI.
-A single directory represents an experiment and will be added to a drop down at the top of the GUI after being loaded either through drag and drop, or the file dropdown.
 
-Multiple directories can be added, and you can toggle through experiments as you analyze them in the GUI. 
 
-As you utilize GUI features, all GUI-generated labels and images will be stored in the experiment directory as .npz files. Deleting these files will result in a loss of this GUI-generated data. 
-
-### Directory Conventions: Ensure the GUI can parse your data 
-*Yeastvision* is hardcoded to recognize several standard conventions when loading an experiment directory:
-1. <u>**A directory must contain images** to be analyzed but does not have to contain masks</u>
-2. A single file within the directory should contain a single image only.
-3. All channel and mask types should be present in the same number of time points. 
-4. All files should include an appropriate file extension, and file extensions should remain consistent across data types
-
-__Naming: Files should be named accordingly to their channel and mask type__:
-1. Each data type in the directory should have a standard id to identify it.
-2. The id should directly follow the file extension
-3. Any image that acts as a label should have `_mask` in the id.
-4. Ensure that distinct channels have distinct ids.
-
-Here is an example of an experiment with two time points, two channels, and two pre-generated labels, sorted by name:
-
-*im001_channel1.tif, im001_channel2.tif, im001_mask1.tif, im1_mask002.tif, im002_channel1.tif, im002_channel2.tif, im002_mask1.tif, im002_mask2.tif*
 
 # GUI Features
 
 ## Segmentation
-
-<img src="yeastvision/docs/figs/lifecycle_segmentation.png" title="Saccharomyces cerevisiae full lifecycle">
-<em>Yeastvision contains models and tracking algorithms to analyze all stages of the yeast lifecycle</em>
+Yeastvision contains models to accurately segment yeast in all stages of their lifecycle. Simply choose one of the following models from the model dropdown and click run. </em>
 
 **Pixel flow-based models**
 
@@ -151,18 +128,14 @@ Here is an example of an experiment with two time points, two channels, and two 
 | ------ | -------- |
 | proSeg | proliferating cells (general cytoplasm segmentation) |
 | spoSeg | sporulating cells |
-| matSeg | mating cells
+| matSeg | mating cells |
 | budSeg | bud-necks |
 
-**Conventional U-NET models**
-| Model  | Segments |
-| ------ | -------- |
-| budNET | bud-necks (optimized for crowded conditions) |
-| vacNET | vacuoles |
-
+<img src="yeastvision/docs/figs/lifecycle_segmentation.png" title="Saccharomyces cerevisiae full lifecycle">
+<em>Yeastvision contains models and tracking algorithms to analyze all stages of the yeast lifecycle</em>
 
 ## Model Retraining
-1. Load Training Masks
+1. Ensure that training data is loaded into the current experiment
 2. Select the model to be retrained from the mainscreen model dropdown 
 3. Click Menu->Models->Retrain
 4. Ensure training data is correct and choose model suffix (default is date-time)
@@ -172,7 +145,7 @@ Here is an example of an experiment with two time points, two channels, and two 
 8. If you are happy with the new model, go to Menu->Models->Load Custom Models, and the model will be added to the model dropdown. Otherwise, retrain with new data
 
 #### Retraining Tips
-- Training takes very long without a GPU even though it possible to retrain using only CPU. 
+- Even though it possible to retrain using only CPU, training takes very long without a GPU 
 - When you are initially producing a training set, leave some blank masks towards the end of the movie so that the training procedure has room to auto-run
 - The path to the new weights will be printed on the terminal. 
 - Ensure that the fullname of the retrained model is present in the weights filename upon trying to load it via the models menu. This ensures that GUI can associate the weights with the correct model architecture 

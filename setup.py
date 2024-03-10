@@ -13,7 +13,6 @@ requires = [
 "scikit_image",
 "scikit_learn",
 "scipy",
-"tensorflow==2.10.0",
 "torch==1.12.0",
 "tqdm",
 "trackpy",
@@ -35,16 +34,15 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 packages = ["yeastvision","yeastvision.data",  "yeastvision.plot", "yeastvision.track", 
-"yeastvision.models", "yeastvision.ims", "yeastvision.ims.rife_model",
+"yeastvision.models", "yeastvision.ims", "yeastvision.ims.rife_model", "yeastvision.docs", "yeastvision.docs.figs",
             "yeastvision.ims.rife_model.pytorch_msssim", "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
             "yeastvision.models.proSeg", "yeastvision.models.budSeg", "yeastvision.models.budSeg",
-            "yeastvision.models.matSeg", "yeastvision.models.tetradSeg", "yeastvision.models.budNET", 
-            "yeastvision.models.vacNET", "yeastvision.models.YeaZ"]
+            "yeastvision.models.matSeg", "yeastvision.models.spoSeg"]
 
 
 setup(
     name = "yeastvision",
-    version = "0.1.26",
+    version = "0.1.27",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",

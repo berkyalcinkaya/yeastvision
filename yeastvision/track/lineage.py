@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from skimage.morphology import binary_dilation, binary_erosion, dilation, erosion, disk
 from skimage.measure import label, regionprops
-from yeastvision.models.unet import unet
 from yeastvision.track.cell import getBirthFrame, getLifeData
 import matplotlib.pyplot as plt 
 from yeastvision.track.utils import normalize_dict_by_sum

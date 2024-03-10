@@ -1,7 +1,6 @@
 import numpy as np
 from skimage.morphology import disk, binary_erosion, binary_dilation
 import torch
-import tensorflow as tf
 from skimage.measure import label
 import cv2
 import skimage
@@ -136,18 +135,7 @@ def logger_setup():
     logger.info(f'WRITING LOG OUTPUT TO {log_file}')
     return logger, log_file
 
-def configure_tf_memory_growth():
-    physical_devices = tf.config.list_physical_devices('GPU')
-    try:
-        tf.config.experimental.set_memory_growth(physical_devices[0], True)
-    except:
-        # Invalid device or cannot modify virtual devices once initialized.
-        pass
-
-
-def check_gpu(do_tf = True, do_torch = True):
-    if do_tf:
-        print(f"Tensorflow\n__________:\n{tf.config.experimental.get_memory_info('GPU:0')}")
+def check_gpu(do_torch = True):
     if do_torch:
         t = torch.cuda.get_device_properties(0).total_memory
         r = torch.cuda.memory_reserved(0)
@@ -206,15 +194,6 @@ def check_torch_gpu(gpu_number = 0):
     except:
         print('TORCH CUDA version not installed/working.')
         return False
-
-def check_tf_gpu():
-    gpus = tf.config.list_physical_devices('GPU')
-    
-    if gpus:
-        print("** TENSORFLOW installed and working. **")
-    else:
-        print("TENSORFLOW not installed/working")
-    return bool(gpus)
 
 def count_objects(labeledMask):
     return len(np.unique(labeledMask))-1

@@ -2,13 +2,12 @@
 from matplotlib import contour
 import torch
 import numpy as np
-from time import process_time
-tic = process_time()
 import os
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import (QApplication, QStyle, QMainWindow, QGroupBox, QPushButton, QDialog,
                             QDialogButtonBox, QLineEdit, QFormLayout, QMessageBox,QErrorMessage, QStatusBar, 
-                             QFileDialog, QVBoxLayout, QCheckBox, QFrame, QSpinBox, QLabel, QWidget, QComboBox, QSizePolicy, QGridLayout)
+                             QFileDialog, QVBoxLayout, QCheckBox, QFrame, QSpinBox, QLabel, QWidget, QComboBox, 
+                             QSizePolicy, QGridLayout, QProgressBar)
 from PyQt5.QtCore import Qt, QThread, QMutex, pyqtSignal
 from QSwitchControl import SwitchControl
 import pyqtgraph as pg
@@ -49,8 +48,7 @@ torch.cuda.empty_cache()
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 import warnings
 import copy
-#warnings.filterwarnings("ignore")
-configure_tf_memory_growth()
+warnings.filterwarnings("ignore")
 from collections import OrderedDict
 
 # global logger
@@ -58,9 +56,10 @@ from collections import OrderedDict
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, thread, imPaths = None, labelPaths = None):
+    def __init__(self):
         super(MainWindow, self).__init__()
         pg.setConfigOption('imageAxisOrder', 'row-major')
+        self.setWindowTitle("yeastvision")
         self.setGeometry(100, 100, 900, 1000)
         self.setAcceptDrops(True)
 
@@ -157,6 +156,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.numObjs = 0
         self.deleting = False
+        self.resetting_data = False
 
         self.win.show()
     
@@ -411,16 +411,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setStatusBar(self.statusBar)
 
         self.gpuDisplayTorch = ReadOnlyCheckBox("gpu - torch  |  ")
-        self.gpuDisplayTF= ReadOnlyCheckBox("gpu - tf")
-        self.gpuDisplayTF.setFont(self.smallfont)
         self.gpuDisplayTorch.setFont(self.smallfont)
-        self.gpuDisplayTF.setStyleSheet(self.checkstyle)
         self.gpuDisplayTorch.setStyleSheet(self.checkstyle)
-        self.gpuDisplayTF.setChecked(False)
         self.gpuDisplayTorch.setChecked(False)
         self.checkGPUs()
-        if self.tf:
-            self.gpuDisplayTF.setChecked(True)
         if self.torch:
             self.gpuDisplayTorch.setChecked(True)
         self.statusBarLayout = QGridLayout()
@@ -438,12 +432,29 @@ class MainWindow(QtWidgets.QMainWindow):
             display.setFont(self.smallfont)
             display.setStyleSheet(self.checkstyle)
             display.setChecked(False)
+        
+        self.progressBar = QProgressBar(self)
+
+        self.progressBar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid grey;
+                border-radius: 5px;
+                text-align: center;
+            }
+
+            QProgressBar::chunk {
+                background-color: red;
+                width: 10px; /* Used to create stripe effect if needed */
+            }
+        """)
+        self.progressBar.setVisible(False)
 
         self.statusBarLayout.addWidget(self.cpuCoreDisplay, 0, 1, 1,1, alignment=(QtCore.Qt.AlignCenter))
-        self.statusBarLayout.addWidget(self.gpuDisplayTF, 0, 2, 1, 1)
+        #self.statusBarLayout.addWidget(self.gpuDisplayTF, 0, 2, 1, 1)
         self.statusBarLayout.addWidget(self.gpuDisplayTorch, 0, 3, 1, 1)
         self.statusBarLayout.addWidget(self.hasLineageBox, 0,4,1,1)
         self.statusBarLayout.addWidget(self.hasCellDataBox,0,5,1,1)
+        self.statusBarLayout.addWidget(self.progressBar, 0,6,1,1)
         self.statusBar.addWidget(self.statusBarWidget)
         
         self.dataDisplay = QLabel("")
@@ -610,12 +621,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.l.addWidget(label, rowspace,10,1,5)
         
         #----------UNETS-----------
-        self.artiButton = QPushButton(u'artilife full lifecycle')
-        self.artiButton.setEnabled(False)
-        self.artiButton.setFont(self.medfont)
-        self.artiButton.clicked.connect(self.computeArtilifeModel)
-        self.artiButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.artiButton, rowspace+1, 10, 1,5, Qt.AlignTop)
+        #self.artiButton = QPushButton(u'artilife full lifecycle')
+        #self.artiButton.setEnabled(False)
+        #self.artiButton.setFont(self.medfont)
+        #self.artiButton.clicked.connect(self.computeArtilifeModel)
+        #self.artiButton.setStyleSheet(self.styleInactive)
+        #self.l.addWidget(self.artiButton, rowspace+1, 10, 1,5, Qt.AlignTop)
 
         self.GB = QGroupBox("Unets")
         self.GB.setStyleSheet("QGroupBox { border: 1px solid white; color:white; padding: 10px 0px;}")
@@ -639,7 +650,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.GBLayout.addWidget(self.modelButton, 0,7,1,2)
         self.modelButton.setEnabled(False)
         self.modelButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.GB, rowspace+2,10,3,5, Qt.AlignTop | Qt.AlignHCenter)
+        self.l.addWidget(self.GB, rowspace+1,10,3,5, Qt.AlignTop | Qt.AlignHCenter)
 
 
         #------Flourescence Segmentation -----------pp-p-
@@ -660,64 +671,153 @@ class MainWindow(QtWidgets.QMainWindow):
         label.setFont(self.boldfont)
         self.l.addWidget(label, rowspace,16,1,5)
 
-        self.contourButton = QCheckBox("Show Contours")
+        # "Show Contours" switch
+        contourLabel = QLabel("cell contours")
+        contourLabel.setStyleSheet(self.labelstyle)
+        contourLabel.setFont(self.medfont)
+        self.l.addWidget(contourLabel, rowspace + 1, 16, 1, 1)
+        self.contourButton = SwitchControl()
         self.contourButton.setStyleSheet(self.checkstyle)
-        self.contourButton.setFont(self.medfont)
         self.contourButton.stateChanged.connect(self.toggleContours)
-        self.contourButton.setShortcut(QtCore.Qt.Key_C)
         self.contourButton.setEnabled(False)
-        self.l.addWidget(self.contourButton, rowspace+1, 16,1,2)
+        self.l.addWidget(self.contourButton, rowspace + 1, 17, 1, 1)
 
-        self.plotButton = QCheckBox("Show Plot Window")
+        # "Show Plot Window" switch
+        plotLabel = QLabel("plot window")
+        plotLabel.setStyleSheet(self.labelstyle)
+        plotLabel.setFont(self.medfont)
+        self.l.addWidget(plotLabel, rowspace + 1, 18, 1, 1)
+        self.plotButton = SwitchControl()
         self.plotButton.setStyleSheet(self.checkstyle)
-        self.plotButton.setFont(self.medfont)
         self.plotButton.stateChanged.connect(self.togglePlotWindow)
-        self.plotButton.setShortcut(QtCore.Qt.Key_P)
-        self.l.addWidget(self.plotButton, rowspace+1, 18, 1,2)
+        self.l.addWidget(self.plotButton, rowspace + 1, 19, 1, 1)
 
-        self.maskOnCheck = QCheckBox("Mask")
+        # "Mask" switch
+        maskLabel = QLabel("masks")
+        maskLabel.setStyleSheet(self.labelstyle)
+        maskLabel.setFont(self.medfont)
+        self.l.addWidget(maskLabel, rowspace + 2, 16, 1, 1)
+        self.maskOnCheck = SwitchControl()
         self.maskOnCheck.setStyleSheet(self.checkstyle)
-        self.maskOnCheck.setFont(self.medfont)
         self.maskOnCheck.setEnabled(False)
-        self.maskOnCheck.setShortcut(QtCore.Qt.Key_Space)
         self.maskOnCheck.stateChanged.connect(self.toggleMask)
-        self.l.addWidget(self.maskOnCheck, rowspace+2, 16,1,2)
+        self.l.addWidget(self.maskOnCheck, rowspace + 2, 17, 1, 1)
 
-        self.probOnCheck = QCheckBox("Probability")
+        # "Probability" switch
+        probLabel = QLabel("pixel probability")
+        probLabel.setStyleSheet(self.labelstyle)
+        probLabel.setFont(self.medfont)
+        self.l.addWidget(probLabel, rowspace + 2, 18, 1, 1)
+        self.probOnCheck = SwitchControl()
         self.probOnCheck.setStyleSheet(self.checkstyle)
-        self.probOnCheck.setFont(self.medfont)
         self.probOnCheck.setEnabled(False)
-        self.probOnCheck.setShortcut(QtCore.Qt.Key_F)
         self.probOnCheck.stateChanged.connect(self.toggleProb)
-        self.l.addWidget(self.probOnCheck, rowspace+2, 18,1,2)
+        self.l.addWidget(self.probOnCheck, rowspace + 2, 19, 1, 1)
 
-        self.cellNumButton = QCheckBox("cell nums")
+        # "cell nums" switch
+        cellNumLabel = QLabel("cell numbers")
+        cellNumLabel.setStyleSheet(self.labelstyle)
+        cellNumLabel.setFont(self.medfont)
+        self.l.addWidget(cellNumLabel, rowspace + 3, 16, 1, 1)
+        self.cellNumButton = SwitchControl()
         self.cellNumButton.setStyleSheet(self.checkstyle)
-        self.cellNumButton.setFont(self.medfont)
-        self.cellNumButton.stateChanged.connect(self.toggleCellNums)
         self.cellNumButton.setEnabled(False)
-        self.l.addWidget(self.cellNumButton, rowspace+3, 16, 1,2)
+        self.cellNumButton.stateChanged.connect(self.toggleCellNums)
+        self.l.addWidget(self.cellNumButton, rowspace + 3, 17, 1, 1)
 
-        self.showLineageButton = QCheckBox("lineages")
+        # "lineages" switch
+        lineageLabel = QLabel("lineages")
+        lineageLabel.setStyleSheet(self.labelstyle)
+        lineageLabel.setFont(self.medfont)
+        self.l.addWidget(lineageLabel, rowspace + 3, 18, 1, 1)
+        self.showLineageButton = SwitchControl()
         self.showLineageButton.setStyleSheet(self.checkstyle)
-        self.showLineageButton.setFont(self.medfont)
-        self.showLineageButton.stateChanged.connect(self.toggleLineages)
         self.showLineageButton.setEnabled(False)
-        self.l.addWidget(self.showLineageButton, rowspace+3, 18, 1,2)
+        self.showLineageButton.stateChanged.connect(self.toggleLineages)
+        self.l.addWidget(self.showLineageButton, rowspace + 3, 19, 1, 1)
 
-        self.showMotherDaughtersButton = QCheckBox("mother-daughters")
+        # "mother-daughters" switch
+        motherDaughtersLabel = QLabel("mother-daughters")
+        motherDaughtersLabel.setStyleSheet(self.labelstyle)
+        motherDaughtersLabel.setFont(self.medfont)
+        self.l.addWidget(motherDaughtersLabel, rowspace + 4, 16, 1, 1)
+        self.showMotherDaughtersButton = SwitchControl()
         self.showMotherDaughtersButton.setStyleSheet(self.checkstyle)
-        self.showMotherDaughtersButton.setFont(self.medfont)
-        self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
         self.showMotherDaughtersButton.setEnabled(False)
-        self.l.addWidget(self.showMotherDaughtersButton, rowspace+4, 16, 1,2)
+        self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
+        self.l.addWidget(self.showMotherDaughtersButton, rowspace + 4, 17, 1, 1)
 
-        self.showTreeButton = QCheckBox("lineage tree")
+        # "lineage tree" switch
+        treeLabel = QLabel("lineage tree")
+        treeLabel.setStyleSheet(self.labelstyle)
+        treeLabel.setFont(self.medfont)
+        self.l.addWidget(treeLabel, rowspace + 4, 18, 1, 1)
+        self.showTreeButton = SwitchControl()
         self.showTreeButton.setStyleSheet(self.checkstyle)
-        self.showTreeButton.setFont(self.medfont)
-        self.showTreeButton.stateChanged.connect(self.toggleLineageTreeWindow)
         self.showTreeButton.setEnabled(False)
-        self.l.addWidget(self.showTreeButton, rowspace+4, 18, 1,2)
+        self.showTreeButton.stateChanged.connect(self.toggleLineageTreeWindow)
+        self.l.addWidget(self.showTreeButton, rowspace + 4, 19, 1, 1)
+
+
+
+        # self.contourButton = QCheckBox("Show Contours")
+        # self.contourButton.setStyleSheet(self.checkstyle)
+        # self.contourButton.setFont(self.medfont)
+        # self.contourButton.stateChanged.connect(self.toggleContours)
+        # self.contourButton.setShortcut(QtCore.Qt.Key_C)
+        # self.contourButton.setEnabled(False)
+        # self.l.addWidget(self.contourButton, rowspace+1, 16,1,2)
+
+        # self.plotButton = QCheckBox("Show Plot Window")
+        # self.plotButton.setStyleSheet(self.checkstyle)
+        # self.plotButton.setFont(self.medfont)
+        # self.plotButton.stateChanged.connect(self.togglePlotWindow)
+        # self.plotButton.setShortcut(QtCore.Qt.Key_P)
+        # self.l.addWidget(self.plotButton, rowspace+1, 18, 1,2)
+
+        # self.maskOnCheck = QCheckBox("Mask")
+        # self.maskOnCheck.setStyleSheet(self.checkstyle)
+        # self.maskOnCheck.setFont(self.medfont)
+        # self.maskOnCheck.setEnabled(False)
+        # self.maskOnCheck.setShortcut(QtCore.Qt.Key_Space)
+        # self.maskOnCheck.stateChanged.connect(self.toggleMask)
+        # self.l.addWidget(self.maskOnCheck, rowspace+2, 16,1,2)
+
+        # self.probOnCheck = QCheckBox("Probability")
+        # self.probOnCheck.setStyleSheet(self.checkstyle)
+        # self.probOnCheck.setFont(self.medfont)
+        # self.probOnCheck.setEnabled(False)
+        # self.probOnCheck.setShortcut(QtCore.Qt.Key_F)
+        # self.probOnCheck.stateChanged.connect(self.toggleProb)
+        # self.l.addWidget(self.probOnCheck, rowspace+2, 18,1,2)
+
+        # self.cellNumButton = QCheckBox("cell nums")
+        # self.cellNumButton.setStyleSheet(self.checkstyle)
+        # self.cellNumButton.setFont(self.medfont)
+        # self.cellNumButton.stateChanged.connect(self.toggleCellNums)
+        # self.cellNumButton.setEnabled(False)
+        # self.l.addWidget(self.cellNumButton, rowspace+3, 16, 1,2)
+
+        # self.showLineageButton = QCheckBox("lineages")
+        # self.showLineageButton.setStyleSheet(self.checkstyle)
+        # self.showLineageButton.setFont(self.medfont)
+        # self.showLineageButton.stateChanged.connect(self.toggleLineages)
+        # self.showLineageButton.setEnabled(False)
+        # self.l.addWidget(self.showLineageButton, rowspace+3, 18, 1,2)
+
+        # self.showMotherDaughtersButton = QCheckBox("mother-daughters")
+        # self.showMotherDaughtersButton.setStyleSheet(self.checkstyle)
+        # self.showMotherDaughtersButton.setFont(self.medfont)
+        # self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
+        # self.showMotherDaughtersButton.setEnabled(False)
+        # self.l.addWidget(self.showMotherDaughtersButton, rowspace+4, 16, 1,2)
+
+        # self.showTreeButton = QCheckBox("lineage tree")
+        # self.showTreeButton.setStyleSheet(self.checkstyle)
+        # self.showTreeButton.setFont(self.medfont)
+        # self.showTreeButton.stateChanged.connect(self.toggleLineageTreeWindow)
+        # self.showTreeButton.setEnabled(False)
+        # self.l.addWidget(self.showTreeButton, rowspace+4, 18, 1,2)
 
         # self.autoSaturationButton = QPushButton("Auto")
         # self.autoSaturationButton.setFixedWidth(45)
@@ -888,7 +988,10 @@ class MainWindow(QtWidgets.QMainWindow):
         return reply == QMessageBox.Yes
 
     def channelSelectEdit(self, text):
-        print("channel select edit")
+        if self.resetting_data:
+            idx = self.channelSelect.currentIndex()
+            self.channelSelect.setItemText(idx, str(text))
+            return
         if not self.deleting:
             curr_text = self.channelSelect.currentText()
             idx = self.channelSelect.currentIndex()
@@ -919,7 +1022,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         idx = self.labelSelect.currentIndex()
         text = str(text)
-        if self.experiment().new_label_name(idx, text):
+        if self.resetting_data or self.experiment().new_label_name(idx, text):
             self.labelSelect.setItemText(idx, str(text))
 
     def labelSelectIndexChange(self,index):
@@ -1065,9 +1168,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.pWindow.table.model.setData(self.getCellDataAbbrev())
         # self.pWindow.
     
+    def guiIsEmpty(self):
+        return not bool(self.experiments)
+    
 
     def hasCellData(self, i = None):
-        if type(i) is not int:
+        if self.guiIsEmpty():
+            return False
+        if not isinstance(i,int):
             i = self.maskZ
         return self.experiment().labels[i].has_cell_data()
     
@@ -1258,6 +1366,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.buildPlotWindow()
             else:
                 self.showError("No Timeseries Data Available - Track Cell First")   
+                self.plotButton.setCheckState(False)
         elif self.pWindow is not None:
             self.pWindow.close()
             self.pWindow = None
@@ -1425,6 +1534,7 @@ class MainWindow(QtWidgets.QMainWindow):
             num_channels = int(dlg.getData()["num_channels"])
         else:
             return
+        
         self.experiment_index+=1
         
         try:
@@ -1450,24 +1560,27 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def setDataSelects(self):
-        self.clearDataSelects()
+        self.resetting_data = True
         print(self.experiment().get_channel_names())
+        self.clearDataSelects()
         self.channelSelect.addItems(self.experiment().get_channel_names())
         if self.experiment().has_labels():
             self.labelSelect.addItems(self.experiment().get_label_names())
-        
-    
+        self.resetting_data = False 
+
     def experimentChange(self):
         if not self.emptying:
             self.imLoaded = True
-            self.setDataSelects()
             self.experiment_index = self.experimentSelect.currentIndex()
+            self.setDataSelects()
             self.tIndex, self.maskZ, self.imZ = 0,0,0
             self.imChanged, self.maskChanged = True, True
             self.enableImageOperations()
             if self.experiment().has_labels():
                 self.maskLoaded = True
                 self.enableMaskOperations()
+            else:
+                self.disableMaskOperations()
             self.updateDisplay()
 
     def clearDataSelects(self):
@@ -2660,14 +2773,10 @@ class MainWindow(QtWidgets.QMainWindow):
         return self.experiment().channels[self.imZ].dir
     
     def checkGPUs(self):
-        self.checkTfGPU()
         self.checkTorchGPU()
 
     def checkTorchGPU(self):
         self.torch = check_torch_gpu()
-
-    def checkTfGPU(self):
-        self.tf = check_tf_gpu()
     
     def checkDataAvailibility(self):
         hasLineages = self.hasLineageData()
@@ -2708,20 +2817,20 @@ class MainWindow(QtWidgets.QMainWindow):
     def enableInterpRemove(self):
         self.interpRemoveButton.setEnabled(True)
         self.interpRemoveButton.setStyleSheet(self.styleUnpressed)
-
-
-
-@profile
+#@profile
 def main():
-    print("running main")
     app = QApplication([])
-    im_path = "test_phase.tif"
-    mask_path = "test_mask.tif"
-    cdc_path = "test_cdc.tif"
-    mainThread = app.instance().thread()
-    window = MainWindow(mainThread, im_path, mask_path)
+    app_icon = QtGui.QIcon()
+    icon_path = "yeastvision/docs/figs/logo.png"
+    app_icon.addFile(icon_path, QtCore.QSize(16, 16))
+    app_icon.addFile(icon_path, QtCore.QSize(24, 24))
+    app_icon.addFile(icon_path, QtCore.QSize(32, 32))
+    app_icon.addFile(icon_path, QtCore.QSize(48, 48))
+    app_icon.addFile(icon_path, QtCore.QSize(64, 64))
+    app_icon.addFile(icon_path, QtCore.QSize(256, 256))
+    app.setWindowIcon(app_icon)
+    window = MainWindow()
     window.show()
-    toc = process_time()
     app.exec_()        
 
 if __name__ == "__main__":

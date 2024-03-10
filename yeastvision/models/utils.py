@@ -6,11 +6,6 @@ from skimage.morphology import disk, binary_erosion, binary_dilation
 import yeastvision.models as models
 from os.path import join
 from sklearn.decomposition import PCA
-from skimage.measure import regionprops
-from tqdm import tqdm
-from tensorflow.keras import backend as K
-import torch
-import tensorflow as tf
 
 
 MODEL_DIR = models.__path__[0]
@@ -156,17 +151,6 @@ def pad_for_patching(image, patch_size = 256, pad_mode = "constant"):
     r_pad, c_pad = get_pad_dim_for_patching(image.shape[:2], patch_size = patch_size) # 2D images only
     padded_image = np.pad(image, ((0, r_pad), (0, c_pad)), mode = pad_mode)
     return padded_image
-
-
-def jaccard_coef(y_true, y_pred):
-    y_true_f = K.flatten(y_true)
-    y_pred_f = K.flatten(y_pred)
-    intersection = K.sum(y_true_f * y_pred_f)
-    return (intersection + 1.0) / (K.sum(y_true_f) + K.sum(y_pred_f) - intersection + 1.0)
-
-def jaccard_coef_loss(y_true, y_pred):
-    print(y_true, y_pred)
-    return -jaccard_coef(y_true, y_pred)  # -1 ultiplied as we want to minimize this value as loss function
 
 
 def patchify_for_train(ims, input_shape = 256, double_patch = True):

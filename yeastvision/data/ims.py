@@ -51,6 +51,7 @@ class Experiment():
             self.channels[index].set_name(new_name)
             return True
         else:
+            print("new name denied")
             return False
 
     def new_label_name(self, index, new_name):
