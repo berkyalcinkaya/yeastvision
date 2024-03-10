@@ -42,7 +42,7 @@ packages = ["yeastvision","yeastvision.data",  "yeastvision.plot", "yeastvision.
 
 setup(
     name = "yeastvision",
-    version = "0.1.27",
+    version = "0.1.28",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
