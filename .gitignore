@@ -10,14 +10,4 @@ yeastvision.egg-info/
 **/.h5
 /test
 *.tif
-/yeastvision/models/proSeg/proSeg
-/yeastvision/models/budNET/budNET.h5
-/yeastvision/models/matSeg/matSeg
-/yeastvision/models/spoSeg/spoSeg
-/yeastvision/models/budSeg/budSeg
-/yeastvision/models/vacNET/vacNET.h5
-/yeastvision/models/YeaZ/YeaZ_brightfield.hdf5
-/yeastvision/models/YeaZ/YeaZ_phasecontrast.hdf5
-/yeastvision/ims/rife_model/flownet.pkl
 *.pkl
-models/
