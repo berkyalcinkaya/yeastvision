@@ -1,4 +1,5 @@
 #https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html
+os.environ['QT_LOGGING_RULES'] = '*.warning=false'
 import sys
 import torch
 import numpy as np
@@ -48,9 +49,9 @@ from collections import OrderedDict
 import yeastvision
 
 
+
 # global logger
 # logger, log_file = logger_setup()
-
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, dir = None):
@@ -158,6 +159,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.win.show()
 
         if dir is not None:
+            print('LOADING TEST DIRECTORY')
             self.loadExperiment(dir, num_channels=1)
 
     @property

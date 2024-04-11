@@ -60,6 +60,8 @@ You should upgrade the [yeastvision package](https://pypi.org/project/yeastvisio
 python -m pip install yeastvision --upgrade
 ~~~
 
+See [Troubleshooting: Common Problems](##troubleshooting:-common-problems) for potential install errors.
+
 ### Using yeastvision with Nvidia GPU: PyTorch Configurations
 
 To use your NVIDIA GPU with python, you will first need to install a [NVIDIA driver](https://www.nvidia.com/Download/index.aspx?lang=en-us) for
@@ -182,5 +184,6 @@ Yeastvision contains models to accurately segment yeast in all stages of their l
 
 | Problem     | Solution |
 | ----------- | ----------- |
+| `ModuleNotFoundError: No module named 'chardet'` | run `pip install chardet` |
 | Cannot scroll through images/masks on the display | Click on the display to bring focus back to this widget|
 | Loaded images without masks but cannot draw | An existing label must be present to draw: Add a blank label with File -> Add Blank Label |

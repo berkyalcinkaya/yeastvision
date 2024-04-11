@@ -10,6 +10,7 @@ def find_files(directory):
 requires = [
 "numpy==1.24",
 "cellpose==2.1.0",
+"charset-normalizer==3.3.2",
 "matplotlib",
 "munkres",
 "opencv_python_headless",
@@ -53,7 +54,7 @@ packages = [
 
 setup(
     name = "yeastvision",
-    version = "0.1.28",
+    version = "0.1.30",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
