@@ -1,7 +1,6 @@
 build/
 dist/
 yeastvision.egg-info/
-**/.tif
 .DS_Store
 /yeastvision/.DS_Store
 **/__pycache__
@@ -9,5 +8,4 @@ yeastvision.egg-info/
 **/.hdf5
 **/.h5
 /test
-*.tif
 *.pkl
