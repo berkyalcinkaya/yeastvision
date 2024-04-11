@@ -1,4 +1,11 @@
 from setuptools import setup
+import os
+
+# Function to automatically find all files in a specific directory
+def find_files(directory):
+    for path, directories, files in os.walk(directory):
+        for file in files:
+            yield os.path.join(path, file)
 
 requires = [
 "numpy==1.24",
@@ -33,12 +40,16 @@ except:
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-packages = ["yeastvision","yeastvision.data",  "yeastvision.plot", "yeastvision.track", 
-"yeastvision.models", "yeastvision.ims", "yeastvision.ims.rife_model", "yeastvision.docs", "yeastvision.docs.figs",
-            "yeastvision.ims.rife_model.pytorch_msssim", "yeastvision.parts", "yeastvision.flou", "yeastvision.disk", 
-            "yeastvision.models.proSeg", "yeastvision.models.budSeg", "yeastvision.models.budSeg",
-            "yeastvision.models.matSeg", "yeastvision.models.spoSeg"]
-
+packages = [
+            "yeastvision","yeastvision.data",  "yeastvision.plot", 
+            "yeastvision.track", "yeastvision.models", 
+            "yeastvision.ims", "yeastvision.ims.rife_model", 
+            "yeastvision.docs", "yeastvision.docs.figs",
+            "yeastvision.ims.rife_model.pytorch_msssim", "yeastvision.parts", 
+            "yeastvision.flou", "yeastvision.disk", "yeastvision.models.proSeg", 
+            "yeastvision.models.budSeg", "yeastvision.models.budSeg",
+            "yeastvision.models.matSeg", "yeastvision.models.spoSeg"
+            ]
 
 setup(
     name = "yeastvision",
@@ -51,6 +62,7 @@ setup(
     author_email="berkyalcinkaya55@gmail.com",
     license = "BSD",
     packages = packages,
+    data_files = [("sample_movie", list(find_files("sample_movie")))],
     install_requires = requires,
     include_package_data=True,
     classifiers=(
@@ -60,7 +72,6 @@ setup(
     ),
     entry_points = {
         'console_scripts': [
-          'yeastvision = yeastvision.__main__:main',
-          'install-weights = yeastvision.install_weights:do_install']
+          'yeastvision = yeastvision.__main__:main']
        }
 )

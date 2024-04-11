@@ -1,14 +1,13 @@
 #https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html
-from matplotlib import contour
+import sys
 import torch
 import numpy as np
 import os
 from PyQt5 import QtWidgets, QtGui, QtCore
-from PyQt5.QtWidgets import (QApplication, QStyle, QMainWindow, QGroupBox, QPushButton, QDialog,
-                            QDialogButtonBox, QLineEdit, QFormLayout, QMessageBox,QErrorMessage, QStatusBar, 
-                             QFileDialog, QVBoxLayout, QCheckBox, QFrame, QSpinBox, QLabel, QWidget, QComboBox, 
+from PyQt5.QtWidgets import (QApplication, QGroupBox, QPushButton, QMessageBox,QErrorMessage, 
+                             QStatusBar, QFileDialog, QSpinBox, QLabel, QWidget, QComboBox, 
                              QSizePolicy, QGridLayout, QProgressBar)
-from PyQt5.QtCore import Qt, QThread, QMutex, pyqtSignal
+from PyQt5.QtCore import Qt, QThread
 from QSwitchControl import SwitchControl
 import pyqtgraph as pg
 import numpy as np
@@ -19,10 +18,9 @@ from yeastvision.parts.workers import SegmentWorker, TrackWorker, InterpolationW
 from yeastvision.parts.dialogs import *
 from yeastvision.track.track import track_to_cell, trackYeasts
 from yeastvision.track.data import LineageData, TimeSeriesData
-from yeastvision.track.lineage import LineageConstruction
 from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, getCellData, exportCellData, getHeatMaps, getDaughterMatrix, getPotentialHeatMapNames
 import cv2
-from yeastvision.disk.reader import loadPkl, ImageData, MaskData
+from yeastvision.disk.reader import ImageData
 import importlib
 import yeastvision.parts.menu as menu
 from yeastvision.models.utils import MODEL_DIR
@@ -36,12 +34,9 @@ from yeastvision.utils import *
 import yeastvision.ims.im_funcs as im_funcs
 from yeastvision.ims.interpolate import interpolate
 import math
-import pickle
-from skimage.io import imread, imsave
+from skimage.io import imsave
 from cellpose.metrics import average_precision
 from tqdm import tqdm
-from memory_profiler import profile
-from functools import partial
 from yeastvision.models.proSeg.model import ArtilifeFullLifeCycle
 from yeastvision.data.ims import Experiment, ChannelNoDirectory, InterpolatedChannel
 torch.cuda.empty_cache() 
@@ -50,13 +45,15 @@ import warnings
 import copy
 warnings.filterwarnings("ignore")
 from collections import OrderedDict
+import yeastvision
+
 
 # global logger
 # logger, log_file = logger_setup()
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, dir = None):
         super(MainWindow, self).__init__()
         pg.setConfigOption('imageAxisOrder', 'row-major')
         self.setWindowTitle("yeastvision")
@@ -159,7 +156,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resetting_data = False
 
         self.win.show()
-    
+
+        if dir is not None:
+            self.loadExperiment(dir, num_channels=1)
+
     @property
     def maxT(self):
         return self.channel().max_t()
@@ -889,8 +889,8 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.autoSaturationButton.setStyleSheet(self.styleUnpressed)
         self.modelButton.setEnabled(True)
         self.modelButton.setStyleSheet(self.styleUnpressed)
-        self.artiButton.setEnabled(True)
-        self.artiButton.setStyleSheet(self.styleUnpressed)
+        # self.artiButton.setEnabled(True)
+        # self.artiButton.setStyleSheet(self.styleUnpressed)
         self.channelSelect.setEnabled(True)
         self.checkInterpolation()
     
@@ -902,8 +902,8 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.autoSaturationButton.setStyleSheet(self.styleUnpressed)
         self.modelButton.setEnabled(False)
         self.modelButton.setStyleSheet(self.styleInactive)
-        self.artiButton.setEnabled(True)
-        self.artiButton.setStyleSheet(self.styleInactive)
+        # self.artiButton.setEnabled(True)
+        # self.artiButton.setStyleSheet(self.styleInactive)
         self.channelSelect.setEnabled(False)
 
     
@@ -1526,15 +1526,15 @@ class MainWindow(QtWidgets.QMainWindow):
         dir = QFileDialog.getExistingDirectory(self, "Choose Experiment Directory")
         self.loadExperiment(dir)
     
-    def loadExperiment(self,file):
+    def loadExperiment(self,file, num_channels = None):
         if file.endswith("/") or file.endswith('\\'):
-            file = file[:-1]                         
-        dlg = GeneralParamDialog({"num_channels":1}, [int], "number of channels", self)
-        if dlg.exec():
-            num_channels = int(dlg.getData()["num_channels"])
-        else:
-            return
-        
+            file = file[:-1]      
+        if num_channels is None:                   
+            dlg = GeneralParamDialog({"num_channels":1}, [int], "number of channels", self)
+            if dlg.exec():
+                num_channels = int(dlg.getData()["num_channels"])
+            else:
+                return
         self.experiment_index+=1
         
         try:
@@ -2817,8 +2817,24 @@ class MainWindow(QtWidgets.QMainWindow):
     def enableInterpRemove(self):
         self.interpRemoveButton.setEnabled(True)
         self.interpRemoveButton.setStyleSheet(self.styleUnpressed)
+
 #@profile
 def main():
+    dir = None
+    test_dir = os.path.join(os.path.dirname(yeastvision.__path__[0]), "sample_movie")
+    if len(sys.argv) == 1:
+        pass
+    elif len(sys.argv) > 2:
+        raise ValueError('''Yeastvision requires none or one command line argument. Specify -test to open a sample movie or specify
+                         a directory to load.
+                         ''')
+    else:
+        arg = sys.argv[1]
+        if arg == "-test":
+            dir = test_dir
+        elif os.path.exists(arg) or os.path.isdir(arg):
+            dir = arg
+
     app = QApplication([])
     app_icon = QtGui.QIcon()
     icon_path = "yeastvision/docs/figs/logo.png"
@@ -2829,7 +2845,7 @@ def main():
     app_icon.addFile(icon_path, QtCore.QSize(64, 64))
     app_icon.addFile(icon_path, QtCore.QSize(256, 256))
     app.setWindowIcon(app_icon)
-    window = MainWindow()
+    window = MainWindow(dir = dir,)
     window.show()
     app.exec_()        
 
