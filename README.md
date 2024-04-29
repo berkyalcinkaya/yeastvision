@@ -23,17 +23,16 @@
 
 <br/>
 
-<img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/gui.png" height = 350 title="yeastvision GUI window" align=right>
+<img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/gui.png" height = 500 title="yeastvision GUI window" align=right vspace=30>
 
 ### Key Features
 
-- Enhance time-series resolution up to 16x using a generative video interpolation model
+- Enhance time-series resolution up to 16x using a generative video interpolation model [[1]](#1)
 - Load, analyze, and segment multiple experiments containing numerous phase/flourescent channels
 - Segment cytoplasm, vacuoles, buds, mating, and sporulating yeast cells
 - Track and reconstruct lineages of large cell colonies
 - Extract and plot time-series data in the GUI
-
-
+<br/><br/><br/><br/><br/><br/><br/>
 # Installation
 
 ## Local installation (< 2 minutes)
@@ -187,3 +186,7 @@ Yeastvision contains models to accurately segment yeast in all stages of their l
 | `ModuleNotFoundError: No module named 'chardet'` | run `pip install chardet` |
 | Cannot scroll through images/masks on the display | Click on the display to bring focus back to this widget|
 | Loaded images without masks but cannot draw | An existing label must be present to draw: Add a blank label with File -> Add Blank Label |
+
+## References
+<a id="1">[1]</a> 
+Huang, Z., Zhang, T., Heng, W., Shi, B., & Zhou, S. (2022). Real-time intermediate flow estimation for video frame interpolation. In Proceedings of the European Conference on Computer Vision (ECCV).
