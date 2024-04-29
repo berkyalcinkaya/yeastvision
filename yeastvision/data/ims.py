@@ -429,7 +429,6 @@ class InterpolatedChannel(ChannelNoDirectory):
             self.name = name 
             self.ims = ims
             self.path = os.path.join(self.dir, self.name+".npz")
-            print("annotations", annotations)
             if annotations is not None:
                 self.annotations = self.extend_annotations(annotations)
             else:

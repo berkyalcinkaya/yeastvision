@@ -4,6 +4,7 @@ from os.path import join
 from skimage.exposure import equalize_adapthist as ea
 from yeastvision.utils import *
 from yeastvision.models.utils import MODEL_DIR, patchify_for_train
+import tqdm
 
 class Model():
     hyperparams = {"Threshold":0.50}
@@ -53,7 +54,7 @@ class Model():
         params = params if params else cls.hyperparams
         model = cls(params, weights)
         probIms, masks = [], []
-        for im in ims:
+        for im in tqdm(ims):
             probIm = model.getProbIm(im)
             probIms.append(probIm)
             masks.append(model.getMask(probIm))

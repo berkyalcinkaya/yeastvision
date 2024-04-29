@@ -83,7 +83,6 @@ class TimeSeriesData():
     def update_props(self):
         self.properties = self.cell_data.columns.tolist()
         self.properties.remove("labels")
-        print(self.properties)
 
 
     def set_label_props(self, labels):
@@ -116,7 +115,6 @@ class TimeSeriesData():
 
     def get(self, property, cell):
         data = np.array((self.cell_data[property][cell-1].copy()), dtype = float)
-        print(data)
         return data
 
     def hasLineage(self):
@@ -196,7 +194,6 @@ class LineageData(TimeSeriesData):
             else:
                 idx = self.population_names.index(name)
                 self.populations[idx] = (np.array(generation, dtype=np.uint16)-1)
-        print(self.population_names)
 
 
     def set_mating_data(self, mating):

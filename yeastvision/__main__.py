@@ -1,9 +1,9 @@
 #https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html
+import os
 os.environ['QT_LOGGING_RULES'] = '*.warning=false'
 import sys
 import torch
 import numpy as np
-import os
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import (QApplication, QGroupBox, QPushButton, QMessageBox,QErrorMessage, 
                              QStatusBar, QFileDialog, QSpinBox, QLabel, QWidget, QComboBox, 
@@ -645,6 +645,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelChoose.setFont(self.medfont)
         self.modelChoose.setFocusPolicy(QtCore.Qt.NoFocus)
         self.modelChoose.setCurrentIndex(-1)
+        self.modelChoose
         self.GBLayout.addWidget(self.modelChoose, 0,0,1,7)
 
         self.modelButton = QPushButton(u'run model')
@@ -766,7 +767,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.contourButton.setStyleSheet(self.checkstyle)
         # self.contourButton.setFont(self.medfont)
         # self.contourButton.stateChanged.connect(self.toggleContours)
-        # self.contourButton.setShortcut(QtCore.Qt.Key_C)
+        self.contourButton.setShortcut(QtCore.Qt.Key_C)
         # self.contourButton.setEnabled(False)
         # self.l.addWidget(self.contourButton, rowspace+1, 16,1,2)
 
@@ -774,14 +775,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.plotButton.setStyleSheet(self.checkstyle)
         # self.plotButton.setFont(self.medfont)
         # self.plotButton.stateChanged.connect(self.togglePlotWindow)
-        # self.plotButton.setShortcut(QtCore.Qt.Key_P)
+        self.plotButton.setShortcut(QtCore.Qt.Key_P)
         # self.l.addWidget(self.plotButton, rowspace+1, 18, 1,2)
 
         # self.maskOnCheck = QCheckBox("Mask")
         # self.maskOnCheck.setStyleSheet(self.checkstyle)
         # self.maskOnCheck.setFont(self.medfont)
         # self.maskOnCheck.setEnabled(False)
-        # self.maskOnCheck.setShortcut(QtCore.Qt.Key_Space)
+        self.maskOnCheck.setShortcut(QtCore.Qt.Key_Space)
         # self.maskOnCheck.stateChanged.connect(self.toggleMask)
         # self.l.addWidget(self.maskOnCheck, rowspace+2, 16,1,2)
 
@@ -789,7 +790,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.probOnCheck.setStyleSheet(self.checkstyle)
         # self.probOnCheck.setFont(self.medfont)
         # self.probOnCheck.setEnabled(False)
-        # self.probOnCheck.setShortcut(QtCore.Qt.Key_F)
+        self.probOnCheck.setShortcut(QtCore.Qt.Key_F)
         # self.probOnCheck.stateChanged.connect(self.toggleProb)
         # self.l.addWidget(self.probOnCheck, rowspace+2, 18,1,2)
 
@@ -1368,7 +1369,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.buildPlotWindow()
             else:
                 self.showError("No Timeseries Data Available - Track Cell First")   
-                self.plotButton.setCheckState(False)
+                self.plotButton.setChecked(False)
         elif self.pWindow is not None:
             self.pWindow.close()
             self.pWindow = None
@@ -1563,7 +1564,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def setDataSelects(self):
         self.resetting_data = True
-        print(self.experiment().get_channel_names())
         self.clearDataSelects()
         self.channelSelect.addItems(self.experiment().get_channel_names())
         if self.experiment().has_labels():
@@ -2337,7 +2337,6 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def interpolationFinished(self, ims, exp_idx, name, annotations, interpolation):
         experiment = self.experiments[exp_idx]
-        print(len(ims))
         new_channel = InterpolatedChannel(interpolation=interpolation, ims = ims, dir = experiment.dir , name = name, annotations=annotations)
         experiment.add_channel_object(new_channel)
         self.imZ+=1

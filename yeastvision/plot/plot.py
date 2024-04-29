@@ -193,13 +193,11 @@ class EvalWindow(QWidget):
         self.figure = plt.figure()
         self.canvas = FigureCanvas(self.figure)
         self.data = data_dict
-        print(self.data)
 
         self.numPlots = len(data_dict)
         self.evalNames = [n for n,_ in list(self.data.values())[0]]
         self.numToEval = len(self.evalNames)
         self.xVals = IOUs
-        print(IOUs)
 
         # Create a table widget to display data
         self.tableLayout = QVBoxLayout()
@@ -424,7 +422,6 @@ class PlotWindow(QWidget):
     def getDataIdx(self, population):
         try:
             idx = self.parent.labelSelect.items().index(population)
-            print(idx)
             return idx
         except ValueError:
             return None
@@ -458,4 +455,4 @@ class PlotWindow(QWidget):
         self.resize(size)
     
     def closeEvent(self, event):
-        self.parent.plotButton.setCheckState(False)
+        self.parent.plotButton.setChecked(False)
