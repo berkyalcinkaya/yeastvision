@@ -77,7 +77,6 @@ class CustomCPWrapper(CustomModel):
 
     def __init__(self, params, weights):
         super().__init__(params, weights)
-        print(params)
 
         self.mean_diam = self.params["mean_diameter"]
         self.do_size_estimation = self.mean_diam == -1
@@ -100,7 +99,6 @@ class CustomCPWrapper(CustomModel):
                 "flow_threshold": params["flow_threshold"],
                 "do_3D": False,
                 "min_size":-1}
-        print(a)
         return a
     
     def process_probability(self, rawProb):
@@ -128,7 +126,6 @@ class CustomCPWrapper(CustomModel):
     @torch.no_grad()
     def run(cls, ims, params, weights):
         params = params if params else cls.hyperparams
-        print(params)
         model = cls(params, weights)
         ims3D = [cv2.merge((im,im,im)) for im in ims]
         masks, flows = model.get_masks_and_flows(ims3D)

@@ -47,11 +47,26 @@ import copy
 warnings.filterwarnings("ignore")
 from collections import OrderedDict
 import yeastvision
+import logging
 
+#logger = logging.getLogger(__name__)
 
+def logger_setup():
+    cp_dir = pathlib.Path.home().joinpath(".yeastvision")
+    cp_dir.mkdir(exist_ok=True)
+    log_file = cp_dir.joinpath("run.log")
+    try:
+        log_file.unlink()
+    except:
+        print("creating new log file")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.FileHandler(log_file),
+                  logging.StreamHandler(sys.stdout)])
+    logger = logging.getLogger(__name__)
+    logger.info(f"WRITING LOG OUTPUT TO {log_file}")
 
-# global logger
-# logger, log_file = logger_setup()
+logger_setup()
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, dir = None):
@@ -483,7 +498,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelectLabel.setStyleSheet(self.labelstyle)
         self.channelSelectLabel.setFont(self.smallfont)
         self.l.addWidget(self.channelSelectLabel, 0, self.mainViewCols-7,1,1)
-        self.channelSelect = CustomComboBox(lambda x: self.deleteData(x, channel = True), parent = self)
+        self.channelSelect = CustomComboBox(lambda x: self.deleteData(x, channel = True), parent = self, channel = True)
         self.channelSelect.setStyleSheet(self.dropdowns)
         self.channelSelect.setFont(self.medfont)
         self.channelSelect.currentIndexChanged.connect(self.channelSelectIndexChange)
@@ -645,7 +660,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelChoose.setFont(self.medfont)
         self.modelChoose.setFocusPolicy(QtCore.Qt.NoFocus)
         self.modelChoose.setCurrentIndex(-1)
-        self.modelChoose
+        self.modelChoose.setFixedWidth(180)
         self.GBLayout.addWidget(self.modelChoose, 0,0,1,7)
 
         self.modelButton = QPushButton(u'run model')
@@ -929,15 +944,39 @@ class MainWindow(QtWidgets.QMainWindow):
     def deleteData(self, idx, channel = False, label = False):
         self.deleting = True
         val = None
+        print("delete data", idx)
         if channel:
             val =  self.channelDelete(idx)
         elif label:
             val = self.labelDelete(idx)
         self.deleting = False
         return val
+    
+    def onDelete(self, index, new_index, channel = False):
+        if channel:
+            self.experiment().delete_channel(index)
+            if new_index == -1:
+                self.setEmptyDisplay(initial = False)
+            else:
+                self.setDataSelects()
+                self.updateDisplay()
+            
+            self.imZ = new_index
+        
+        else:
+            self.experiment().delete_label(index)
+            self.setDataSelects()
+            if new_index == -1:  
+                self.setEmptyMasks()
+                self.disableMaskOperations()
+            
+            self.maskZ = new_index
+        
+            self.updateDisplay()
 
 
     def channelDelete(self, index):
+        print("channel delete", index)
         num_channels = self.experiment().num_channels
         channel_to_remove = self.experiment().channels[index]
         message = f'''Are you sure you want to remove channel {channel_to_remove.name}'''
@@ -948,44 +987,14 @@ class MainWindow(QtWidgets.QMainWindow):
                             well. Are you sure you want to remove channel 
                             {channel_to_remove.name}'''
         
-            if self.doYesOrNoDialog("Confirmation", message):
-                self.experiment().delete_channel(index)
-                self.setEmptyDisplay()
-            return False
-        else:
-            if self.doYesOrNoDialog("Confirmation", message):
-                self.experiment().delete_channel(index)
-                self.setDataSelects()
-                if index == num_channels - 1:
-                    self.imZ -= 1
-                self.updateDisplay()
-                return True
-            else:
-                return False
+        return self.doYesOrNoDialog("Confirmation", message)
         
     def labelDelete(self, index):
-        num_labels = self.experiment().num_labels
+        print("label", index)
         label_to_remove = self.experiment().labels[index]
         message = f'''Are you sure you want to remove label {label_to_remove.name}'''
-        if num_labels == 1:
-            if self.doYesOrNoDialog("Confirmation", message):
-                self.experiment().delete_label(index)
-                self.setDataSelects()
-                self.setEmptyMasks()
-                self.disableMaskOperations()
-            return False
-        else:
-            if self.doYesOrNoDialog("Confirmation", message):
-                self.experiment().delete_label(index)
-                self.setDataSelects()
-                if index == num_labels - 1:
-                    self.imZ -= 1
-                self.updateDisplay()
-                return True
-            else:
-                return False
-            
-        
+        return self.doYesOrNoDialog("Confirmation", message)
+ 
     def doYesOrNoDialog(self, title, message):
         reply = QMessageBox.question(self, "Confirmation", message, QMessageBox.Yes | QMessageBox.No)
         return reply == QMessageBox.Yes
@@ -1021,6 +1030,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setCurrentIndex(index)
 
     def labelSelectEdit(self, text):
+        print("label select edit", text)
         if self.emptying or self.deleting:
             return
         idx = self.labelSelect.currentIndex()
@@ -1029,6 +1039,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.labelSelect.setItemText(idx, str(text))
 
     def labelSelectIndexChange(self,index):
+        print("label select index change")
         if not self.emptying:
             if self.maskZ != index:
                 self.maskZ = index
@@ -1232,7 +1243,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.experiment().labels[cellI].save()
         self.checkDataAvailibility()
-        self.showTreeButton.setCheckState(True)
+        
+        try:
+            self.toggleLineageTreeWindow()
+        except AttributeError:
+            return
     
 
     
@@ -1289,8 +1304,6 @@ class MainWindow(QtWidgets.QMainWindow):
         popup = TimedPopup(new_text, time)
         popup.exec_()
 
-
-
     def closeThread(self, thread):
         index = self.threads.index(thread)
         thread = self.threads[index]
@@ -1330,17 +1343,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pg_mask.image = image
         self.pg_mask.updateImage()
     
-
     def toggleLineageTreeWindow(self):
         self.lineageWindowOn = self.showTreeButton.isChecked()
-
         if self.lineageWindowOn:
             self.showTree()
         elif self.lineageWindow is not None:
             self.lineageWindow.close()
             self.lineageWindow = None
     
-    def showTree(self):
+    def showTree(self, index = None):
         data = self.label().celldata.get_cell_info()
         data = data.drop(columns = ["confidence"])
         data =  data.fillna(-1)
@@ -1565,10 +1576,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def setDataSelects(self):
         self.resetting_data = True
         self.clearDataSelects()
+        print("channel names", self.experiment().get_channel_names())
+        print("label names", self.experiment().get_label_names())
         self.channelSelect.addItems(self.experiment().get_channel_names())
         if self.experiment().has_labels():
             self.labelSelect.addItems(self.experiment().get_label_names())
         self.resetting_data = False 
+
+        print('resetting data', self.maskZ, self.imZ)
 
     def experimentChange(self):
         if not self.emptying:
@@ -1820,10 +1835,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return self.experiments[self.experiment_index].get_channel(idx = self.imZ, t = self.tIndex)
     
     def getCurrMask(self):
-        if not self.experiment().has_labels():
-            return np.zeros((512,512), dtype = np.uint8)
-        if self.tIndex > self.label().max_t():
-            return np.zeros((512,512), dtype = np.uint8)
+        if not self.experiment().has_labels() or self.tIndex > self.label().max_t():
+            return np.zeros(self.experiment().shape(), dtype = np.uint8)
         if self.maskOn:
             return self.experiment().get_label("labels", t = self.tIndex, idx = self.maskZ)
         else:
@@ -1843,13 +1856,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pg_mask.setImage(self.currMask, autolevels  =False, levels =[0,0], lut = self.maskColors)
 
     def updateDisplay(self):
+        print("updating display", self.maskZ, self.imZ)
+        if self.imChanged:
+            self.drawIm()
 
         if self.maskChanged:
             self.drawMask()
-        
-        if self.imChanged:
-            self.drawIm()
-        
+
         if self.tChanged:
             if self.win.underMouse() and self.labelX and self.labelY:
                 x,y = self.labelX, self.labelY
@@ -2294,14 +2307,20 @@ class MainWindow(QtWidgets.QMainWindow):
         return [combo.itemText(i) for i in range(combo.count())]
     
     def getNewLabelName(self, potentialName):
-        allNames = self.getAllItems(self.labelSelect)
-        if not (allNames):
-            return potentialName
-        n = (np.char.find(np.array(allNames), potentialName)+1).sum()
-        if n>0:
-            return f"{potentialName}-{n}"
-        else:
-            return potentialName
+        allNames = self.getAllItems(self.labelSelect)  # Retrieves all current names from labelSelect
+        print("Current label names:", allNames)
+        
+        if not allNames or potentialName not in allNames:
+            return potentialName  # Return the potential name if there are no existing names or it's not a duplicate
+
+        # The potential name exists, increment a suffix until a unique name is found
+        suffix = 1
+        new_name = f"{potentialName}-{suffix}"
+        while new_name in allNames:
+            suffix += 1
+            new_name = f"{potentialName}-{suffix}"
+
+        return new_name
     
     def getNewChannelName(self, potentialName):
         allNames = self.getAllItems(self.channelSelect)
@@ -2789,8 +2808,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showTreeButton.setEnabled(hasLineages)
     
     def checkInterpolation(self):
-        hasMasks = self.experiment().has_labels()
-        currIsInterp = isinstance(self.channel(), InterpolatedChannel)
+        hasMasks = self.experiments and self.experiment().has_labels()
+        currIsInterp = hasMasks and isinstance(self.channel(), InterpolatedChannel)
 
         if not currIsInterp or not hasMasks:
             self.disableInterpRemove()
@@ -2821,6 +2840,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 #@profile
 def main():
+
     dir = None
     test_dir = os.path.join(os.path.dirname(yeastvision.__path__[0]), "sample_movie")
     if len(sys.argv) == 1:

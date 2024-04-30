@@ -119,15 +119,11 @@ class LineageConstruction():
         self.forskip = forwardskip
         self.maxT = len(self.cellMasks)-1
         self.budNET = None
-        
-        self.labelMasks()
 
         # print("--shaving masks--")
         # self.shaveMasks()
 
         # self.labelMasks()
-    
-
     
     def shaveMasks(self):
         i = 0
@@ -141,7 +137,6 @@ class LineageConstruction():
                         newNeckMask += self.processNeckMask(cellmask, neckmask==neckI)
             self.neckMasks[i] = newNeckMask      
             i+=1
-
 
     def processNeckMask(self, segIm, neckMask):
         processCount = 0
@@ -200,46 +195,126 @@ class LineageConstruction():
         #motherDF = motherDF.set_index("cell")
         return daughterArray, motherDF[["birth", "death", "mother", "confidence"]]
     
-    def getMother(self, cellNum):
-        '''
-        1) get bud that overlaps with daughter the most
-        2) '''
-        birth = getBirthFrame(self.cellMasks, cellNum)
-        birthFrame = self.cellMasks[birth]
-        eligibleFrames = slice(max(0, birth-self.backskip), min(self.maxT+1, birth+self.forskip))
+    # def getMother(self, cellNum):
+    #     '''
+    #     1) get bud that overlaps with daughter the most
+    #     2) '''
+    #     birth = getBirthFrame(self.cellMasks, cellNum)
+    #     birthFrame = self.cellMasks[birth]
+    #     eligibleFrames = slice(max(0, birth-self.backskip), min(self.maxT+1, birth+self.forskip))
 
 
-        overlapcounts = {}
-        i = 0
-        for cellframe, budframe in zip(self.cellMasks[eligibleFrames], self.neckMasks[eligibleFrames]):
-            if i < birth:
-                cellframe = self.cellMasks[birth]
+    #     overlapcounts = {}
+    #     i = 0
+    #     for cellframe, budframe in zip(self.cellMasks[eligibleFrames], self.neckMasks[eligibleFrames]):
+    #         if i < birth:
+    #             cellframe = self.cellMasks[birth]
 
-            potentialBuds, counts= np.unique(budframe[cellframe==cellNum], return_counts=True)
-            if np.any(potentialBuds>0):
-                potentialBuds, counts = potentialBuds[potentialBuds!=0], counts[potentialBuds!=0]
-                correctBud = potentialBuds[np.argmax(counts)]
-                mothers, counts = np.unique(cellframe[budframe==correctBud], return_counts=True)
-                for mother, count in zip(mothers, counts):
-                    if mother !=cellNum and mother!=0:
-                        if mother in overlapcounts:
-                            overlapcounts[mother] += count
-                        else:
-                            overlapcounts[mother] = count  
-            i+=1   
-        if overlapcounts:
-            overlapcounts = normalize_dict_by_sum(overlapcounts)
-            mother = max(overlapcounts, key = overlapcounts.get)
-            confidence = overlapcounts[mother]
+    #         potentialBuds, counts= np.unique(budframe[cellframe==cellNum], return_counts=True)
+    #         if np.any(potentialBuds>0):
+    #             potentialBuds, counts = potentialBuds[potentialBuds!=0], counts[potentialBuds!=0]
+    #             correctBud = potentialBuds[np.argmax(counts)]
+    #             mothers, counts = np.unique(cellframe[budframe==correctBud], return_counts=True)
+    #             for mother, count in zip(mothers, counts):
+    #                 if mother !=cellNum and mother!=0:
+    #                     if mother in overlapcounts:
+    #                         overlapcounts[mother] += count
+    #                     else:
+    #                         overlapcounts[mother] = count  
+    #         i+=1   
+    #     if overlapcounts:
+    #         overlapcounts = normalize_dict_by_sum(overlapcounts)
+    #         mother = max(overlapcounts, key = overlapcounts.get)
+    #         confidence = overlapcounts[mother]
 
-            if birth==0:
-                motherArea = np.sum(birthFrame == mother)
-                daughterArea = np.sum(birthFrame==cellNum)
-                if daughterArea > motherArea:
-                    return None, 0
-            return mother, round(confidence,2)
-        else:
-            return None, 0
+    #         if birth==0:
+    #             motherArea = np.sum(birthFrame == mother)
+    #             daughterArea = np.sum(birthFrame==cellNum)
+    #             if daughterArea > motherArea:
+    #                 return None, 0
+    #         return mother, round(confidence,2)
+    #     else:
+    #         return None, 0
+
+def getMother(self, cellNum):
+    """
+    Determines the most likely mother cell of a given daughter cell in budding yeast colonies,
+    based on the overlap of bud necks and cell regions across a series of frames starting from the birth of the daughter.
+
+    This function processes images over a range of frames from the daughter cell's birth frame up to three additional frames.
+    It considers all potential bud necks overlapping with the daughter cell and calculates the overlaps with surrounding cells.
+    The function returns the mother cell with the highest normalized overlap count, suggesting the strongest connection through the bud neck.
+
+    Parameters:
+    - cellNum (int): The unique identifier for the daughter cell whose mother cell needs to be identified.
+
+    Returns:
+    - tuple: A tuple containing the mother cell's identifier and a confidence level (rounded to two decimal places).
+             Returns (None, 0) if no mother is identified due to no overlaps or other criteria not being met.
+
+    Pseudocode:
+    1. Get the birth frame of the daughter cell.
+    2. Calculate the area of the daughter cell at the birth frame.
+    3. Define the range of frames to analyze (from birth to three frames post-birth).
+    4. Initialize a dictionary to store overlap counts for potential mother cells.
+    5. Loop through each frame in the defined range:
+       a. For each frame, identify and filter bud necks that overlap with the daughter cell.
+       b. For each valid bud neck, determine overlapping cells and calculate their areas.
+       c. Add to the overlap count for cells (potential mothers) if they are not the daughter and are larger than the daughter.
+    6. Normalize the overlap counts to determine the confidence level for each potential mother.
+    7. Return the mother cell with the highest confidence level, or (None, 0) if no suitable mother is found.
+    """
+    # Determine the birth frame of the specified cell number
+    birth = getBirthFrame(self.cellMasks, cellNum)
+    # Retrieve the cell mask for the birth frame
+    birthFrame = self.cellMasks[birth]
+    # Calculate the area of the daughter cell at the birth frame
+    daughterArea = np.sum(birthFrame == cellNum)
+    # Define the range of frames to be considered, from birth to three frames after birth
+    eligibleFrames = range(birth, min(birth + self.forskip, self.maxT + 1))
+
+    # Initialize a dictionary to store the counts of overlaps for potential mothers
+    overlapcounts = {}
+
+    # Iterate through each frame in the designated range
+    for frameIndex in eligibleFrames:
+        # Access cell and bud neck masks for the current frame
+        cellframe = self.cellMasks[frameIndex]
+        budframe = self.neckMasks[frameIndex]
+        # Identify potential bud necks overlapping with the daughter cell and count them
+        potentialBuds, counts = np.unique(budframe[cellframe == cellNum], return_counts=True)
+        # Filter out background buds (valid buds are those with indices > 0)
+        valid_buds = potentialBuds > 0
+        potentialBuds = potentialBuds[valid_buds]
+        counts = counts[valid_buds]
+
+        # For each valid bud, identify overlapping mother cells and count overlaps
+        for bud, count in zip(potentialBuds, counts):
+            mothers, mcounts = np.unique(cellframe[budframe == bud], return_counts=True)
+            # Filter out the daughter cell and background from potential mothers
+            valid_mothers = (mothers != cellNum) & (mothers != 0)
+
+            # Accumulate counts for each potential mother if their area is greater than the daughter's area
+            for mother, mcount in zip(mothers[valid_mothers], mcounts[valid_mothers]):
+                motherArea = np.sum(cellframe == mother)
+                if motherArea > daughterArea:
+                    if mother in overlapcounts:
+                        overlapcounts[mother] += mcount
+                    else:
+                        overlapcounts[mother] = mcount
+
+    # After processing all frames, normalize the overlap counts to calculate confidence scores
+    if overlapcounts:
+        overlapcounts = normalize_dict_by_sum(overlapcounts)
+        # Select the mother with the highest confidence
+        mother = max(overlapcounts, key=overlapcounts.get)
+        confidence = overlapcounts[mother]
+        # Return the identified mother and the confidence level, rounded to two decimal places
+        return mother, round(confidence, 2)
+    else:
+        return None, 0# Return None, 0 if no suitable mother was
+
+
 
 
 

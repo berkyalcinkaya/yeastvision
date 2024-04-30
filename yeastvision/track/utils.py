@@ -2,13 +2,12 @@ from skimage.measure import regionprops
 import numpy as np
 import cv2
 
-def normalize_dict_by_sum(dict):
-    sum = 0
-    for val in dict.values():
-        sum+=val
-    new_dict = {k:v/sum for k,v in dict.items()}
+def normalize_dict_by_sum(data):
+    total = sum(data.values())  # Use the built-in sum() function for efficiency
+    if total == 0:
+        return {k: 0 for k in data}  # Avoid division by zero by returning zero for all keys
+    return {k: v / total for k, v in data.items()}  # Use a dictionary comprehension for normalization
 
-    return new_dict
 
 def get_cell_bbox(array, cellval, desired_shape):
     # Get the center coordinates

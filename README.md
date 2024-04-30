@@ -6,7 +6,9 @@
 
 ### A GUI-based framework for deep-learning enabled segmentation, tracking, time-series analysis of the full Saccharomyces cerevisiae lifecycle 
 
-#### Developed at the [Miranda Laboratory](https://cals.ncsu.edu/plant-and-microbial-biology/people/oargell/) at NCSU
+#### Read the paper [Deep learning-driven imaging of cell division and cell growth across an entire eukaryotic life cycle](https://www.biorxiv.org/content/10.1101/2024.04.25.591211v1)
+
+##### Developed at the [Miranda Laboratory](https://cals.ncsu.edu/plant-and-microbial-biology/people/oargell/) at NCSU
 
 [![PyPI version](https://badge.fury.io/py/yeastvision.svg)](https://badge.fury.io/py/yeastvision)
 [![Downloads](https://pepy.tech/badge/yeastvision)](https://pepy.tech/project/yeastvision)
@@ -27,10 +29,9 @@
 
 ### Key Features
 
-- Enhance time-series resolution up to 16x using a generative video interpolation model [[1]](#1)
+- *FIEST Tracking Algorithm*: Enhance time-series resolution up to 16x using a generative video interpolation model[[1]](#1), used to enhance cell-tracking and lineage reconstruction 
 - Load, analyze, and segment multiple experiments containing numerous phase/flourescent channels
 - Segment cytoplasm, vacuoles, buds, mating, and sporulating yeast cells
-- Track and reconstruct lineages of large cell colonies
 - Extract and plot time-series data in the GUI
 <br/><br/><br/><br/><br/><br/><br/>
 # Installation

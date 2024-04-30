@@ -41,29 +41,48 @@ class RemoveItemDelegate(QStyledItemDelegate):
 
 
 class CustomListView(QListView):
-    def __init__(self, combo, delete_method, parent=None):
+    def __init__(self, combo, delete_method, parent=None, channel = False):
         super(CustomListView, self).__init__(parent)
         self._combo = combo
         self._delete_method = delete_method
+        self.parent = parent
+        self.channel = channel
 
     def mousePressEvent(self, event):
-        combo = self._combo
-        delegate = combo.itemDelegate()
         index_under_mouse = self.indexAt(event.pos())
-        print(index_under_mouse.row())
-
+        delegate = self._combo.itemDelegate()
         if isinstance(delegate, RemoveItemDelegate) and delegate.get_close_button_rect(self.visualRect(index_under_mouse)).contains(event.pos()):
-            if self._delete_method(int(index_under_mouse.row())):
-                combo.removeItem(index_under_mouse.row())
+            index = index_under_mouse.row()
+            if self._delete_method(index):
+                current_index = self._combo.currentIndex()
+                self._combo.blockSignals(True)
+                self._combo.removeItem(index_under_mouse.row())
+                new_index = self.update_index_after_removal(current_index)
+                self.parent.onDelete(index, new_index, channel = self.channel)
+                self._combo.blockSignals(False)
         else:
             super().mousePressEvent(event)
 
+    def update_index_after_removal(self, removed_index):
+        num_items = self._combo.count()
+        print("num items", num_items)
+        if num_items == 0:
+            return  -1 # Optionally, disable the combo box or inform the user
+        new_index = removed_index if removed_index < num_items else num_items - 1
+        self._combo.setCurrentIndex(new_index)
+        self._combo.setEditText(self._combo.currentText())
+
+        print("Current items in ComboBox:")
+        for i in range(num_items):
+            print(f"Item {i}: {self._combo.itemText(i)}")
+
+        return new_index
 
 
 class CustomComboBox(QComboBox):
-    def __init__(self, delete_method, parent=None):
+    def __init__(self, delete_method, parent=None, channel = False):
         super(CustomComboBox, self).__init__(parent)
-        self.setView(CustomListView(self, delete_method))
+        self.setView(CustomListView(self, delete_method, parent = parent, channel = channel))
         self.setItemDelegate(RemoveItemDelegate(self))
 
     def addNewItem(self, name):
