@@ -7,6 +7,9 @@ from .utils import *
 import copy
 from tqdm import tqdm
 from yeastvision.track.data import LineageData, TimeSeriesData
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -224,6 +227,7 @@ class Experiment():
     def delete_label(self, index):
         self.num_labels -= 1
         self.labels[index].save()
+
         del self.labels[index]
 
     def add_label(self, files = None, arrays = None, increment_count = True, name = None, update_data = False):
@@ -622,6 +626,10 @@ class Label(Files):
         def save(self):
             self.write_to_npz()
         
+        def delete(self):
+            logger.info(f"Removing label data file {self.npz_path}")
+            os.remove(self.npz_path)
+
         def set_data(self, labels, contours, probability = None):
             self.labels = labels
             self.contours = contours

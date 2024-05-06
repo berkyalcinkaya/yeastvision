@@ -944,7 +944,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def deleteData(self, idx, channel = False, label = False):
         self.deleting = True
         val = None
-        print("delete data", idx)
         if channel:
             val =  self.channelDelete(idx)
         elif label:
@@ -976,7 +975,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def channelDelete(self, index):
-        print("channel delete", index)
         num_channels = self.experiment().num_channels
         channel_to_remove = self.experiment().channels[index]
         message = f'''Are you sure you want to remove channel {channel_to_remove.name}'''
@@ -990,7 +988,6 @@ class MainWindow(QtWidgets.QMainWindow):
         return self.doYesOrNoDialog("Confirmation", message)
         
     def labelDelete(self, index):
-        print("label", index)
         label_to_remove = self.experiment().labels[index]
         message = f'''Are you sure you want to remove label {label_to_remove.name}'''
         return self.doYesOrNoDialog("Confirmation", message)
@@ -1030,7 +1027,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setCurrentIndex(index)
 
     def labelSelectEdit(self, text):
-        print("label select edit", text)
         if self.emptying or self.deleting:
             return
         idx = self.labelSelect.currentIndex()
@@ -1039,7 +1035,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.labelSelect.setItemText(idx, str(text))
 
     def labelSelectIndexChange(self,index):
-        print("label select index change")
         if not self.emptying:
             if self.maskZ != index:
                 self.maskZ = index
@@ -1576,14 +1571,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def setDataSelects(self):
         self.resetting_data = True
         self.clearDataSelects()
-        print("channel names", self.experiment().get_channel_names())
-        print("label names", self.experiment().get_label_names())
         self.channelSelect.addItems(self.experiment().get_channel_names())
         if self.experiment().has_labels():
             self.labelSelect.addItems(self.experiment().get_label_names())
         self.resetting_data = False 
-
-        print('resetting data', self.maskZ, self.imZ)
 
     def experimentChange(self):
         if not self.emptying:
@@ -1856,7 +1847,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pg_mask.setImage(self.currMask, autolevels  =False, levels =[0,0], lut = self.maskColors)
 
     def updateDisplay(self):
-        print("updating display", self.maskZ, self.imZ)
         if self.imChanged:
             self.drawIm()
 

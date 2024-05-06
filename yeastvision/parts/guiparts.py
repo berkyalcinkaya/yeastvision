@@ -65,16 +65,11 @@ class CustomListView(QListView):
 
     def update_index_after_removal(self, removed_index):
         num_items = self._combo.count()
-        print("num items", num_items)
         if num_items == 0:
             return  -1 # Optionally, disable the combo box or inform the user
         new_index = removed_index if removed_index < num_items else num_items - 1
         self._combo.setCurrentIndex(new_index)
         self._combo.setEditText(self._combo.currentText())
-
-        print("Current items in ComboBox:")
-        for i in range(num_items):
-            print(f"Item {i}: {self._combo.itemText(i)}")
 
         return new_index
 

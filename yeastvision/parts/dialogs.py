@@ -1,6 +1,4 @@
 from PyQt5 import QtGui, QtCore
-
-import pyqtgraph as pg
 from PyQt5.QtWidgets import (QApplication, QTreeWidgetItem, QPushButton, QDialog,
                         QDialogButtonBox, QLineEdit, QFormLayout, QCheckBox,  QSpinBox, QDoubleSpinBox, QLabel, 
                             QWidget, QComboBox, QGridLayout, QHBoxLayout, QSizePolicy, QHeaderView, QVBoxLayout,
@@ -8,7 +6,6 @@ from PyQt5.QtWidgets import (QApplication, QTreeWidgetItem, QPushButton, QDialog
 from PyQt5.QtCore import QTimer
 import numpy as np
 import os
-import datetime
 from yeastvision.parts.guiparts import *
 from yeastvision.plot.plot import PlotProperty
 
