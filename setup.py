@@ -5,6 +5,7 @@ import os
 def find_files(directory):
     for path, directories, files in os.walk(directory):
         for file in files:
+            print(file)
             yield os.path.join(path, file)
 
 requires = [
@@ -25,6 +26,7 @@ requires = [
 "tqdm",
 "trackpy",
 "torchvision==0.13.0",
+"chardet==5.2.0",
 "memory-profiler",
 "QSwitchControl"]
 
@@ -52,9 +54,19 @@ packages = [
             "yeastvision.models.matSeg", "yeastvision.models.spoSeg"
             ]
 
+data_files = [
+            #   ("yeastvision/models/budSeg",  ["yeastvision/models/budSeg/budSeg"]),
+            #   ("yeastvision/models/proSeg",  ["yeastvision/models/proSeg/proSeg"]),
+            #   ("yeastvision/models/matSeg", ["yeastvision/models/matSeg/matSeg"]),
+            #   ("yeastvision/models/spoSeg", ["yeastvision/models/spoSeg/spoSeg"]),
+              ("yeastvision/ims/rife_model", ["yeastvision/ims/rife_model/flownet.pkl"])
+              ]
+
+#("sample_movie", list(find_files("sample_movie"))),
+
 setup(
     name = "yeastvision",
-    version = "0.1.31",
+    version = "0.1.36",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
@@ -63,7 +75,7 @@ setup(
     author_email="berkyalcinkaya55@gmail.com",
     license = "BSD",
     packages = packages,
-    data_files = [("sample_movie", list(find_files("sample_movie")))],
+    data_files = data_files,
     install_requires = requires,
     include_package_data=True,
     classifiers=(

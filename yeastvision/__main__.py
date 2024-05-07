@@ -2833,6 +2833,7 @@ def main():
 
     dir = None
     test_dir = os.path.join(os.path.dirname(yeastvision.__path__[0]), "sample_movie")
+    print(test_dir)
     if len(sys.argv) == 1:
         pass
     elif len(sys.argv) > 2:

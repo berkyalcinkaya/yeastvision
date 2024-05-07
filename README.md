@@ -51,13 +51,17 @@ This package supports Linux, Windows and Mac OS (versions later than Yosemite). 
 3. If you have an older `yeastvision` environment you should remove it with `conda env remove -n yeastvision` before creating a new one. 
 4. Create a new environment with `conda create --name yeastvision python=3.10.0`. 
 5. Activate this new environment by running `conda activate yeastvision`
-6. Run `python -m pip install yeastvision` to download our package plus all dependencies
+6. To download our package plus all dependencies, run `python -m pip install yeastvision` on Windows and `python3 -m pip install yeastvision` on Linux, Ubuntu, and Mac OS.
 
 
 You should upgrade the [yeastvision package](https://pypi.org/project/yeastvision/) periodically as it is still in development. To do so, run the following in the environment:
 
 ~~~sh
 python -m pip install yeastvision --upgrade
+~~~
+for Windows or 
+~~~sh
+python3 -m pip install yeastvision --upgrade
 ~~~
 
 See [Troubleshooting: Common Problems](##troubleshooting:-common-problems) for potential install errors.
