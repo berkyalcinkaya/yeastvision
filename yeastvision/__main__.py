@@ -48,6 +48,7 @@ warnings.filterwarnings("ignore")
 from collections import OrderedDict
 import yeastvision
 import logging
+from yeastvision.install import install_weight, install_rife
 
 #logger = logging.getLogger(__name__)
 
@@ -2143,7 +2144,16 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.modelNames.append(os.path.split(dirFile)[1].split(".")[0])
                         self.modelTypes.append(dirName)
         if len(self.modelNames)==0:
-            self.showError("Weights Have Not Been Downloaded. Find the weights at https://drive.google.com/file/d/1J3R4JKILkQNM0Ap-MKxqv61oAxObSjBo/view?usp=drive_link. Then run install-weights in the same directory as the downloaded zip file.")
+            self.showError("Weights Have Not Been Downloaded. Installing Now")
+            self.installWeights()
+
+    def installWeights(self):
+        install_rife()
+        logging.info("installing rife model")
+        for model_name in tqdm(["budSeg", "proSeg", "matSeg", "spoSeg"]):
+            install_weight(model_name)
+            logging.info(f"installing {model_name} weights")
+
 
     def getModelWeights(self, name = "proSeg"):
         weights = []

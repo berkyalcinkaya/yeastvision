@@ -4,12 +4,36 @@ import os
 from yeastvision.models.utils import MODEL_DIR
 from os.path import join
 from yeastvision.ims.interpolate import RIFE_DIR
-
-def get_url(model_name):
-    pass
+import requests
 
 def install_weight(model_name):
-    pass
+    # Construct the URL for the model weights
+    url = f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{model_name}?raw=True"
+    
+    # Make the request to download the file
+    response = requests.get(url)
+    response.raise_for_status()  # This will raise an exception if the request failed
+    
+    # Define the file path where the weights will be saved
+    file_path = os.path.join(MODEL_DIR, model_name)
+    
+    # Write the downloaded data to the file
+    with open(file_path, 'wb') as file:
+        file.write(response.content)
+
+def install_rife():
+    filename = "flownet.pkl"
+    url = f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{filename}?raw=True"
+    response = requests.get(url)
+    response.raise_for_status()  # This will raise an exception if the request failed
+    
+    # Define the file path where the weights will be saved
+    file_path = os.path.join(MODEL_DIR, filename)
+    
+    # Write the downloaded data to the file
+    with open(file_path, 'wb') as file:
+        file.write(response.content)
+
 
 def do_install():
     current_directory = os.getcwd()
