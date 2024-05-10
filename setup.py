@@ -54,13 +54,13 @@ packages = [
             "yeastvision.models.matSeg", "yeastvision.models.spoSeg"
             ]
 
-data_files = [
-            #   ("yeastvision/models/budSeg",  ["yeastvision/models/budSeg/budSeg"]),
-            #   ("yeastvision/models/proSeg",  ["yeastvision/models/proSeg/proSeg"]),
-            #   ("yeastvision/models/matSeg", ["yeastvision/models/matSeg/matSeg"]),
-            #   ("yeastvision/models/spoSeg", ["yeastvision/models/spoSeg/spoSeg"]),
-              ("yeastvision/ims/rife_model", ["yeastvision/ims/rife_model/flownet.pkl"])
-              ]
+# data_files = [
+#             #   ("yeastvision/models/budSeg",  ["yeastvision/models/budSeg/budSeg"]),
+#             #   ("yeastvision/models/proSeg",  ["yeastvision/models/proSeg/proSeg"]),
+#             #   ("yeastvision/models/matSeg", ["yeastvision/models/matSeg/matSeg"]),
+#             #   ("yeastvision/models/spoSeg", ["yeastvision/models/spoSeg/spoSeg"]),
+#               ("yeastvision/ims/rife_model", ["yeastvision/ims/rife_model/flownet.pkl"])
+#               ]
 
 #("sample_movie", list(find_files("sample_movie"))),
 
@@ -75,7 +75,6 @@ setup(
     author_email="berkyalcinkaya55@gmail.com",
     license = "BSD",
     packages = packages,
-    data_files = data_files,
     install_requires = requires,
     include_package_data=True,
     classifiers=(

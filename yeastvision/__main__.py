@@ -1,5 +1,7 @@
 #https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html
 import os
+
+from yeastvision import models
 os.environ['QT_LOGGING_RULES'] = '*.warning=false'
 import sys
 import torch
@@ -24,7 +26,7 @@ import cv2
 from yeastvision.disk.reader import ImageData
 import importlib
 import yeastvision.parts.menu as menu
-from yeastvision.models.utils import MODEL_DIR
+from yeastvision.models.utils import MODEL_DIR, getModels, getModelLoadedStatus, produce_weight_path
 import glob
 from os.path import join
 from datetime import datetime
@@ -33,7 +35,7 @@ import yeastvision.plot.plot as plot
 from yeastvision.flou.blob_detect import Blob
 from yeastvision.utils import *
 import yeastvision.ims.im_funcs as im_funcs
-from yeastvision.ims.interpolate import interpolate
+from yeastvision.ims.interpolate import interpolate, rife_weights_loaded, RIFE_WEIGHTS_PATH, RIFE_WEIGHTS_NAME
 import math
 from skimage.io import imsave
 from cellpose.metrics import average_precision
@@ -66,8 +68,10 @@ def logger_setup():
                   logging.StreamHandler(sys.stdout)])
     logger = logging.getLogger(__name__)
     logger.info(f"WRITING LOG OUTPUT TO {log_file}")
+    return logger
 
-logger_setup()
+global logger
+logger = logger_setup()
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, dir = None):
@@ -81,6 +85,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.idealThreadCount = 2
 
         self.sessionId = self.getCurrTimeStr()
+
+        self.INTERP_MODEL_NAME = "RIFE"
         
         self.goldColor = [255,215,0,255]
 
@@ -107,7 +113,10 @@ class MainWindow(QtWidgets.QMainWindow):
                              "border-color: white;"
                               "color:rgb(80,80,80);}")
         self.firstMaskLoad = True
+
+        self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
         self.getModelNames()
+
         self.cwidget = QWidget(self)
         self.l = QGridLayout()
         self.cwidget.setLayout(self.l)
@@ -142,7 +151,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         menu.menubar(self)
 
-        self.cellDataFormat = { "Cell":[],
+        self.cellDataFormat = {"Cell":[],
                                 "Birth":[],
                                 "Death":[]}
         self.cellLineageDataFormat = {"Mother":[],
@@ -173,6 +182,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resetting_data = False
 
         self.win.show()
+
+        if len(self.modelNames)==0:
+            self.showError("No Models Loaded. Go to Models>Load Model Weights")
 
         if dir is not None:
             print('LOADING TEST DIRECTORY')
@@ -254,7 +266,15 @@ class MainWindow(QtWidgets.QMainWindow):
         except AttributeError:
             self._tIndex = num
     
+    def get_models_loaded_status(self):
+        return {model: getModelLoadedStatus(model) for model in getModels()}
+    
+    def get_weights_loaded_status(self):
+        models_loaded = self.get_models_loaded_status()
+        models_loaded[self.INTERP_MODEL_NAME] = rife_weights_loaded()
+        return models_loaded
 
+    
     def handleFinished(self, error = False):
         self.closeThread(self.threads[-1])
         self.updateThreadDisplay()
@@ -1973,48 +1993,54 @@ class MainWindow(QtWidgets.QMainWindow):
             intensityVals[i] = np.percentile(im[cellmask], 0.1)
         return np.min(radiusVals), np.max(radiusVals), np.min(intensityVals)
         
-    def doFlou(self):
-        dlg = FlouParamDialog(self)
+    # def doFlou(self):
+    #     dlg = FlouParamDialog(self)
 
-        if dlg.exec():
-            self.segButton.setEnabled(False)
-            self.segButton.setStyleSheet(self.stylePressed)
-            params = dlg.getData()
+    #     if dlg.exec():
+    #         self.segButton.setEnabled(False)
+    #         self.segButton.setStyleSheet(self.stylePressed)
+    #         params = dlg.getData()
             
-            if params['extract from curr mask']:
-                minRadius, maxRadius, thresh = self.getBlobAttributes()
+    #         if params['extract from curr mask']:
+    #             minRadius, maxRadius, thresh = self.getBlobAttributes()
                 
-            else:
-                minSize, maxSize, thresh = params["min area"], params["max area"], params["threshold"]
-                minRadius, maxRadius = math.sqrt(minSize / math.pi), math.sqrt(maxSize / math.pi)
+    #         else:
+    #             minSize, maxSize, thresh = params["min area"], params["max area"], params["threshold"]
+    #             minRadius, maxRadius = math.sqrt(minSize / math.pi), math.sqrt(maxSize / math.pi)
 
-            print(minRadius, maxRadius, thresh)
+    #         print(minRadius, maxRadius, thresh)
 
-            tStart,tStop = int(params["T Start"]), int(params["T Stop"])
-            channelIndex = self.channelSelect.findText(params['channel'])
-            ims = self.imData.channels[channelIndex][tStart:tStop+1,:,:]
-            if params['label']:
-                labelIndex = self.labelSelect.findText(params['label'])
-                if params["use contours"]:
-                    labels = self.maskData.channels[labelIndex][0,tStart:tStop+1,:,:]
-                else:
-                    labels = self.maskData.contours[labelIndex][tStart:tStop+1,:,:]
-            else:
-                labels = None
-            name = self.channelSelect.currentText() + "-blob_detection"
-            worker = Worker(self, lambda: self.loadMasks(Blob.run(ims, thresh, minRadius, maxRadius, labels), name = name), self.segButton)
-            worker.finished.connect(self.handleFinished)
+    #         tStart,tStop = int(params["T Start"]), int(params["T Stop"])
+    #         channelIndex = self.channelSelect.findText(params['channel'])
+    #         ims = self.imData.channels[channelIndex][tStart:tStop+1,:,:]
+    #         if params['label']:
+    #             labelIndex = self.labelSelect.findText(params['label'])
+    #             if params["use contours"]:
+    #                 labels = self.maskData.channels[labelIndex][0,tStart:tStop+1,:,:]
+    #             else:
+    #                 labels = self.maskData.contours[labelIndex][tStart:tStop+1,:,:]
+    #         else:
+    #             labels = None
+    #         name = self.channelSelect.currentText() + "-blob_detection"
+    #         worker = Worker(self, lambda: self.loadMasks(Blob.run(ims, thresh, minRadius, maxRadius, labels), name = name), self.segButton)
+    #         worker.finished.connect(self.handleFinished)
 
-            try:
-                self.beginThread(worker)
-            except MemoryError:
-                error_dialog  = QErrorMessage()
-                error_dialog.showMessage(f"Cannot Segment Until Other Processes are Finished")
-                self.activateButton(self.segButton)
-                return
-        else:
-            return
-
+    #         try:
+    #             self.beginThread(worker)
+    #         except MemoryError:
+    #             error_dialog  = QErrorMessage()
+    #             error_dialog.showMessage(f"Cannot Segment Until Other Processes are Finished")
+    #             self.activateButton(self.segButton)
+    #             return
+    #     else:
+    #         return
+    
+    def newModels(self):
+        self.modelChoose.clear()
+        self.getModels()
+        self.getModelNames()
+        self.modelChoose.addItems(sorted(self.modelNames, key = lambda x: x[0]))
+        
     def getModels(self):
         for modelName in self.modelNames:
             if os.path.exists(os.path.join("models",modelName,"model.py")):
@@ -2128,8 +2154,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.trainIms = [im for i,im in enumerate(ims[:self.trainTStop+1]) if i not in no_cell_frames]
         self.trainLabels = [im for i,im in enumerate(labels[:self.trainTStop+1]) if i not in no_cell_frames]
         self.trainFiles = [file for i, file in enumerate(self.trainFiles[:self.trainTStop+1]) if i not in no_cell_frames]
-
     
+    def getUserRequestedModels(self):
+        hyperparam = self.WEIGHTS_LOADED_STATUS
+        types = [bool for hp in hyperparam]
+        dlg = GeneralParamDialog(hyperparam, types, "Select Models to Load", self)
+        if dlg.exec():
+            return dlg.getData()
+        else:
+            return None
+        
     def getModelNames(self):
         self.modelNames = []
         self.modelTypes = []
@@ -2143,18 +2177,44 @@ class MainWindow(QtWidgets.QMainWindow):
                     if "." not in dirName2 or (dirFile.endswith("h5") or dirFile.endswith("hdf5")):
                         self.modelNames.append(os.path.split(dirFile)[1].split(".")[0])
                         self.modelTypes.append(dirName)
-        if len(self.modelNames)==0:
-            self.showError("Weights Have Not Been Downloaded. Installing Now")
-            self.installWeights()
+    
+    def modelExists(self, model):
+        if model != self.INTERP_MODEL_NAME:
+            return getModelLoadedStatus(model)
+        else:
+            return rife_weights_loaded()
+    
+    def userLoadModels(self):
+        models_to_load = self.getUserRequestedModels()
+        if models_to_load is not None:
+            self.toggleWeights(models_to_load)
+            self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
+            self.newModels()
 
-    def installWeights(self):
-        install_rife()
-        logging.info("installing rife model")
-        for model_name in tqdm(["budSeg", "proSeg", "matSeg", "spoSeg"]):
+    def toggleWeights(self, models_to_load):
+        for model_name, status in models_to_load.items():
+            if (not status) and self.modelExists(model_name):
+                self.delete_model(model_name)
+            elif status and not self.modelExists(model_name):
+                self.install_model(model_name)
+    
+    def install_model(self, model_name):
+        if model_name == self.INTERP_MODEL_NAME:
+            logger.info(f"installing {self.INTERP_MODEL_NAME}")
+            install_rife()
+        else:
+            logger.info(f"Installing segmentation model {model_name}")
             install_weight(model_name)
-            logging.info(f"installing {model_name} weights")
-
-
+    
+    def delete_model(self, model):
+        if model != self.INTERP_MODEL_NAME:
+            model_path = produce_weight_path(model, model)
+        else:
+            model_path = RIFE_WEIGHTS_PATH
+        logger.info(f"Removinng model {model} located at {model_path}")
+        os.remove(model_path)
+        assert (not os.path.exists(model_path))
+            
     def getModelWeights(self, name = "proSeg"):
         weights = []
         dirs = [dir for dir in glob.glob(join(MODEL_DIR,"*")) if (os.path.isdir(dir) and "__" not in dir)]
@@ -2308,7 +2368,6 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def getNewLabelName(self, potentialName):
         allNames = self.getAllItems(self.labelSelect)  # Retrieves all current names from labelSelect
-        print("Current label names:", allNames)
         
         if not allNames or potentialName not in allNames:
             return potentialName  # Return the potential name if there are no existing names or it's not a duplicate
@@ -2810,11 +2869,16 @@ class MainWindow(QtWidgets.QMainWindow):
     def checkInterpolation(self):
         hasMasks = self.experiments and self.experiment().has_labels()
         currIsInterp = hasMasks and isinstance(self.channel(), InterpolatedChannel)
+        has_rife_weights = rife_weights_loaded()
 
         if not currIsInterp or not hasMasks:
             self.disableInterpRemove()
         else:
             self.enableInterpRemove()
+        
+        if not has_rife_weights:
+            self.disableInterp()
+            return
         
         if currIsInterp:
             self.disableInterp()
@@ -2843,7 +2907,7 @@ def main():
 
     dir = None
     test_dir = os.path.join(os.path.dirname(yeastvision.__path__[0]), "sample_movie")
-    print(test_dir)
+    
     if len(sys.argv) == 1:
         pass
     elif len(sys.argv) > 2:
@@ -2867,9 +2931,9 @@ def main():
     app_icon.addFile(icon_path, QtCore.QSize(64, 64))
     app_icon.addFile(icon_path, QtCore.QSize(256, 256))
     app.setWindowIcon(app_icon)
-    window = MainWindow(dir = dir,)
+    window = MainWindow(dir = dir)
     window.show()
-    app.exec_()        
+    app.exec_()      
 
 if __name__ == "__main__":
     main()

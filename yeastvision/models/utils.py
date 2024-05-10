@@ -5,10 +5,17 @@ import skimage
 from skimage.morphology import disk, binary_erosion, binary_dilation
 import yeastvision.models as models
 from os.path import join
-from sklearn.decomposition import PCA
+import os
 
 
 MODEL_DIR = models.__path__[0]
+
+def getModels():
+    models = [model for model in os.listdir(MODEL_DIR) if os.path.isdir(join(MODEL_DIR, model)) and model != "__pycache__"]
+    return models
+
+def getModelLoadedStatus(model):
+    return os.path.exists(produce_weight_path(model, model))
 
 def produce_weight_path(modeltype, modelname):
     return join(MODEL_DIR, modeltype, modelname)

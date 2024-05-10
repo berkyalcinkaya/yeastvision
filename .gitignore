@@ -8,3 +8,8 @@ yeastvision.egg-info/
 **/.hdf5
 **/.h5
 /test
+yeastvision/ims/rife_model/flownet.pkl
+yeastvision/models/budSeg/budSeg
+yeastvision/models/proSeg/proSeg
+yeastvision/models/matSeg/matSeg
+yeastvision/models/spoSeg/spoSeg

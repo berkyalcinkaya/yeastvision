@@ -1,29 +1,30 @@
-from http.cookiejar import CookiePolicy
 import cv2
-from skimage.io import imread
-import matplotlib.pyplot as plt
 from torch.nn import functional as F
 import torch
 import numpy as np
 from yeastvision.ims.rife_model.pytorch_msssim import ssim_matlab
 from queue import Queue, Empty
-from skimage.util import img_as_ubyte
 from .rife_model.RIFE import Model
-import os
 from yeastvision.ims import rife_model
 import copy
+import os
 
 RIFE_DIR = rife_model.__path__[0]
+RIFE_WEIGHTS_NAME = "flownet.pkl"
+RIFE_WEIGHTS_PATH = os.path.join(RIFE_DIR, RIFE_WEIGHTS_NAME)
+
+def rife_weights_loaded():
+    return os.path.exists(RIFE_WEIGHTS_PATH)
 
 def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
     scale = 1
     
-    def make_inference(I0, I1, n):
+    def make_inference(model, I0, I1, n):
         middle = model.inference(I0, I1, scale)
         if n == 1:
             return [middle]
-        first_half = make_inference(I0, middle, n=n//2)
-        second_half = make_inference(middle, I1, n=n//2)
+        first_half = make_inference(model, I0, middle, n=n//2)
+        second_half = make_inference(model, middle, I1, n=n//2)
         if n%2:
             return [*first_half, middle, *second_half]
         else:
@@ -109,7 +110,7 @@ def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
                 output.append(I0)
 
         else:
-            output = make_inference(I0, I1, 2**exp-1) if exp else []
+            output = make_inference(model, I0, I1, 2**exp-1) if exp else []
 
         write_buffer.append(lastframe)
         for mid in output:

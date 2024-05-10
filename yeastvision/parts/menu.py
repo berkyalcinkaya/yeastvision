@@ -77,6 +77,10 @@ def menubar(parent):
     evaluate.triggered.connect(parent.evaluate)
     modelMenu.addAction(evaluate)
 
+    loadModels = QAction("Load Model Weights", parent)
+    loadModels.triggered.connect(parent.userLoadModels)
+    modelMenu.addAction(loadModels)
+
     plotMenu = mainMenu.addMenu("Plot")
 
     getCellData = QAction("Update Cell Data", parent)
