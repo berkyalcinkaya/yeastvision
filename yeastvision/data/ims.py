@@ -8,6 +8,7 @@ import copy
 from tqdm import tqdm
 from yeastvision.track.data import LineageData, TimeSeriesData
 import logging
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 class Experiment():
 
-    def __init__(self, dir, num_channels = 1, v = False):
+    MASK_KEYWORD = "_mask"
+
+    def __init__(self, dir, num_channels = 1, v = True):
         self.dir = dir
         _, self.name = os.path.split(self.dir)
         self.num_channels = num_channels
@@ -49,6 +52,12 @@ class Experiment():
         
         self.set_mask_type("labels")
     
+    def get_channnels_from_fname_list(self, filenames: List[str]):
+        return [fname for fname in filenames if self.MASK_KEYWORD not in fname]
+
+    def get_masks_from_fname_list(self, filenames: List[str]):
+        return [fname for fname in filenames if self.MASK_KEYWORD in fname]
+
     def new_channel_name(self, index, new_name):
         if new_name not in self.get_channel_names():
             self.channels[index].set_name(new_name)
@@ -163,8 +172,10 @@ class Experiment():
         
         for i in range(0, len(files), groupsize):
             group = files[i:i+groupsize]
-            channels_in_group = group[0:num_channels]
-            labels_group = group[num_channels:groupsize]
+            
+            channels_in_group = self.get_channnels_from_fname_list(group)
+            labels_group = self.get_masks_from_fname_list(group)
+        
             for channel, channel_in_group in zip(channels, channels_in_group):
                 channel.append(channel_in_group)
             for label, label_in_group in zip(labels, labels_group):

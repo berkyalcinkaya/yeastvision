@@ -48,7 +48,7 @@ torch.cuda.empty_cache()
 warnings.filterwarnings("ignore")
 
 global logger
-logger = logger_setup()
+logger, _ = logger_setup()
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, dir = None, dir_num_channels = None):
@@ -167,7 +167,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if dir_num_channels is None:
                 dir_num_channels = 1
             logger.info(f"Loading Experiment Directory from {dir} with {dir_num_channels} chanels")
-            self.loadExperiment(dir, num_channels=1)
+            self.loadExperiment(dir, num_channels=dir_num_channels)
 
     @property
     def maxT(self):
@@ -2904,14 +2904,17 @@ def main():
     dir = None
     test_dir = TEST_MOVIE_DIR
 
+
     if args.test:
         dir = test_dir
         if not os.path.exists(TEST_MOVIE_DIR):
             logger.info(f"Installing Test Images from {TEST_MOVIE_URL}")
             install_test_ims()
+        num_channels = 2
     elif args.dir and os.path.exists(args.dir) or os.path.isdir(args.dir):
         dir = args.dir
-        logger.info(f"Loading {args.ddir}")
+        logger.info(f"Loading {args.dir}")
+        num_channels = args.num_channels
     elif args.dir and (not os.path.exists(args.dir) or not os.path.isdir(args.dir)):
         logger.info(f"{args.dir} is not a valid directory")
 
@@ -2925,7 +2928,7 @@ def main():
     app_icon.addFile(icon_path, QtCore.QSize(64, 64))
     app_icon.addFile(icon_path, QtCore.QSize(256, 256))
     app.setWindowIcon(app_icon)
-    window = MainWindow(dir = dir, dir_num_channels=args.num_channels)
+    window = MainWindow(dir = dir, dir_num_channels=num_channels)
     window.show()
     app.exec_()      
 
