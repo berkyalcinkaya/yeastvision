@@ -20,6 +20,7 @@ import sys
 import torch
 import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore
+from PyQt5.QtCore import QSignalBlocker
 from PyQt5.QtWidgets import (QApplication, QGroupBox, QPushButton, QMessageBox,
                              QStatusBar, QFileDialog, QSpinBox, QLabel, QWidget, QComboBox, 
                              QSizePolicy, QGridLayout, QProgressBar)
@@ -1568,19 +1569,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showTimedPopup(message, time = 60)
 
 
-    def setDataSelects(self):
+    def setDataSelects(self): 
         self.resetting_data = True
         self.clearDataSelects()
         self.channelSelect.addItems(self.experiment().get_channel_names())
         if self.experiment().has_labels():
             self.labelSelect.addItems(self.experiment().get_label_names())
         self.resetting_data = False 
+    
+    def blockDataSelect(self, b):
+        self.channelSelect.blockSignals(b)
+        self.labelSelect.blockSignals(b)
+
 
     def experimentChange(self):
         if not self.emptying:
             self.imLoaded = True
             self.experiment_index = self.experimentSelect.currentIndex()
+            self.blockDataSelect(True)
             self.setDataSelects()
+            self.blockDataSelect(False)
             self.tIndex, self.maskZ, self.imZ = 0,0,0
             self.imChanged, self.maskChanged = True, True
             self.enableImageOperations()
@@ -1721,8 +1729,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 else:
                     self.imZ = self.experiment().get_num_channels()-1
 
-
-        
         if self.maskOn == False and nextMaskOn == True:
             self.addMask()
         self.updateDisplay()
@@ -1827,11 +1833,11 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def getCurrMask(self):
         if not self.experiment().has_labels() or self.tIndex > self.label().max_t():
-            return np.zeros(self.experiment().shape(), dtype = np.uint8)
+            return np.zeros(self.experiment().shape()[:2], dtype = np.uint8)
         if self.maskOn:
             return self.experiment().get_label("labels", t = self.tIndex, idx = self.maskZ)
         else:
-            return np.zeros(self.experiment().shape(), dtype = np.uint8)
+            return np.zeros(self.experiment().shape()[:2], dtype = np.uint8)
 
     def getCurrContours(self):
         return self.experiment().get_label("contours", idx = self.maskZ, t = self.tIndex)
@@ -2900,10 +2906,9 @@ def main():
                         Example: --num_channels 10",
                         required=False)
     args = parser.parse_args()
-
     dir = None
     test_dir = TEST_MOVIE_DIR
-
+    num_channels = 1
 
     if args.test:
         dir = test_dir
@@ -2911,11 +2916,11 @@ def main():
             logger.info(f"Installing Test Images from {TEST_MOVIE_URL}")
             install_test_ims()
         num_channels = 2
-    elif args.dir and os.path.exists(args.dir) or os.path.isdir(args.dir):
+    elif args.dir is not None and (os.path.exists(args.dir) or os.path.isdir(args.dir)):
         dir = args.dir
         logger.info(f"Loading {args.dir}")
         num_channels = args.num_channels
-    elif args.dir and (not os.path.exists(args.dir) or not os.path.isdir(args.dir)):
+    elif args.dir is not None and (not os.path.exists(args.dir) or not os.path.isdir(args.dir)):
         logger.info(f"{args.dir} is not a valid directory")
 
     app = QApplication([])

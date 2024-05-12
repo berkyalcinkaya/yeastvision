@@ -201,7 +201,6 @@ class ImageDraw(pg.ImageItem):
     def leaveEvent(self, ev):
         self.parent.updateDataDisplay(x = None, y = None, val =None)
         
-    
     def paintBrush(self,pos1, pos2):
         print("paint brush")
         pos1y,pos1x = (int(pos1.y()), int(pos1.x()))

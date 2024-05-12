@@ -10,7 +10,7 @@ RIFE_URL = f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{RI
 def MODEL_URL(model_name): return f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{model_name}?raw=True"
 TEST_MOVIE_URL = "https://github.com/berkyalcinkaya/yeastvision/blob/main/data/sample_movie_1"
 TEST_MOVIE_NUM_IMS = 10
-TEST_MOVIE_ITEMS = ["cdc", "phase", "masks"]
+TEST_MOVIE_ITEMS = ["cdc", "phase", "mask1"]
 TEST_MOVIE_IM_FORMAT = "im00x"
 TEST_MOVIE_DIR = os.path.join(os.path.dirname(yeastvision.__path__[0]), "data/sample_movie_1")
 
@@ -41,6 +41,10 @@ def install_rife():
 
 def install_test_ims():
     src = TEST_MOVIE_DIR
+
+    if not os.path.exists(TEST_MOVIE_DIR):
+        os.mkdir(src)
+
     for i in tqdm(range(TEST_MOVIE_NUM_IMS)):
         for extension in TEST_MOVIE_ITEMS:
             im_name = f"{TEST_MOVIE_IM_FORMAT.replace('x', str(i))}_{extension}.tif"
@@ -49,7 +53,7 @@ def install_test_ims():
             response = requests.get(im_url)
             response.raise_for_status()
 
-            outpath = os.path.join(src, "test_movie", im_name)
+            outpath = os.path.join(src, im_name)
             with open(outpath, "wb") as file:
                 file.write(response.content)
 

@@ -7,8 +7,10 @@ import yeastvision.models as models
 from os.path import join
 import os
 
-
 MODEL_DIR = models.__path__[0]
+
+def is_RGB(ims):
+    return ims.shape[-1] == 3
 
 def getModels():
     models = [model for model in os.listdir(MODEL_DIR) if os.path.isdir(join(MODEL_DIR, model)) and model != "__pycache__"]

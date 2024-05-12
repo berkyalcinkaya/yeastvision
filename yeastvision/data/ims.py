@@ -1,10 +1,8 @@
 import os 
 from skimage.io import imread
-import glob
 from yeastvision.utils import get_mask_contour
 import numpy as np
 from .utils import *
-import copy
 from tqdm import tqdm
 from yeastvision.track.data import LineageData, TimeSeriesData
 import logging
@@ -18,7 +16,7 @@ class Experiment():
 
     MASK_KEYWORD = "_mask"
 
-    def __init__(self, dir, num_channels = 1, v = True):
+    def __init__(self, dir, num_channels = 1, v = False):
         self.dir = dir
         _, self.name = os.path.split(self.dir)
         self.num_channels = num_channels

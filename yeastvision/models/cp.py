@@ -127,9 +127,10 @@ class CustomCPWrapper(CustomModel):
     def run(cls, ims, params, weights):
         params = params if params else cls.hyperparams
         model = cls(params, weights)
-        ims3D = [cv2.merge((im,im,im)) for im in ims]
-        masks, flows = model.get_masks_and_flows(ims3D)
+        #ims3D = [cv2.merge((im,im,im)) for im in ims]
+        masks, flows = model.get_masks_and_flows(ims)
         cellprobs = [flow[2] for flow in flows]
         cellprobs = np.array((model.process_probability(cellprobs)), dtype = np.uint8)
+        masks = np.array(masks, dtype = np.uint16)
         del model
-        return np.array(masks, dtype = np.uint16), cellprobs
+        return masks, cellprobs

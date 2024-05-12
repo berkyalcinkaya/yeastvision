@@ -1,15 +1,9 @@
 import cv2
-from cv2 import merge, resize
 import numpy as np
 from yeastvision.models.cp import CustomCPWrapper
-from skimage.measure import label
 from yeastvision.models.utils import addMasks
-from skimage.measure import label
-from skimage.morphology import remove_small_objects
-from yeastvision.track.track import trackYeasts
 from yeastvision.track.mat import get_mating_data
-from yeastvision.track.cell import Cell, getBirthFrame, getCellData, getDeathFrame, getLifeData
-from yeastvision.models.utils import normalizeIm, produce_weight_path
+from yeastvision.models.utils import  produce_weight_path
 import torch
 
 
@@ -22,8 +16,6 @@ class ProSeg(CustomCPWrapper):
 
     def __init__(self, params, weights):
         super().__init__(params, weights)
-
-
 
 # need to update here
 class ArtilifeFullLifeCycle(ProSeg):
