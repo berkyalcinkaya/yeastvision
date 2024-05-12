@@ -1,14 +1,25 @@
-import os
+import yeastvision
 from yeastvision.models.utils import MODEL_DIR
 from yeastvision.ims.interpolate import RIFE_DIR, RIFE_WEIGHTS_PATH
+from tqdm import tqdm
+import os
 import requests
+
+RIFE_FILENAME = "flownet.pkl"
+RIFE_URL = f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{RIFE_FILENAME}?raw=True"
+def MODEL_URL(model_name): return f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{model_name}?raw=True"
+TEST_MOVIE_URL = "https://github.com/berkyalcinkaya/yeastvision/blob/main/data/sample_movie_1"
+TEST_MOVIE_NUM_IMS = 10
+TEST_MOVIE_ITEMS = ["cdc", "phase", "masks"]
+TEST_MOVIE_IM_FORMAT = "im00x"
+TEST_MOVIE_DIR = os.path.join(os.path.dirname(yeastvision.__path__[0]), "data/sample_movie_1")
+
 
 def install_weight(model_name):
     # Construct the URL for the model weights
-    url = f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{model_name}?raw=True"
     
     # Make the request to download the file
-    response = requests.get(url)
+    response = requests.get(MODEL_URL(model_name))
     response.raise_for_status()  # This will raise an exception if the request failed
     
     # Define the file path where the weights will be saved
@@ -19,17 +30,28 @@ def install_weight(model_name):
         file.write(response.content)
 
 def install_rife():
-    filename = "flownet.pkl"
-    url = f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{filename}?raw=True"
-    response = requests.get(url)
+    response = requests.get(RIFE_URL)
     response.raise_for_status()  # This will raise an exception if the request failed
     # Define the file path where the weights will be saved
-    file_path = os.path.join(RIFE_DIR, filename)
+    file_path = os.path.join(RIFE_DIR, RIFE_FILENAME)
     
     # Write the downloaded data to the file
     with open(file_path, 'wb') as file:
         file.write(response.content)
 
+def install_test_ims():
+    src = TEST_MOVIE_DIR
+    for i in tqdm(range(TEST_MOVIE_NUM_IMS)):
+        for extension in TEST_MOVIE_ITEMS:
+            im_name = f"{TEST_MOVIE_IM_FORMAT.replace("x", str(i))}_{extension}.tif"
+            im_url = f"{TEST_MOVIE_URL}/{im_name}?raw=True"
+
+            response = requests.get(im_url)
+            response.raise_for_status()
+
+            outpath = os.path.join(src, "test_movie", im_name)
+            with open(outpath, "wb") as file:
+                file.write(response.content)
 
 # def do_install():
 #     current_directory = os.getcwd()

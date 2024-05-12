@@ -5,13 +5,29 @@ from skimage.measure import label
 import cv2
 import skimage
 import matplotlib.pyplot as plt
-import cv2
 from cv2 import resize
 import logging
 import pathlib
 import sys
 import os
 from PIL import Image
+
+YV_DIR = pathlib.Path.home().joinpath(".yeastvision")
+
+def logger_setup():
+    YV_DIR.mkdir(exist_ok=True)
+    log_file = YV_DIR.joinpath("run.log")
+    try:
+        log_file.unlink()
+    except:
+        print("creating new log file")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.FileHandler(log_file),
+                  logging.StreamHandler(sys.stdout)])
+    logger = logging.getLogger(__name__)
+    logger.info(f"WRITING LOG OUTPUT TO {log_file}")
+    return logger
 
 
 def colorize_mask(mask, rgba_color):

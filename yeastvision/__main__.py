@@ -1,80 +1,57 @@
-#https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html
-import os
-
-from yeastvision import models
-os.environ['QT_LOGGING_RULES'] = '*.warning=false'
-import sys
-import torch
-import numpy as np
-from PyQt5 import QtWidgets, QtGui, QtCore
-from PyQt5.QtWidgets import (QApplication, QGroupBox, QPushButton, QMessageBox,QErrorMessage, 
-                             QStatusBar, QFileDialog, QSpinBox, QLabel, QWidget, QComboBox, 
-                             QSizePolicy, QGridLayout, QProgressBar)
-from PyQt5.QtCore import Qt, QThread
-from QSwitchControl import SwitchControl
-import pyqtgraph as pg
-import numpy as np
-import matplotlib.pyplot as plt
+from yeastvision.models.proSeg.model import ArtilifeFullLifeCycle
+from yeastvision.data.ims import Experiment, ChannelNoDirectory, InterpolatedChannel
 from yeastvision.parts.canvas import ImageDraw, ViewBoxNoRightDrag
 from yeastvision.parts.guiparts import *
 from yeastvision.parts.workers import SegmentWorker, TrackWorker, InterpolationWorker
 from yeastvision.parts.dialogs import *
 from yeastvision.track.track import track_to_cell, trackYeasts
 from yeastvision.track.data import LineageData, TimeSeriesData
-from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, getCellData, exportCellData, getHeatMaps, getDaughterMatrix, getPotentialHeatMapNames
-import cv2
-from yeastvision.disk.reader import ImageData
-import importlib
+from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, exportCellData, getHeatMaps, getPotentialHeatMapNames
+import yeastvision.plot.plot as plot
+from yeastvision.utils import *
+import yeastvision.ims.im_funcs as im_funcs
+from yeastvision.ims.interpolate import interpolate, rife_weights_loaded, RIFE_WEIGHTS_PATH, RIFE_WEIGHTS_NAME
 import yeastvision.parts.menu as menu
 from yeastvision.models.utils import MODEL_DIR, getModels, getModelLoadedStatus, produce_weight_path
+from yeastvision.install import TEST_MOVIE_DIR, TEST_MOVIE_URL, install_test_ims, install_weight, install_rife
+from yeastvision.disk.reader import ImageData
+import os
+import sys
+import torch
+import numpy as np
+from PyQt5 import QtWidgets, QtGui, QtCore
+from PyQt5.QtWidgets import (QApplication, QGroupBox, QPushButton, QMessageBox,
+                             QStatusBar, QFileDialog, QSpinBox, QLabel, QWidget, QComboBox, 
+                             QSizePolicy, QGridLayout, QProgressBar)
+from PyQt5.QtCore import Qt, QThread
+from QSwitchControl import SwitchControl
+import pyqtgraph as pg
+import matplotlib.pyplot as plt
+import cv2
+import importlib
 import glob
 from os.path import join
 from datetime import datetime
 import pandas as pd
-import yeastvision.plot.plot as plot
-from yeastvision.flou.blob_detect import Blob
-from yeastvision.utils import *
-import yeastvision.ims.im_funcs as im_funcs
-from yeastvision.ims.interpolate import interpolate, rife_weights_loaded, RIFE_WEIGHTS_PATH, RIFE_WEIGHTS_NAME
 import math
 from skimage.io import imsave
 from cellpose.metrics import average_precision
 from tqdm import tqdm
-from yeastvision.models.proSeg.model import ArtilifeFullLifeCycle
-from yeastvision.data.ims import Experiment, ChannelNoDirectory, InterpolatedChannel
-torch.cuda.empty_cache() 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 import warnings
 import copy
-warnings.filterwarnings("ignore")
 from collections import OrderedDict
-import yeastvision
-import logging
-from yeastvision.install import install_weight, install_rife
+import argparse
 
-#logger = logging.getLogger(__name__)
-
-def logger_setup():
-    cp_dir = pathlib.Path.home().joinpath(".yeastvision")
-    cp_dir.mkdir(exist_ok=True)
-    log_file = cp_dir.joinpath("run.log")
-    try:
-        log_file.unlink()
-    except:
-        print("creating new log file")
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.FileHandler(log_file),
-                  logging.StreamHandler(sys.stdout)])
-    logger = logging.getLogger(__name__)
-    logger.info(f"WRITING LOG OUTPUT TO {log_file}")
-    return logger
+os.environ['QT_LOGGING_RULES'] = '*.warning=false'
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
+torch.cuda.empty_cache() 
+warnings.filterwarnings("ignore")
 
 global logger
 logger = logger_setup()
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, dir = None):
+    def __init__(self, dir = None, dir_num_channels = None):
         super(MainWindow, self).__init__()
         pg.setConfigOption('imageAxisOrder', 'row-major')
         self.setWindowTitle("yeastvision")
@@ -187,7 +164,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.showError("No Models Loaded. Go to Models>Load Model Weights")
 
         if dir is not None:
-            print('LOADING TEST DIRECTORY')
+            if dir_num_channels is None:
+                dir_num_channels = 1
+            logger.info(f"Loading Experiment Directory from {dir} with {dir_num_channels} chanels")
             self.loadExperiment(dir, num_channels=1)
 
     @property
@@ -2905,21 +2884,36 @@ class MainWindow(QtWidgets.QMainWindow):
 #@profile
 def main():
 
+    parser = argparse.ArgumentParser(description="Yeastvision accepts 3 optional command line argumennts. \
+        Example usage: python script.py -test \
+        or python script.py --dir /path/to/directory --num_channels 10")
+
+    parser.add_argument("-test", action="store_true",
+                        help="Use the test directory. No arguments needed. \
+                        Example: -test")
+    parser.add_argument("--dir", type=str, 
+                        help="Specify the directory to use. Must be an existing directory. \
+                        Example: --dir /path/to/directory",
+                        required=False)
+    parser.add_argument("--num_channels", type=int, default=1,
+                        help="Specify the number of channels in --dir. Must be an integer (defaults to 1). Only used is --dir is specified.  \
+                        Example: --num_channels 10",
+                        required=False)
+    args = parser.parse_args()
+
     dir = None
-    test_dir = os.path.join(os.path.dirname(yeastvision.__path__[0]), "sample_movie")
-    
-    if len(sys.argv) == 1:
-        pass
-    elif len(sys.argv) > 2:
-        raise ValueError('''Yeastvision requires none or one command line argument. Specify -test to open a sample movie or specify
-                         a directory to load.
-                         ''')
-    else:
-        arg = sys.argv[1]
-        if arg == "-test":
-            dir = test_dir
-        elif os.path.exists(arg) or os.path.isdir(arg):
-            dir = arg
+    test_dir = TEST_MOVIE_DIR
+
+    if args.test:
+        dir = test_dir
+        if not os.path.exists(TEST_MOVIE_DIR):
+            logger.info(f"Installing Test Images from {TEST_MOVIE_URL}")
+            install_test_ims()
+    elif args.dir and os.path.exists(args.dir) or os.path.isdir(args.dir):
+        dir = args.dir
+        logger.info(f"Loading {args.ddir}")
+    elif args.dir and (not os.path.exists(args.dir) or not os.path.isdir(args.dir)):
+        logger.info(f"{args.dir} is not a valid directory")
 
     app = QApplication([])
     app_icon = QtGui.QIcon()
@@ -2931,7 +2925,7 @@ def main():
     app_icon.addFile(icon_path, QtCore.QSize(64, 64))
     app_icon.addFile(icon_path, QtCore.QSize(256, 256))
     app.setWindowIcon(app_icon)
-    window = MainWindow(dir = dir)
+    window = MainWindow(dir = dir, dir_num_channels=args.num_channels)
     window.show()
     app.exec_()      
 
