@@ -14,3 +14,4 @@ yeastvision/models/proSeg/proSeg
 yeastvision/models/matSeg/matSeg
 yeastvision/models/spoSeg/spoSeg
 data/sample_movie_old
+*.npz
