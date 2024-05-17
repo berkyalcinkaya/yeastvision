@@ -73,7 +73,8 @@ class CustomCPWrapper(CustomModel):
     trainparams = {
                 "learning_rate":0.1,
                 "weight_decay": 0.0001,
-                "n_epochs":100}
+                "n_epochs":100
+                }
 
     def __init__(self, params, weights):
         super().__init__(params, weights)
