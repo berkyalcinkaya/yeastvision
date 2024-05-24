@@ -6,7 +6,6 @@ from yeastvision.track.mat import get_mating_data
 from yeastvision.models.utils import  produce_weight_path
 import torch
 
-
 class ProSeg(CustomCPWrapper):
     hyperparams  = { 
     "mean_diameter":30.0,

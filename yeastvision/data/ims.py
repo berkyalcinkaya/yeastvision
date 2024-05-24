@@ -11,7 +11,6 @@ from typing import List
 logger = logging.getLogger(__name__)
 
 
-
 class Experiment():
 
     MASK_KEYWORD = "_mask"
@@ -187,15 +186,18 @@ class Experiment():
                 self.add_label(files = label, increment_count=True)
 
     def load_with_mask_npzs(self, mask_npzs, num_channels):
-        channels = [[]*num_channels]
-        
-        files = sorted(get_image_files(self.dir, remove_masks=True))
+        channels = [[] for i in range(num_channels)]
+        files_image_only = sorted(get_image_files(self.dir, remove_masks=True))
+        if len(files_image_only) == 0:
+            print("DIRECTORY WITH ONLY MASKS DETECTED")
+            raise FileNotFoundError
+        files = sorted(get_image_files(self.dir))
+        num_images = len(files_image_only)/num_channels
         groupsize = num_channels
         
-        for i in range(0, len(files), groupsize):
-            group = files[i:i+groupsize]
-            channels_in_group = group[0:num_channels]
-            labels_group = group[num_channels:groupsize]
+        for i in range(0, len(files_image_only), groupsize):
+            group = files_image_only[i:i+groupsize]
+            channels_in_group = self.get_channnels_from_fname_list(group)
             for channel, channel_in_group in zip(channels, channels_in_group):
                 channel.append(channel_in_group)
         
@@ -204,7 +206,6 @@ class Experiment():
         for npz_path in tqdm(mask_npzs):
             self.labels.append(Label(npz_path=npz_path))
             self.num_labels+=1
-
 
     def create_label_objects_from_npz(self):
         self.npzdata = np.load(self.npz_path)
@@ -235,8 +236,7 @@ class Experiment():
     
     def delete_label(self, index):
         self.num_labels -= 1
-        self.labels[index].save()
-
+        self.labels[index].delete()
         del self.labels[index]
 
     def add_label(self, files = None, arrays = None, increment_count = True, name = None, update_data = False):

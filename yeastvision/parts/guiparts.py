@@ -55,11 +55,11 @@ class CustomListView(QListView):
             index = index_under_mouse.row()
             if self._delete_method(index):
                 current_index = self._combo.currentIndex()
-                self._combo.blockSignals(True)
+                self.parent.blockComboSignals(True)
                 self._combo.removeItem(index_under_mouse.row())
                 new_index = self.update_index_after_removal(current_index)
                 self.parent.onDelete(index, new_index, channel = self.channel)
-                self._combo.blockSignals(False)
+                self.parent.blockComboSignals(False)
         else:
             super().mousePressEvent(event)
 

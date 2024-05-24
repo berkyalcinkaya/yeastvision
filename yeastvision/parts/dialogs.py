@@ -1,9 +1,9 @@
 from PyQt5 import QtGui, QtCore
-from PyQt5.QtWidgets import (QApplication, QTreeWidgetItem, QPushButton, QDialog,
+from PyQt5.QtWidgets import (QTreeWidgetItem, QPushButton, QDialog,
                         QDialogButtonBox, QLineEdit, QFormLayout, QCheckBox,  QSpinBox, QDoubleSpinBox, QLabel, 
-                            QWidget, QComboBox, QGridLayout, QHBoxLayout, QSizePolicy, QHeaderView, QVBoxLayout,
-                            QScrollArea, QTreeWidget)
-from PyQt5.QtCore import QTimer
+                            QWidget, QComboBox, QGridLayout, QHBoxLayout, QHeaderView, QVBoxLayout, QMessageBox,
+                            QTreeWidget, QButtonGroup)
+from PyQt5.QtCore import QTimer, Qt
 import numpy as np
 import os
 from yeastvision.parts.guiparts import *
@@ -804,12 +804,12 @@ class TrainWindow(QDialog):
 
 
 
-class PlotWindowCustomize(QDialog):
+class PlotWindowCustomizeTimeSeries(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
         self.setGeometry(100,100,1000,450)
-        self.setWindowTitle("Customize Plot Display")
+        self.setWindowTitle("Choose Properties to Plot Versus Time")
         self.win = QWidget(self)
         self.l = QGridLayout()
         self.win.setLayout(self.l)
@@ -902,6 +902,82 @@ class PlotWindowCustomize(QDialog):
         return tree
 
 
+class PlotWindowCustomizePerFrame(QDialog):
+    def __init__(self, properties, masks, max_selected=6, parent=None):
+        super(PlotWindowCustomizePerFrame, self).__init__(parent)
+        self.properties = properties
+        self.masks = masks
+        self.max_selected = max_selected
+        self.selected_properties = {mask: [] for mask in masks}
+        self.init_ui()
+        
+    def init_ui(self):
+        main_layout = QVBoxLayout()  # Main layout for the dialog
+        
+        self.layout = QHBoxLayout()  # Horizontal layout for the checkboxes
+        self.checkboxes = {mask: [] for mask in self.masks}
+        for mask in self.masks:
+            mask_layout = QVBoxLayout()
+            mask_label = QLabel(mask)
+            mask_layout.addWidget(mask_label)
+            for prop in self.properties:
+                checkbox = QCheckBox(prop)
+                checkbox.stateChanged.connect(self.on_checkbox_state_changed)
+                mask_layout.addWidget(checkbox)
+                self.checkboxes[mask].append(checkbox)
+            self.layout.addLayout(mask_layout)
+        
+        main_layout.addLayout(self.layout)
 
+        # Add mutually exclusive checkboxes for frames
+        self.frame_checkboxes = QHBoxLayout()
+        self.calculate_all_frames_checkbox = QCheckBox("Calculate for all frames")
+        self.calculate_current_frame_checkbox = QCheckBox("Calculate for current frame")
+        self.calculate_current_frame_checkbox.setChecked(True)
+        
+        self.frame_button_group = QButtonGroup()
+        self.frame_button_group.addButton(self.calculate_all_frames_checkbox)
+        self.frame_button_group.addButton(self.calculate_current_frame_checkbox)
+        self.frame_button_group.setExclusive(True)
+        
+        self.frame_checkboxes.addWidget(self.calculate_all_frames_checkbox)
+        self.frame_checkboxes.addWidget(self.calculate_current_frame_checkbox)
+        
+        main_layout.addLayout(self.frame_checkboxes)
+        
+        # Add OK button
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        self.button_box.accepted.connect(self.accept)
+        main_layout.addWidget(self.button_box)
+        
+        self.setLayout(main_layout)
+        self.setWindowTitle("Select Properties")
+        
+    def on_checkbox_state_changed(self, state):
+        total_selected = sum(len(props) for props in self.selected_properties.values())
+
+        sender = self.sender()
+        
+        if state == Qt.Checked and total_selected >= self.max_selected:
+            QMessageBox.warning(self, "Limit Exceeded", f"A maximum of {self.max_selected} properties can be selected.")
+            sender.blockSignals(True)
+            sender.setChecked(False)
+            sender.blockSignals(False)
+            return
+        
+        for mask, checkboxes in self.checkboxes.items():
+            self.selected_properties[mask] = [cb.text() for cb in checkboxes if cb.isChecked()]
+    
+    def get_data(self):
+        return self.selected_properties
+    
+    def get_unique_properties(self):
+        unique_properties = set()
+        for props in self.selected_properties.values():
+            unique_properties.update(props)
+        return list(unique_properties)
+    
+    def do_for_all_frames(self):
+        return self.calculate_all_frames_checkbox.isChecked()
 
 

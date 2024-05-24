@@ -51,12 +51,13 @@ packages = [
             "yeastvision.ims.rife_model.pytorch_msssim", "yeastvision.parts", 
             "yeastvision.flou", "yeastvision.disk", "yeastvision.models.proSeg", 
             "yeastvision.models.budSeg", "yeastvision.models.budSeg",
-            "yeastvision.models.matSeg", "yeastvision.models.spoSeg"
+            "yeastvision.models.matSeg", "yeastvision.models.spoSeg", "yeastvision.models.filaSeg",
+            "yeastvision.models.flouSeg"
             ]
 
 setup(
     name = "yeastvision",
-    version = "0.1.38",
+    version = "0.1.39",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",

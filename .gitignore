@@ -13,5 +13,7 @@ yeastvision/models/budSeg/budSeg
 yeastvision/models/proSeg/proSeg
 yeastvision/models/matSeg/matSeg
 yeastvision/models/spoSeg/spoSeg
+yeastvision/models/flouSeg/flouSeg
+yeastvision/models/filaSeg/filaSeg
 data/sample_movie_old
 *.npz

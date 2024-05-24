@@ -6,7 +6,7 @@ import pyqtgraph as pg
 from pyqtgraph.dockarea.Dock import Dock
 from pyqtgraph.dockarea.DockArea import DockArea
 from yeastvision.plot.cell_table import TableModel
-from yeastvision.plot.types import SingleCellUpdatePlot, HeatMap, PopulationPlot
+from yeastvision.plot.types import SingleCellUpdatePlot, HeatMap, PopulationPlot, SingleFrameUpdatePlot
 from yeastvision.track.data import PopulationReplicate, Population
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
@@ -252,8 +252,68 @@ class EvalWindow(QWidget):
         ax.set_title(title)
         plt.tight_layout()
 
+class SingleFramePlotWindow(QWidget):
+    def __init__(self, parent, propDict, data, allFrames=False, plots_per_row=3):
+        super().__init__()
+        self.parent = parent
+        self.propDict = propDict
+        self.data = data
+        self.allFrames = allFrames
+        self.plots_per_row = plots_per_row
+        self.docks = []
+        self.plots = []  # Store the plot instances for updating
+        self.initUI()
 
-class PlotWindow(QWidget):
+        if self.allFrames:
+            self.update(self.parent.tIndex)
+
+        #self.setGeometry(500, 100, 1500, 1500)
+    
+    def initUI(self):
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        
+        self.area = DockArea()
+        layout.addWidget(self.area)
+        
+        self.createPlots()
+    
+    def createPlots(self):
+        row = 0
+        col = 0
+        
+        for mask, properties in self.propDict.items():
+            for prop in properties:
+                plot = SingleFrameUpdatePlot(self, prop, mask, self.data[mask])
+                plot_widget = plot.getPlotWidget()
+                
+                dock_name = f"{mask}_{prop}"
+                dock = Dock(dock_name, closable=True)
+                dock.addWidget(plot_widget)
+                
+                if col == 0 and row == 0:
+                    self.area.addDock(dock, 'top')
+                else:
+                    position = 'right' if col > 0 else 'bottom'
+                    relative_to = self.docks[-1] if col > 0 else self.docks[-self.plots_per_row]
+                    self.area.addDock(dock, position, relative_to)
+                
+                self.docks.append(dock)
+                self.plots.append(plot)
+                col += 1
+                if col >= self.plots_per_row:
+                    col = 0
+                    row += 1
+    
+    def update(self, frame_index):
+        for plot in self.plots:
+            plot.update(frame_index)
+    
+    def closeEvent(self, event):
+        self.parent.sfPlotWindowOn = False
+
+
+class TimeSeriesPlotWindow(QWidget):
     def __init__(self, parent, propDict):
         super().__init__()
         self.parent = parent
@@ -455,4 +515,4 @@ class PlotWindow(QWidget):
         self.resize(size)
     
     def closeEvent(self, event):
-        self.parent.plotButton.setChecked(False)
+        self.parent.tsPlotWindowOn = False

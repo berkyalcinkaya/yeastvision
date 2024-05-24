@@ -97,11 +97,13 @@ Activate the correct conda environment. In the command prompt, run either
 - `yeastvision -test` to open the GUI with our sample 10-frame movie.
 - `yeastvision` to open a blank GUI window. Drag and drop <ins>directory</ins> containing 2D-image files into the GUI to begin segmenting, labeling, or processing
 
-Yeastvision accepts directories of image files, loaded through drag-and-drop or the file menu. Each file in the directory should contain only a single 2D image, named with a standard image file extension.
+Yeastvision accepts directories of image files, loaded through drag-and-drop or the file menu. Each file in the directory should contain only a single 2D image, named with a standard image file extension. 
 
 **Note:** As you segment, interpolate, or process images, GUI-generated labels and images are stored in the loaded directory as `.npz` files. Deleting these files results in loss of the data. 
 
 **Yeastvision expects directories to contain only files with valid image extensions or `.npz` files created in previous yeastvision sessions.**
+
+**Important:** Ensure that all images in the same channel have the same dimensions.
 
 ## To load directories containing additional image channels and pre-generated masks, name your files properly:
 For experiments containing multiple channels and pre-generated labels, our GUI loading capabilities make it easy to:
@@ -117,7 +119,7 @@ __When additional channels/masks are present in the directory, files should be n
 Here is an example of a directory with two time points, two channels, and two pre-generated labels, sorted by name:
 
 *im001_channel1.tif, im001_channel2.tif, <br>
-im001_mask1.tif, im001_mask1.tif, <br>
+im001_mask1.tif, im001_mask2.tif, <br>
 im002_channel1.tif, im002_channel2.tif, <br>
 im002_mask1.tif, im002_mask2.tif* <br>
 

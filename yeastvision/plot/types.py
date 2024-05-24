@@ -39,6 +39,35 @@ Correlation Plot
 def yvv(celldata):
     pass
 
+class SingleFrameUpdatePlot:
+    def __init__(self, parent, property_name, mask_name, data):
+        self.parent = parent
+        self.property_name = property_name
+        self.mask_name = mask_name
+        self.data = data
+        self.plot = pg.PlotWidget(title=f"{self.property_name} for {self.mask_name}")
+    
+    def getData(self, frame_index=None):
+        if frame_index is not None and isinstance(self.data, list):
+            if frame_index < len(self.data):
+                frame_data = self.data[frame_index]
+                if self.property_name in frame_data:
+                    return np.array(frame_data[self.property_name])
+        elif self.property_name in self.data:
+            return np.array(self.data[self.property_name])
+        return np.array([])
+    
+    def update(self, frame_index=None):
+        self.plot.clear()
+        data = self.getData(frame_index)
+        if data.size > 0:
+            y, x = np.histogram(data, bins="auto")
+            self.plot.plot(x, y, stepMode=True, fillLevel=0, brush=(0,0,255,150))
+    
+    def getPlotWidget(self):
+        self.update()
+        return self.plot
+
 class SingleCellUpdatePlot():
     def __init__(self, parent, property, timeseries, selectedCells):
         self.parent = parent

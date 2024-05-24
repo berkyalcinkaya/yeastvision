@@ -32,7 +32,6 @@ class ImageDraw(pg.ImageItem):
         self.strokeAppended = True
     
     def turnOnDraw(self):
-        print("drawing on")
         self.setDefaultColorNum()
     
     def turnOffDraw(self):
@@ -84,7 +83,6 @@ class ImageDraw(pg.ImageItem):
                         self.drawAt(ev.pos(), ev)
                         self.strokeAppended = False
                     else:
-                        print("outline click event second if")
                         ev.accept()
                         self.end_stroke()
                         self.parent.in_addregion_stroke = False
@@ -164,9 +162,7 @@ class ImageDraw(pg.ImageItem):
             return False
 
     def addSet(self):
-        print("adding set")
         if len(self.parent.currStroke)>3:
-            print("\tlength requirement")
             ny, nx = self.parent.label().x(), self.parent.label().y()
             img = Image.new('L', (ny, nx), 0)
             ID.Draw(img).polygon(self.parent.currStroke, outline=1, fill=1)
@@ -181,7 +177,6 @@ class ImageDraw(pg.ImageItem):
                 self.parent.drawContours()
     
     def end_stroke(self):
-        print("ending stroke")
         self.parent.view.removeItem(self.scatter)
         if not self.strokeAppended:
             # self.parent.addRegionStrokes.append(self.currStroke)
@@ -202,7 +197,6 @@ class ImageDraw(pg.ImageItem):
         self.parent.updateDataDisplay(x = None, y = None, val =None)
         
     def paintBrush(self,pos1, pos2):
-        print("paint brush")
         pos1y,pos1x = (int(pos1.y()), int(pos1.x()))
         pos2y,pos2x = (int(pos2.y()), int(pos2.x()))
 

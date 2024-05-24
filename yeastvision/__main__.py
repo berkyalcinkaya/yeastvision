@@ -42,6 +42,9 @@ import warnings
 import copy
 from collections import OrderedDict
 import argparse
+import shutil
+from skimage.io import imread, imsave
+from skimage.measure import regionprops_table
 
 os.environ['QT_LOGGING_RULES'] = '*.warning=false'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -94,6 +97,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
         self.getModelNames()
+        self.getModels()
 
         self.cwidget = QWidget(self)
         self.l = QGridLayout()
@@ -138,12 +142,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plotTypes = ["single", "population", "heatmap"]
         self.populationPlotTypes = ["population", "heatmap"]
             
-
-        self.pWindow = None
         self.lineageWindow = None
         self.plotPropsBeenChecked = False
         self.toPlot = None
         self.emptying = False
+
+        self.tsPlotWindow = None 
+        self.sfPlotWindow = None
+        self.tsPlotWindowOn = False
+        self.sfPlotWindowOn = False
 
         self.overrideNpyPath = None
 
@@ -167,7 +174,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if dir is not None:
             if dir_num_channels is None:
                 dir_num_channels = 1
-            logger.info(f"Loading Experiment Directory from {dir} with {dir_num_channels} chanels")
+            logger.info(f"Loading Experiment Directory from {dir} with {dir_num_channels} channels")
             self.loadExperiment(dir, num_channels=dir_num_channels)
 
     @property
@@ -652,7 +659,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.GB.setLayout(self.GBLayout)
         self.GB.setToolTip("Select Unet(s) to be used for segmenting channel")
     
-        self.getModels()
         self.modelChoose = QComboBox()
         self.modelChoose.addItems(sorted(self.modelNames, key = lambda x: x[0]))
             #self.modelChoose.setItemChecked(i, False)
@@ -701,15 +707,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.contourButton.setEnabled(False)
         self.l.addWidget(self.contourButton, rowspace + 1, 17, 1, 1)
 
-        # "Show Plot Window" switch
-        plotLabel = QLabel("plot window")
-        plotLabel.setStyleSheet(self.labelstyle)
-        plotLabel.setFont(self.medfont)
-        self.l.addWidget(plotLabel, rowspace + 1, 18, 1, 1)
-        self.plotButton = SwitchControl()
-        self.plotButton.setStyleSheet(self.checkstyle)
-        self.plotButton.stateChanged.connect(self.togglePlotWindow)
-        self.l.addWidget(self.plotButton, rowspace + 1, 19, 1, 1)
+        # # "Show Plot Window" switch
+        # plotLabel = QLabel("plot window")
+        # plotLabel.setStyleSheet(self.labelstyle)
+        # plotLabel.setFont(self.medfont)
+        # self.l.addWidget(plotLabel, rowspace + 1, 18, 1, 1)
+        # self.plotButton = SwitchControl()
+        # self.plotButton.setStyleSheet(self.checkstyle)
+        # self.plotButton.stateChanged.connect(self.togglePlotWindow)
+        # self.l.addWidget(self.plotButton, rowspace + 1, 19, 1, 1)
 
         # "Mask" switch
         maskLabel = QLabel("masks")
@@ -726,12 +732,12 @@ class MainWindow(QtWidgets.QMainWindow):
         probLabel = QLabel("pixel probability")
         probLabel.setStyleSheet(self.labelstyle)
         probLabel.setFont(self.medfont)
-        self.l.addWidget(probLabel, rowspace + 2, 18, 1, 1)
+        self.l.addWidget(probLabel, rowspace + 1, 18, 1, 1)
         self.probOnCheck = SwitchControl()
         self.probOnCheck.setStyleSheet(self.checkstyle)
         self.probOnCheck.setEnabled(False)
         self.probOnCheck.stateChanged.connect(self.toggleProb)
-        self.l.addWidget(self.probOnCheck, rowspace + 2, 19, 1, 1)
+        self.l.addWidget(self.probOnCheck, rowspace + 1, 19, 1, 1)
 
         # "cell nums" switch
         cellNumLabel = QLabel("cell numbers")
@@ -748,12 +754,12 @@ class MainWindow(QtWidgets.QMainWindow):
         lineageLabel = QLabel("lineages")
         lineageLabel.setStyleSheet(self.labelstyle)
         lineageLabel.setFont(self.medfont)
-        self.l.addWidget(lineageLabel, rowspace + 3, 18, 1, 1)
+        self.l.addWidget(lineageLabel, rowspace + 2, 18, 1, 1)
         self.showLineageButton = SwitchControl()
         self.showLineageButton.setStyleSheet(self.checkstyle)
         self.showLineageButton.setEnabled(False)
         self.showLineageButton.stateChanged.connect(self.toggleLineages)
-        self.l.addWidget(self.showLineageButton, rowspace + 3, 19, 1, 1)
+        self.l.addWidget(self.showLineageButton, rowspace + 2, 19, 1, 1)
 
         # "mother-daughters" switch
         motherDaughtersLabel = QLabel("mother-daughters")
@@ -770,12 +776,12 @@ class MainWindow(QtWidgets.QMainWindow):
         treeLabel = QLabel("lineage tree")
         treeLabel.setStyleSheet(self.labelstyle)
         treeLabel.setFont(self.medfont)
-        self.l.addWidget(treeLabel, rowspace + 4, 18, 1, 1)
+        self.l.addWidget(treeLabel, rowspace + 3, 18, 1, 1)
         self.showTreeButton = SwitchControl()
         self.showTreeButton.setStyleSheet(self.checkstyle)
         self.showTreeButton.setEnabled(False)
         self.showTreeButton.stateChanged.connect(self.toggleLineageTreeWindow)
-        self.l.addWidget(self.showTreeButton, rowspace + 4, 19, 1, 1)
+        self.l.addWidget(self.showTreeButton, rowspace + 3, 19, 1, 1)
 
 
 
@@ -791,7 +797,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.plotButton.setStyleSheet(self.checkstyle)
         # self.plotButton.setFont(self.medfont)
         # self.plotButton.stateChanged.connect(self.togglePlotWindow)
-        self.plotButton.setShortcut(QtCore.Qt.Key_P)
+        #self.plotButton.setShortcut(QtCore.Qt.Key_P)
         # self.l.addWidget(self.plotButton, rowspace+1, 18, 1,2)
 
         # self.maskOnCheck = QCheckBox("Mask")
@@ -973,7 +979,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.maskZ = new_index
         
             self.updateDisplay()
-
+    
+    def blockComboSignals(self, b):
+        self.channelSelect.blockSignals(b)
+        self.labelSelect.blockSignals(b)
 
     def channelDelete(self, index):
         num_channels = self.experiment().num_channels
@@ -1168,12 +1177,12 @@ class MainWindow(QtWidgets.QMainWindow):
         mask_obj.save()
         self.checkDataAvailibility()  
 
-        if self.pWindow:
-            self.pWindow.setData()
-            self.pWindow.updatePlots()
+        if self.tsPlotWindow:
+            self.tsPlotWindow.setData()
+            self.tsPlotWindow.updatePlots()
     
     def updateCellTable(self):
-        if not self.pWindow:
+        if not self.tsPlotWindow:
             return
         # self.pWindow.table.model.setData(self.getCellDataAbbrev())
         # self.pWindow.
@@ -1354,32 +1363,80 @@ class MainWindow(QtWidgets.QMainWindow):
         data = data.to_numpy()
         self.lineageWindow = plot.LineageTreeWindow(self, data, selected_cells=self.selectedCells)
 
-        
-    def buildPlotWindow(self):
-        win = PlotWindowCustomize(self)
+    def buildTSPlotWindow(self):
+        win = PlotWindowCustomizeTimeSeries(self)
 
         if win.exec_():
             self.toPlot = win.getData()
         else:
-            self.plotButton.setCheckState(False)
+            self.tsPlotWindow = None
+            self.tsPlotWindowOn = False
             return
         
-        self.pWindow = plot.PlotWindow(self, self.toPlot)
-        self.pWindow.show()
+        if self.toPlot:
+            self.tsPlotWindow = plot.TimeSeriesPlotWindow(self, self.toPlot)
+            self.tsPlotWindow.show()
+        else:
+            self.showError("Please Select Properties to Plot")
+    
+    def get_single_frame_plot_data(self, to_plot, do_all_frames, time):
+        data = {}
+        for mask_name in to_plot:
+            props = to_plot[mask_name]
+            if props:
+                if do_all_frames:
+                    data[mask_name] = []
+                    mask_ims = self.experiment().get_label("labels", name = mask_name, t = None)
+                    for mask_im in mask_ims:
+                        data[mask_name].append(regionprops_table(mask_im, properties = props))
+                else:
+                    mask_im = self.experiment().get_label("labels", name = mask_name, t = self.tIndex)
 
+                    data[mask_name] = regionprops_table(mask_im,
+                                                   properties = props)
+        return data
+
+
+
+    def buildSFPlotWindow(self):
+        plotOptions = ["area", "eccentricity", "axis_major_length", "axis_minor_length", "perimeter"]
+        mask_names  = self.experiment().get_label_names()
+        win = PlotWindowCustomizePerFrame(plotOptions, mask_names, parent = self)
+
+        if win.exec_():
+            self.toPlot = win.get_data()
+            allFrames = win.do_for_all_frames()
+            data = self.get_single_frame_plot_data(self.toPlot, allFrames, self.tIndex)
+        else:
+            self.sfPlotWindow = None
+            self.sfPlotWindowOn = False
+            return
         
-    def togglePlotWindow(self):
-        self.plotWindowOn = self.plotButton.isChecked()
-
-        if self.plotWindowOn:
-            if self.hasCellData():
-                self.buildPlotWindow()
-            else:
-                self.showError("No Timeseries Data Available - Track Cell First")   
-                self.plotButton.setChecked(False)
-        elif self.pWindow is not None:
-            self.pWindow.close()
-            self.pWindow = None
+        if data:
+            self.sfPlotWindow = plot.SingleFramePlotWindow(self, self.toPlot, data, allFrames = allFrames)
+            self.sfPlotWindow.show()
+            self.sfPlotWindowOn = True
+        else:
+            self.showError("Please Select Properties to Plot")
+    
+    def tsPlotWinClicked(self):
+        if not self.tsPlotWindowOn and self.hasCellData():
+            self.buildTSPlotWindow()
+        else:
+            if not self.hasCellData():
+                self.showError("No Timeseries Data Available - Track or Get Cell Data First")   
+            elif self.tsPlotWindowOn:
+                self.showError("Time Series Plot Window Already Open. Exit First to Start a New Plot Session")
+    
+    def sfPlotWinClicked(self):
+        hasMasks = self.experiments and self.experiment().has_labels()
+        if not self.sfPlotWindowOn and hasMasks:
+            self.buildSFPlotWindow()
+        else:
+            if not hasMasks:
+                self.showError("Load Labels to Plot Frame Properties")
+            elif self.sfPlotWindowOn:
+                self.showError("Single Frame Plot Window Already Open. Exit First to Start a New Plot Session")
 
     def brushSizeChoose(self):
         self.brush_size = self.brushSelect.value()
@@ -1525,12 +1582,37 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if os.path.isdir(files[0]):
             if get_filename(files[0]) in self.get_experiment_names():
-                self.showError(f"{get_filename} already exists as an experiment. Change the directory name.")
+                self.showError(f"{get_filename(files[0])} already exists as an experiment. Change the directory name.")
                 return
             else:
                 self.loadExperiment(files[0])
+        elif os.path.isfile(files[0]):
+            file_path = files[0]
+            file_name = os.path.basename(file_path)
+            file_base, file_ext = os.path.splitext(file_name)
+
+            # Check if the file is an image
+            try:
+                img = imread(file_path)
+            except (IOError, ValueError):
+                self.showError("The dropped file is not a valid image.")
+                return
+
+            # Create a directory named after the image file (without extension) in the current working directory
+            current_working_dir = os.getcwd()
+            target_dir = os.path.join(current_working_dir, file_base)
+            
+            if os.path.exists(target_dir):
+                self.showError(f"A directory named {file_base} already exists in the current working directory. Please change the file name.")
+                return
+            else:
+                os.makedirs(target_dir)
+                target_file_path = os.path.join(target_dir, file_name)
+                shutil.copy(file_path, target_file_path)
+                self.loadExperiment(target_dir)
         else:
-            self.showError("Please drop a directory containing images. Single image files are not accpeted")
+            self.showError("Please drop a directory containing images or a single image file.")
+
     
     def userSelectExperiment(self):
         dir = QFileDialog.getExistingDirectory(self, "Choose Experiment Directory")
@@ -1867,6 +1949,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     val = self.currIm[y,x]
             else:
                 x,y,val = None,None,None
+
+            if self.sfPlotWindowOn and self.sfPlotWindow.allFrames:
+                self.sfPlotWindow.update(self.tIndex)
+
             self.updateDataDisplay(x=x,y=y,val=val)
             self.tChanged = False
     
@@ -1932,8 +2018,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.maskColors[cellNum,:] = np.array(self.goldColor, dtype = np.uint8)
         self.drawIm()
         self.drawMask() 
-        if self.pWindow and self.pWindow.hasSingleCellPlots():
-            self.pWindow.updateSingleCellPlots()
+        if self.tsPlotWindow and self.tsPlotWindow.hasSingleCellPlots():
+            self.tsPlotWindow.updateSingleCellPlots()
     
     def getMotherFromLineageData(self,cell):
         ld = self.label().celldata.mothers
@@ -2175,6 +2261,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.toggleWeights(models_to_load)
             self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
             self.newModels()
+
 
     def toggleWeights(self, models_to_load):
         for model_name, status in models_to_load.items():
@@ -2826,9 +2913,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         for thread in self.threads:
             self.closeThread(thread)
-        if self.pWindow:
-            self.pWindow.close()
-            self.pWindow = None
+        if self.tsPlotWindow:
+            self.tsPlotWindow.close()
+            self.tsPlotWindow = None
         if self.lineageWindow:
             self.lineageWindow.close()
             self.lineageWindow = None
@@ -2846,7 +2933,6 @@ class MainWindow(QtWidgets.QMainWindow):
         hasLineages = self.hasLineageData()
         self.hasLineageBox.setChecked(hasLineages)
         self.hasCellDataBox.setChecked(self.hasCellData())
-        self.plotButton.setEnabled(self.hasCellData())
         self.showMotherDaughtersButton.setEnabled(hasLineages)
         self.showLineageButton.setEnabled(hasLineages)
         self.showTreeButton.setEnabled(hasLineages)
