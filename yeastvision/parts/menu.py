@@ -83,11 +83,11 @@ def menubar(parent):
 
     plotMenu = mainMenu.addMenu("Plot")
 
-    plotTimeSeries = QAction("Plot Time Series Data", parent)
+    plotTimeSeries = QAction("Plot - Time Series", parent)
     plotTimeSeries.triggered.connect(parent.tsPlotWinClicked)
     plotMenu.addAction(plotTimeSeries)
 
-    plotSingleFrame = QAction("Plot per Frame", parent)
+    plotSingleFrame = QAction("Plot - Per Frame", parent)
     plotSingleFrame.triggered.connect(parent.sfPlotWinClicked)
     plotMenu.addAction(plotSingleFrame)
 
