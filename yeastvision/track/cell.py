@@ -69,10 +69,8 @@ def exportCellData(data, lifedata):
         for props in propDf.columns:
             vals = data[data["labels"] == cell]
             vals = vals[props].tolist()[0][firstT:endT+1]
-            print(cell, props, vals)
             for prop in vals:
                 export[props].append(prop)
-    print(export)
     return pd.DataFrame(data = export)
 
 def getDaughterMatrix(self, lineageDF):

@@ -17,7 +17,7 @@ requires = [
 "opencv_python_headless",
 "pandas==1.5.0",
 "patchify==0.2.3",
-"PyQt5==5.15.9",
+"PyQt5==5.15.10",
 "pyqtgraph==0.13.0",
 "scikit_image",
 "scikit_learn",
@@ -57,7 +57,7 @@ packages = [
 
 setup(
     name = "yeastvision",
-    version = "0.1.39",
+    version = "0.1.40",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
