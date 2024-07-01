@@ -53,7 +53,7 @@ packages = [
             "yeastvision.models.budSeg", "yeastvision.models.budSeg",
             "yeastvision.models.matSeg", "yeastvision.models.spoSeg", "yeastvision.models.filaSeg",
             "yeastvision.models.flouSeg"
-            ]
+        ]
 
 setup(
     name = "yeastvision",

@@ -6,6 +6,8 @@ import torch
 from cellpose.models import CellposeModel, size_model_path, SizeModel, Cellpose
 from cellpose.core import assign_device
 
+from yeastvision.utils import normalize_im
+
 
 class CellposeAllowPreTrainedModel(Cellpose):
     """ main model which combines SizeModel and CellposeModel, and allows for a pretrained model to be loaded
@@ -103,7 +105,7 @@ class CustomCPWrapper(CustomModel):
         return a
     
     def process_probability(self, rawProb):
-        return (np.clip(normalize99(rawProb.copy()), 0, 1) * 255).astype(np.uint8)
+        return (np.clip(normalize99(rawProb), 0, 1) * 255).astype(np.uint8)
 
     def train(self, ims, labels, params):
         ims = [cv2.merge((im,im,im)) for im in ims]
@@ -122,6 +124,10 @@ class CustomCPWrapper(CustomModel):
         else:
             masks, flows, _ = self.model.eval(ims, **self.eval_params(self.params))
         return masks,flows
+    
+    def process_flows(self, flow_list)->np.ndarray[np.uint8]:
+        flowsXY = np.array([normalize_im(np.mean(flow[0], axis = -1)) for flow in flow_list], dtype = np.float32) * 255
+        return flowsXY.astype(np.uint8)
 
     @classmethod
     @torch.no_grad()
@@ -131,7 +137,8 @@ class CustomCPWrapper(CustomModel):
         #ims3D = [cv2.merge((im,im,im)) for im in ims]
         masks, flows = model.get_masks_and_flows(ims)
         cellprobs = [flow[2] for flow in flows]
+        flowsXY = model.process_flows(flows)
         cellprobs = np.array((model.process_probability(cellprobs)), dtype = np.uint8)
         masks = np.array(masks, dtype = np.uint16)
         del model
-        return masks, cellprobs
+        return masks, cellprobs, flowsXY

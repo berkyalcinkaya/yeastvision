@@ -13,10 +13,96 @@ RIFE_DIR = rife_model.__path__[0]
 RIFE_WEIGHTS_NAME = "flownet.pkl"
 RIFE_WEIGHTS_PATH = os.path.join(RIFE_DIR, RIFE_WEIGHTS_NAME)
 
+def get_interpolated_length(t, intervals):
+    """
+    Calculate the number of frames after interpolation.
+
+    Parameters:
+    t (int): Original number of frames in the movie.
+    intervals (list): List of interval dictionaries with 'start', 'stop', and 'interp' keys.
+
+    Returns:
+    int: Total number of frames after interpolation.
+    """
+    total_frames = t
+
+    for interval in intervals:
+        start = interval['start']
+        stop = interval['stop']
+        interp_factor_log2 = int(interval['interp'])
+        num_frames = stop - start
+        additional_frames = (num_frames) * (2**interp_factor_log2 - 1)
+        total_frames += additional_frames
+    return int(total_frames)
+
 def rife_weights_loaded():
     return os.path.exists(RIFE_WEIGHTS_PATH)
 
-def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
+def copy_and_normalize(im):
+    new_im = copy.deepcopy(im)
+    return cv2.normalize(new_im, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+def load_model():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.set_grad_enabled(False)
+    if torch.cuda.is_available():
+        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.benchmark = True
+    
+    model = Model()
+    model.load_model(RIFE_DIR, -1)
+    model.eval()
+    model.device()
+    return model, device
+
+def interpolate_intervals(ims, intervals):
+    model, device = load_model()
+    single_im_shape = ims[0].shape
+    new_length = get_interpolated_length(len(ims), intervals)
+    print(intervals)
+    print((new_length, single_im_shape[0], single_im_shape[1]))
+    template = np.zeros((new_length, single_im_shape[0], single_im_shape[1]), dtype=np.uint8)
+
+    template_pos = 0  # This keeps track of where we are in the new template
+    original_pos = 0
+    interval_index = 0
+    original_len = len(ims)
+    new_intervals = []
+
+    while original_pos < original_len:
+        print()
+        print("original pos", original_pos)
+        print("template pos", template_pos)
+        print("interval indnex", interval_index)
+
+        if interval_index < len(intervals) and original_pos == intervals[interval_index]['start']:
+            print("original pos", original_pos, "aligns with start", intervals[interval_index]['start'])
+            start, stop, interp = intervals[interval_index]["start"], intervals[interval_index]["stop"], int(intervals[interval_index]["interp"])
+            interval_interp = interpolate(ims[start:stop+1], interp, device, model)
+            print("Interp args: ", start, stop, interp)
+            print("Interpolation output: ", interval_interp.shape)
+
+            num_frames_added = interval_interp.shape[0]
+            template[template_pos:template_pos+num_frames_added] = interval_interp
+
+            new_intervals.append({"start": template_pos, "stop": template_pos+num_frames_added, 
+                            "interp": int(interp)})
+
+
+            template_pos += (num_frames_added) # point to last frame added
+            original_pos = stop
+            interval_index += 1
+        else:
+            print("inserting image at original pos", original_pos, "into template pos", template_pos)
+            template[template_pos] = copy_and_normalize(ims[original_pos])
+            original_pos += 1
+            template_pos += 1
+        print("")
+
+    del model
+    return template, new_intervals
+
+def interpolate(ims: np.ndarray, exp: int, device, model)->np.ndarray:
     scale = 1
     
     def make_inference(model, I0, I1, n):
@@ -46,25 +132,13 @@ def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
         for im in ims:
             read_buffer.put(im)
         return read_buffer
-    final_im = copy.deepcopy(ims[-1])
-    final_im = cv2.normalize(final_im, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    # final_im = copy.deepcopy(ims[-1])
+    # final_im = cv2.normalize(final_im, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     ims = ims = [reformat(im) for im in ims]
     lastframe = ims[0]
     h,w,_ = lastframe.shape
     ims = ims[1:]
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    torch.set_grad_enabled(False)
-    if torch.cuda.is_available():
-        torch.backends.cudnn.enabled = True
-        torch.backends.cudnn.benchmark = True
     
-    model = Model()
-    model.load_model(RIFE_DIR, -1)
-    model.eval()
-    model.device()
-    
-
     write_buffer = []
     read_buffer = make_read_buffer(ims)
 
@@ -121,5 +195,4 @@ def interpolate(ims: np.ndarray, exp: int)->np.ndarray:
         if break_flag:
             break
         i+=1
-    del model
-    return np.array([im[:,:,0] for im in write_buffer] + [final_im], dtype = np.uint8)
+    return np.array([im[:,:,0] for im in write_buffer], dtype = np.uint8)

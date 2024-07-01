@@ -14,7 +14,7 @@ def loadCustomModel(parent):
     currDir = parent.getCurrImDir() if parent.imLoaded else os.getcwd()
     path,_ = QFileDialog.getOpenFileName(
         parent = parent,
-        caption = f'''Select Custom Weights to Load. The name of the model architecture should be included in the filename.Current models are {parent.modelTypes}''',
+        caption = f'''Select Custom Weights to Load. The name of the model architecture should be included in the filename. Current models are {parent.modelTypes}''',
         directory = currDir,
         filter = filter
     )
@@ -26,13 +26,13 @@ def loadCustomModel(parent):
     customModelName = customModelFile.split(".")[0]
     validName = False
     for modelType in parent.modelTypes:
-        if modelType.lower() in customModelName.lower():
+        if modelType.lower() in customModelName.lower() and modelType.lower() != customModelName.lower():
             validName = True
             break
     if not validName:
-        parent.showError("Custom Model Must Have Model Type in File Name")
+        parent.showError("Custom Model Must Have Model Type in File Name and Should be Named Exactly After Existing Models")
         return
     dst = join(MODEL_DIR, modelType, customModelFile)
     shutil.copy2(path,dst)
-    parent.updateModelNames()
+    parent.newModels()
 

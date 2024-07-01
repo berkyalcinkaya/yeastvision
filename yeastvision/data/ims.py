@@ -60,7 +60,6 @@ class Experiment():
             self.channels[index].set_name(new_name)
             return True
         else:
-            print("new name denied")
             return False
 
     def new_label_name(self, index, new_name):
@@ -391,7 +390,7 @@ class ChannelNoDirectory(Channel):
             self.name = name 
             self.ims = ims
             self.path = self.make_path()
-            if annotations is None:
+            if annotations is None or annotations == None:
                 annotations = [[] for _ in range(len(ims))]
             self.annotations = np.array(annotations, dtype = object)
             self.save_to_npz()
@@ -426,7 +425,10 @@ class ChannelNoDirectory(Channel):
 
 class InterpolatedChannel(ChannelNoDirectory):
     text_id = "interp"
-    def __init__(self, interpolation = None, npz_path = None, ims = None, dir = None, name = None, annotations = None):
+    def __init__(self, npz_path = None, ims = None, dir = None, name = None, 
+                 annotations = None, intervals = None, original_len = None,
+                 new_intervals = None):
+        
         if npz_path is not None:
             self.dir, fname = os.path.split(npz_path)
             self.name = os.path.splitext(fname)[0]
@@ -434,64 +436,87 @@ class InterpolatedChannel(ChannelNoDirectory):
             self.annotations = data["annotations"]
             self.ims = data["ims"]
             self.interp_annotations = data["interpolation"]
-            self.infer_interpolation()
+            self.interval_annotations = data["intervals"]
+            self.interp_intervals = data["interp_intervals"]
             self.path = npz_path
         else:
-            self.interpolation = interpolation
+            self.interval_annotations = intervals
             self.dir = dir
             self.name = name 
             self.ims = ims
+            self.original_len = original_len
             self.path = os.path.join(self.dir, self.name+".npz")
-            if annotations is not None:
-                self.annotations = self.extend_annotations(annotations)
+            self.interp_intervals = new_intervals
+
+            if annotations is None:
+                self.annotations = [["REAL-IMAGE"] for i in range(self.original_len)]
             else:
-                self.annotations = [[] for _ in range(len(self.ims))]
-            self.add_interpolation_to_annotations()
-            self.make_interpolation_annotation()
+                self.annotations = annotations
+            self.extend_annotations()
             self.annotations = np.array(self.annotations)
+            self.make_interpolation_annotation()
             self.save_to_npz()
 
-        
         self.get_properties()
         self.compute_saturation()
     
-    def extend_annotations(self, prev_annotations):
-        if not isinstance(prev_annotations, list):
-            prev_annotations = prev_annotations.tolist()
-        new_annotations_blank = [[] for i in range(len(self.ims))]
-        for i,prev_ann in enumerate(prev_annotations):
-            new_annotations_blank[i] = prev_annotations[i]
-        return new_annotations_blank
+    def insert_interpolated_values(self, original_list, intervals, val):
+        """
+        Insert a specified value at locations where interpolated frames exist.
+
+        Parameters:
+        original_list (list): The original list of length t.
+        intervals (list): List of interval dictionaries with 'start', 'stop', and 'interp' keys.
+        val: The value to insert at interpolated locations.
+
+        Returns:
+        list: Updated list with interpolated values inserted.
+        """
+        new_list = []
+        current_position = 0
+
+        for i in range(len(original_list)):
+            new_list.append(original_list[i])
+            current_position += 1
+            
+            for interval in intervals:
+                start = interval['start']
+                stop = interval['stop']
+                interp_factor_log2 = int(interval['interp'])
+                interp_factor = int(2 ** interp_factor_log2)
+
+                if start <= i < stop:
+                    num_interpolated_frames = interp_factor - 1
+                    
+                    for _ in range(num_interpolated_frames):
+                        new_list.insert(current_position, val)
+                        current_position += 1
+
+        return new_list
+    
+    def extend_annotations(self):
+        if not isinstance(self.annotations, list):
+            self.annotations = self.annotations.tolist()
+        self.annotations = self.insert_interpolated_values(self.annotations, self.interval_annotations, ["INTERP"])
 
     def save_to_npz(self):
-        np.savez(self.path, annotations = self.annotations, ims = self.ims, interpolation = self.interp_annotations)
+        np.savez(self.path, annotations = self.annotations, 
+                ims = self.ims, 
+                interpolation = self.interp_annotations,
+                intervals = self.interval_annotations,
+                interp_intervals = self.interp_intervals)
     
     def make_interpolation_annotation(self):
-        self.interp_annotations = [False for i in range(len(self.ims))]
-        for i in range(0, len(self.ims), self.interpolation):
-            self.interp_annotations[i] = True
-
-    def add_interpolation_to_annotations(self):
-        for i, ann in enumerate(self.annotations):
-            if i % self.interpolation == 0:
-                self.annotations[i].append("REAL-IMAGE")
-            else:
-                self.annotations[i].append("INTERPOLATED")
-
-    def infer_interpolation(self):
-        num_real = np.count_nonzero(self.interp_annotations)
-        total = len(self.interp_annotations)
-        self.interpolation = total/num_real
+        self.interp_annotations = [False for i in range(self.original_len)]
+        self.interp_annotations = self.insert_interpolated_values(self.interp_annotations, self.interval_annotations, True)
     
-
-
 class Label(Files):
-        mask_types = ["labels", "probability", "contours"]
+        mask_types = ["labels", "probability", "contours", "flows"]
         def __init__(self, mask_arrays = None, fnames = None, dir = None, npz_path = None, name = None):
             
             self.celldata = None
             self.lineagedata = None
-            self.labels, self.contours, self.probability = None, None, None
+            self.labels, self.contours, self.probability, self.flows = None, None, None, None
             
             if npz_path and os.path.exists(npz_path):
                 print("loading from npz")
@@ -511,7 +536,7 @@ class Label(Files):
                     self.files = []
                     raw_arrays = np.array(mask_arrays)            
                 self.npz_path = os.path.join(self.dir, name+".npz")
-                self.extract_probability(raw_arrays)
+                self.extract_probability_labels_flows(raw_arrays)
                 self.extract_contours()
                 self.get_properties()
 
@@ -546,7 +571,6 @@ class Label(Files):
                 self.labels = self.data
             self.save()
 
-
         def init_from_npz(self):
             data = np.load(self.npz_path, allow_pickle=True)
             self.celldata = data["celldata"][0]
@@ -565,7 +589,7 @@ class Label(Files):
             self.dtype = str(self.labels[0].dtype)
         
         def __str__(self):
-            return f"{self.shape} | {self.dtype} | has_probability: {self.has_probability}"
+            return f"{self.shape} | {self.dtype} | has_probability_and_flows: {self.has_probability and self.has_flows}"
 
         def write_to_npz(self):
             np.savez(self.npz_path, **self.get_data_dict())
@@ -574,10 +598,11 @@ class Label(Files):
             self.labels = None
             self.contours = None
             self.probability = None
+            self.flows = None
 
         def get_data_dict(self):
             data = {}
-            for property_name in ["labels", "contours", "probability"]:
+            for property_name in ["labels", "contours", "probability", "flows"]:
                 data[property_name] = getattr(self,f"get_{property_name}")()
             data["celldata"] = np.array([self.celldata])
             data["lineagedata"] = np.array([self.lineagedata])
@@ -590,12 +615,15 @@ class Label(Files):
                 self.npzdata["probability"][t] = new_prob_im
             self.save()
 
-        def extract_probability(self, raw_arrays):
+        def extract_probability_labels_flows(self, raw_arrays):
             if len(raw_arrays.shape) == 4:
                 self.has_probability = True
+                self.has_flows = True
                 self.labels = raw_arrays[0,:,:,:]
                 self.probability = raw_arrays[1,:,:,:]
+                self.flows = raw_arrays[2,:,:,:]
             else:
+                self.has_flows = False
                 self.has_probability = False
                 self.labels = raw_arrays
             
@@ -620,6 +648,14 @@ class Label(Files):
             else:
                 return np.zeros_like(self.get_labels(), dtype = np.uint8)
         
+        def get_flows(self):
+            if self.has_flows:
+                if self.flows is not None:
+                    return self.flows
+                return self.npzdata["flows"]
+            else:
+                return np.zeros_like(self.get_labels(), dtype = np.uint8)
+        
         def get_files(self,t):
             return self.npz_path
         
@@ -639,12 +675,14 @@ class Label(Files):
             logger.info(f"Removing label data file {self.npz_path}")
             os.remove(self.npz_path)
 
-        def set_data(self, labels, contours, probability = None):
+        def set_data(self, labels, contours, probability = None, flows = None):
             self.labels = labels
             self.contours = contours
-            if probability is not None:
+            if probability is not None and flows is not None:
                 self.has_probability = True
                 self.probability = self.probability
+                self.flows = flows
+                self.has_flows = True
             self.get_properties()
             self.save()
             self.unload_data_attrs()

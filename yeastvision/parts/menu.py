@@ -10,7 +10,7 @@ def menubar(parent):
     fileMenu.addAction(loadIm)
 
     editMenu = mainMenu.addMenu("Edit")
-    addBlankMask = QAction("Add Blank Label", parent)
+    addBlankMask = QAction("Add Blank Mask", parent)
     addBlankMask.triggered.connect(parent.addBlankMasks)
     editMenu.addAction(addBlankMask)
     removeAll = QAction("Clear All", parent)
@@ -94,6 +94,10 @@ def menubar(parent):
     getCellData = QAction("Update Cell Data", parent)
     getCellData.triggered.connect(parent.updateCellData)
     plotMenu.addAction(getCellData)
+    
+    plotInterpolation = QAction("Interpolation Viewer", parent)
+    plotInterpolation.triggered.connect(parent.showInterpolationClicked)
+    plotMenu.addAction(plotInterpolation)
 
 
     

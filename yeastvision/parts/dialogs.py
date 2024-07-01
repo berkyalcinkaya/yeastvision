@@ -2,12 +2,196 @@ from PyQt5 import QtGui, QtCore
 from PyQt5.QtWidgets import (QTreeWidgetItem, QPushButton, QDialog,
                         QDialogButtonBox, QLineEdit, QFormLayout, QCheckBox,  QSpinBox, QDoubleSpinBox, QLabel, 
                             QWidget, QComboBox, QGridLayout, QHBoxLayout, QHeaderView, QVBoxLayout, QMessageBox,
-                            QTreeWidget, QButtonGroup)
-from PyQt5.QtCore import QTimer, Qt
+                            QTreeWidget, QButtonGroup, QFrame)
+from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 import numpy as np
 import os
 from yeastvision.parts.guiparts import *
 from yeastvision.plot.plot import PlotProperty
+import math
+from yeastvision.data.ims import InterpolatedChannel
+
+class InterpolationIntervalWidget(QFrame):
+    removed = pyqtSignal(object)
+    
+    def __init__(self, parent=None, max_frame=10000):
+        super().__init__(parent)
+        
+        self.start_frame_spinbox = QSpinBox()
+        self.start_frame_spinbox.setRange(0, max_frame - 1)  # Set realistic frame range
+        
+        self.end_frame_spinbox = QSpinBox()
+        self.end_frame_spinbox.setRange(1, max_frame)  # Set realistic frame range
+        
+        self.end_frame_spinbox.valueChanged.connect(self.update_start_frame_max)
+        
+        self.interpolation_combo = QComboBox()
+        self.interpolation_combo.addItems(["2x", "4x", "8x", "16x"])
+        
+        self.remove_button = QPushButton("Remove")
+        self.remove_button.clicked.connect(self.remove_interval)
+        
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel("Start Frame:"))
+        layout.addWidget(self.start_frame_spinbox)
+        layout.addWidget(QLabel("End Frame:"))
+        layout.addWidget(self.end_frame_spinbox)
+        layout.addWidget(QLabel("Interpolation:"))
+        layout.addWidget(self.interpolation_combo)
+        layout.addWidget(self.remove_button)
+        
+        self.setLayout(layout)
+        
+    def remove_interval(self):
+        self.setParent(None)
+        self.removed.emit(self)  # Emit the removed signal
+
+    def set_max_frame(self, max_frame):
+        self.start_frame_spinbox.setMaximum(max_frame - 1)
+        self.end_frame_spinbox.setMaximum(max_frame)
+        self.update_start_frame_max()
+        if self.end_frame_spinbox.value() > max_frame:
+            self.end_frame_spinbox.setValue(max_frame)
+
+    def update_start_frame_max(self):
+        self.start_frame_spinbox.setMaximum(self.end_frame_spinbox.value() - 1)
+    
+    def get_interval_data(self):
+        return {
+            "start": self.start_frame_spinbox.value(),
+            "stop": self.end_frame_spinbox.value(),
+            "interp": int(math.log(int(self.interpolation_combo.currentText().replace("x", "")), 2))
+        }
+
+class InterpolationDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.setWindowTitle("Select Interpolation Intervals")
+        
+        self.layout = QVBoxLayout()
+        
+        self.channel_combo = self.add_parent_combobox(self.parent.channelSelect)
+        self.channel_combo.currentIndexChanged.connect(self.channel_select_change)
+        
+        self.layout.addWidget(QLabel("Channel to Interpolate:"))
+        self.layout.addWidget(self.channel_combo)
+
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: red")
+        self.layout.addWidget(self.error_label)
+        
+        self.add_interval_button = QPushButton("Add Interval")
+        self.add_interval_button.clicked.connect(self.add_interval)
+        
+        self.dialog_buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
+            parent=self
+        )
+        self.dialog_buttons.accepted.connect(self.check_intervals)
+        self.dialog_buttons.rejected.connect(self.reject)
+        
+        self.layout.addWidget(self.add_interval_button)
+        self.layout.addWidget(self.dialog_buttons)
+        
+        self.setLayout(self.layout)
+        
+        self.intervals = []
+        self.channel_select_change()
+    
+    def remove_all_intervals(self):
+        for interval_widget in self.intervals:
+            interval_widget.setParent(None)
+        self.intervals.clear()
+
+    def disable_and_clear_interval_add(self):
+        self.remove_all_intervals()
+        self.add_interval_button.setDisabled(True)
+    
+    def enable_interval_add(self):
+        self.add_interval_button.setDisabled(False)
+
+    def add_interval(self):
+        max_frame = self.get_max_frame()
+        interval_widget = InterpolationIntervalWidget(max_frame=max_frame)
+        interval_widget.removed.connect(self.remove_interval)  # Connect the signal
+        self.intervals.append(interval_widget)
+        self.layout.insertWidget(self.layout.count() - 3, interval_widget)
+
+    def remove_interval(self, interval_widget):
+        if interval_widget in self.intervals:
+            self.intervals.remove(interval_widget)
+            interval_widget.deleteLater()
+
+    def channel_select_change(self):
+        self.channel_obj = self.parent.get_channel_obj_from_name(self.channel_combo.currentText())
+        if isinstance(self.channel_obj, InterpolatedChannel):
+            self.disable_and_clear_interval_add()
+            self.showMessage(f"{self.channel_obj.name} has already been interpolated")
+        else:
+            self.clearMessages()
+            self.enable_interval_add()
+            self.update_max_frame()
+
+    def update_max_frame(self):
+        max_frame = self.get_max_frame()
+        if max_frame == 0:
+            self.disable_and_clear_interval_add()
+            self.showMessage("Current Channel has only one image.")
+        else:
+            self.add_interval_button.setDisabled(False)
+            self.clearMessages()
+            for interval_widget in self.intervals:
+                interval_widget.set_max_frame(max_frame)
+
+    def add_parent_combobox(self, parentComboBox):
+        channelSelect = QComboBox()
+        channelSelect.setFixedWidth(200)
+        channelSelect.addItems([parentComboBox.itemText(i) for i in range(parentComboBox.count())])
+        channelSelect.setCurrentIndex(parentComboBox.currentIndex())
+        return channelSelect
+
+    def get_max_frame(self):
+        return self.channel_obj.max_t()
+
+    def check_intervals(self):
+        new_intervals = []
+        for interval_widget in self.intervals:
+            start_frame = interval_widget.start_frame_spinbox.value()
+            end_frame = interval_widget.end_frame_spinbox.value()
+            interp = interval_widget.interpolation_combo.currentText()
+            max_frame = self.get_max_frame()
+
+            if start_frame < 0 or start_frame >= max_frame:
+                self.showMessage(f"Start frame {start_frame} is out of range.")
+                return
+            if end_frame <= start_frame or end_frame > max_frame:
+                self.showMessage(f"End frame {end_frame} is out of range or not greater than start frame.")
+                return
+
+            new_intervals.append((start_frame, end_frame, interp))
+
+        # Check for overlapping intervals
+        new_intervals.sort()  # Sort intervals by start frame
+        for i in range(len(new_intervals) - 1):
+            if new_intervals[i][1] > new_intervals[i + 1][0]:
+                self.showMessage("Intervals overlap.")
+                return
+
+        self.accept()
+        self.clearMessages()
+    
+    def get_data(self):
+        channel = self.channel_combo.currentText()
+        intervals = [interval_widget.get_interval_data() for interval_widget in self.intervals]
+        intervals = sorted(intervals, key=lambda x: x['start'])
+        return channel, intervals
+
+    def showMessage(self, message):
+        self.error_label.setText(message)
+
+    def clearMessages(self):
+        self.showMessage("") 
 
 class TimedPopup(QDialog):
     def __init__(self, text, seconds):

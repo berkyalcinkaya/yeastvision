@@ -53,6 +53,8 @@ class ImageDraw(pg.ImageItem):
     
     def mouseClickEvent(self, ev):
         if not self.parent.imLoaded or not self.parent.maskLoaded:
+            if self.parent.imLoaded and not self.parent.maskLoaded: #and (self.parent.drawType == "Brush" or self.parent.drawType == "Eraser" or self.parent.drawType == "Outline"):
+                self.parent.showError("No Mask Loaded -- Drawing Disabled. Either Segment Current Images or Go to `Edit>Add Blank Mask` in the menu bar to begin drawing")
             return
         
         try:
@@ -65,7 +67,7 @@ class ImageDraw(pg.ImageItem):
                 self.parent.selectCell(ev.pos())
         
         # mask must be on for drawing
-        elif ev.button() == QtCore.Qt.RightButton and not self.parent.probOn and self.parent.maskOn:
+        elif ev.button() == QtCore.Qt.RightButton and not self.parent.prob_or_flow_on() and self.parent.maskOn:
             
             if self.parent.drawType != "":
                 
@@ -101,7 +103,10 @@ class ImageDraw(pg.ImageItem):
             ev.ignore()
             return
         
+        
         if not self.parent.imLoaded or not self.parent.maskLoaded:
+            if self.parent.imLoaded and not self.parent.maskLoaded: #and (self.parent.drawType == "Brush" or self.parent.drawType == "Eraser"):
+                self.parent.showError("No Mask Loaded. Drawing Disabled. Either Segment Current Images or Go to Edit>Add Blank Mask to begin drawing")
             return
         
         # mask must be on for drawing
@@ -112,7 +117,7 @@ class ImageDraw(pg.ImageItem):
             else:
                 self.colorNum = self.parent.selectedCells[0] if self.parent.selectedCells else self.colorNum
 
-            if not self.parent.probOn and self.parent.maskOn:
+            if not self.parent.prob_or_flow_on() and self.parent.maskOn:
                 if ev.isStart():
                     self.drawAt(ev.pos())
                 elif ev.isFinish():

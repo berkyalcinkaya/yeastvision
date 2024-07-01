@@ -1,10 +1,8 @@
-from PyQt5 import QtGui, QtCore
+from PyQt5 import QtCore
 from PyQt5.QtGui import QPainter, QIcon, QPixmap
-from PyQt5.QtWidgets import (QMessageBox, QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame,
+from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame,
                             QStyledItemDelegate, QListView)
 from PyQt5.QtCore import Qt, QRect
-
-
 
 class RemoveItemDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
@@ -36,9 +34,6 @@ class RemoveItemDelegate(QStyledItemDelegate):
     def get_close_button_rect(self, item_rect):
         icon_size = 16
         return QRect(item_rect.right() - icon_size - 5, item_rect.center().y() - icon_size // 2, icon_size, icon_size)
-
-
-
 
 class CustomListView(QListView):
     def __init__(self, combo, delete_method, parent=None, channel = False):
@@ -101,18 +96,12 @@ class QVLine(QFrame):
         self.setFrameShape(QFrame.VLine)
         self.setFrameShadow(QFrame.Sunken)
 
-
-
-
 class ReadOnlyCheckBox(QCheckBox):
     def __init__(self, parent=None):
         super().__init__(parent)
     
     def mousePressEvent(self, event):
         event.ignore()
-
-
-
 
 class MaskTypeButtons():
     def __init__(self, parent=None, row=0, col=0):

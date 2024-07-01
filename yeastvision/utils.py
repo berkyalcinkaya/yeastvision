@@ -14,6 +14,42 @@ from PIL import Image
 
 YV_DIR = pathlib.Path.home().joinpath(".yeastvision")
 
+def cleanup_npz_files_from_sample_movie(script_file):
+    # Get the current script path
+    current_script_path = os.path.abspath(script_file)
+    
+    # Go back one directory
+    parent_dir = os.path.dirname(os.path.dirname(current_script_path))
+    
+    # Define the target directory
+    target_dir = os.path.join(parent_dir, 'data', 'sample_movie_1')
+    
+    # Check if the target directory exists
+    if not os.path.exists(target_dir):
+        print(f"The directory {target_dir} does not exist.")
+        return
+
+    # Initialize a list to store the names of deleted files
+    deleted_files = []
+
+    # Iterate over files in the target directory
+    for filename in os.listdir(target_dir):
+        if filename.endswith('.npz'):
+            file_path = os.path.join(target_dir, filename)
+            try:
+                os.remove(file_path)
+                deleted_files.append(filename)
+            except Exception as e:
+                print(f"Failed to delete {filename}: {e}")
+
+    # Print the names of the deleted files
+    if deleted_files:
+        print("Deleted files:")
+        for file in deleted_files:
+            print(file)
+    else:
+        print("No .npz files found to delete.")
+
 def logger_setup():
     YV_DIR.mkdir(exist_ok=True)
     log_file = YV_DIR.joinpath("run.log")

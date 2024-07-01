@@ -27,7 +27,7 @@ class SegmentWorker(QtCore.QObject):
         tStart, tStop = int(self.params["T Start"]), int(self.params["T Stop"])
         with torch.no_grad():
             output = self.mc.run(self.ims[tStart:tStop+1],self.params, self.weight)
-        self.finished.emit(output, self.mc,newImTemplate, self.params, self.weight, self.mType, self.exp_idx, self.mask_i)
+        self.finished.emit(output, self.mc, newImTemplate, self.params, self.weight, self.mType, self.exp_idx, self.mask_i)
 
 class TrackWorker(QtCore.QObject):
     finished = QtCore.pyqtSignal(object, object, object)
@@ -48,21 +48,20 @@ class TrackWorker(QtCore.QObject):
         self.finished.emit(self.z, self.exp_idx, out)
 
 class InterpolationWorker(QtCore.QObject):
-    finished = QtCore.pyqtSignal(object, object, object, object, object)
+    finished = QtCore.pyqtSignal(object, object, object, object, object, object, object)
 
-    def __init__(self, ims, newname, annotations, experiment_index, interp, func,*args):
+    def __init__(self, ims, newname, annotations, experiment_index, func, intervals, original_len):
         super(InterpolationWorker, self).__init__()
         self.ims = ims
         self.name = newname
-        self.dir  = dir
         self.annotations = annotations
         self.exp_idx = experiment_index
-        self.interp = interp
+        self.intervals = intervals
         self.func = func
-        self.funcargs = args
-
+        self.original_len = original_len
 
     def run(self):
-        out = self.func(self.ims, *self.funcargs)
-        self.finished.emit(out, self.exp_idx, self.name, self.annotations, self.interp)
+        ims, new_intervals = self.func(self.ims, self.intervals)
+        self.finished.emit(ims, self.exp_idx, self.name, self.annotations, 
+                           self.intervals, self.original_len, new_intervals)
 

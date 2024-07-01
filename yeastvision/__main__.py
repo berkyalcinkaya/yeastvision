@@ -10,7 +10,7 @@ from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, export
 import yeastvision.plot.plot as plot
 from yeastvision.utils import *
 import yeastvision.ims.im_funcs as im_funcs
-from yeastvision.ims.interpolate import interpolate, rife_weights_loaded, RIFE_WEIGHTS_PATH, RIFE_WEIGHTS_NAME
+from yeastvision.ims.interpolate import interpolate_intervals, rife_weights_loaded, RIFE_WEIGHTS_PATH, RIFE_WEIGHTS_NAME
 import yeastvision.parts.menu as menu
 from yeastvision.models.utils import MODEL_DIR, getModels, getModelLoadedStatus, produce_weight_path
 from yeastvision.install import TEST_MOVIE_DIR, TEST_MOVIE_URL, install_test_ims, install_weight, install_rife
@@ -68,6 +68,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sessionId = self.getCurrTimeStr()
 
         self.INTERP_MODEL_NAME = "RIFE"
+        self.PROB_ID = 1
+        self.FLOW_ID = 2
         
         self.goldColor = [255,215,0,255]
 
@@ -95,9 +97,9 @@ class MainWindow(QtWidgets.QMainWindow):
                               "color:rgb(80,80,80);}")
         self.firstMaskLoad = True
 
-        self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
         self.getModelNames()
         self.getModels()
+        self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
 
         self.cwidget = QWidget(self)
         self.l = QGridLayout()
@@ -240,7 +242,6 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.experiment().labels[self._maskZ].max_t() < self.tIndex:
                 self.tIndex = 0
         
-    
     @property
     def tIndex(self):
         return self._tIndex
@@ -253,15 +254,40 @@ class MainWindow(QtWidgets.QMainWindow):
         except AttributeError:
             self._tIndex = num
     
-    def get_models_loaded_status(self):
-        return {model: getModelLoadedStatus(model) for model in getModels()}
+    def get_channel_obj_from_name(self, channel_name):
+        channel_idx = self.channelSelect.findText(channel_name)
+        if channel_idx == -1:
+            raise ValueError(f"{channel_name} does not exist in channelSelect")
+        return self.experiment().channels[channel_idx]
+
+    def flow_on(self):
+        return self.imageTypeSelect.currentIndex() == self.FLOW_ID
     
+    def prob_on(self):
+        return self.imageTypeSelect.currentIndex() == self.PROB_ID
+
+    def prob_or_flow_on(self):
+        return self.flow_on() or self.prob_on()
+    
+    def get_models_loaded_status(self):
+        models_loaded = {model: getModelLoadedStatus(model) for model in getModels()}
+        for custom_model in self.find_custom_models():
+            models_loaded[custom_model] = True
+        return models_loaded
+    
+    def find_custom_models(self):
+        custom_models = []
+        for model in self.modelNames:
+            for default_model in getModels():
+                if default_model in model and default_model != model:
+                    custom_models.append(model)
+        return custom_models
+
     def get_weights_loaded_status(self):
         models_loaded = self.get_models_loaded_status()
         models_loaded[self.INTERP_MODEL_NAME] = rife_weights_loaded()
         return models_loaded
 
-    
     def handleFinished(self, error = False):
         self.closeThread(self.threads[-1])
         self.updateThreadDisplay()
@@ -269,7 +295,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def clearCurrMask(self):
         self.currMask[self.currMask>0] = 0
         contours  = self.getCurrContours()
-        contours[:,:] =0 
+        contours[:,:] = 0 
         self.label().save()
         self.drawMask()
     
@@ -330,22 +356,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.selectedCells = []
         self.selectedCellContourColors = []
         self.cmap = self.getMaskCmap()
-        self.floatCmap = self.getFloatCmap()
+        self.probCmap = self.getProbCmap()
+        self.flowCmap = self.getFlowCmap()
         self.maskColors = self.cmap.copy()
         self.maskChanged = False
         self.prevMaskOn = True
         self.maskOn = True
         self.contourOn = False
-        self.probOn = False
         self.maskZ = -1
         self.currMask = np.zeros((512,512), dtype = np.uint8)
         self.pg_mask.setImage(self.currMask, autolevels  =False, levels =[0,0], lut = self.maskColors)
 
-
         if not initial:
             self.labelSelect.clear()
             self.maskOnCheck.setChecked(False)
-            self.probOnCheck.setChecked(False)
+            self.imageTypeSelect.setCurrentIndex(0)
             self.contourButton.setChecked(False)
             self.cellNumButton.setChecked(False)
             self.disableMaskOperations()
@@ -379,7 +404,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.imLoaded:
             self.showError("Load Images First")
             return
-        blankMasks = np.zeros_like(self.getCurrImSet())
+        blankMasks = np.zeros(self.getCurrImShapeExcludeRGB(), dtype = np.uint16)
         self.loadMasks(blankMasks, name = self.getNewLabelName("blank"))
 
     def make_viewbox(self):
@@ -505,7 +530,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelectLabel = QLabel("Channel: ")
         self.channelSelectLabel.setStyleSheet(self.labelstyle)
         self.channelSelectLabel.setFont(self.smallfont)
-        self.l.addWidget(self.channelSelectLabel, 0, self.mainViewCols-7,1,1)
+        self.l.addWidget(self.channelSelectLabel, 0, self.mainViewCols-9,1,1)
         self.channelSelect = CustomComboBox(lambda x: self.deleteData(x, channel = True), parent = self, channel = True)
         self.channelSelect.setStyleSheet(self.dropdowns)
         self.channelSelect.setFont(self.medfont)
@@ -513,33 +538,49 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setEditable(True)
         self.channelSelect.editTextChanged.connect(self.channelSelectEdit)
         self.channelSelect.setEnabled(False)
-        self.l.addWidget(self.channelSelect, 0, self.mainViewCols-6,1, 2)
+        self.l.addWidget(self.channelSelect, 0, self.mainViewCols-8,1, 2)
         self.l.setAlignment(self.channelSelect, QtCore.Qt.AlignLeft)
-        self.channelSelect.setMinimumWidth(100)
         self.channelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.channelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.channelSelect.setMinimumWidth(200)
         setattr(self.channelSelect, "items", lambda: [self.channelSelect.itemText(i) for i in range(self.channelSelect.count())])
 
-
         self.labelSelectLabel = QLabel("Label: ")
         self.labelSelectLabel.setStyleSheet(self.labelstyle)
         self.labelSelectLabel.setFont(self.smallfont)
-        self.l.addWidget(self.labelSelectLabel, 0, self.mainViewCols-4,1,1)
+        self.l.addWidget(self.labelSelectLabel, 0, self.mainViewCols-6,1,1)
         self.labelSelect = CustomComboBox(lambda x: self.deleteData(x, label = True), parent = self)
         self.labelSelect.setStyleSheet(self.dropdowns)
         self.labelSelect.setFont(self.medfont)
         self.labelSelect.currentIndexChanged.connect(self.labelSelectIndexChange)
         self.labelSelect.setEditable(True)
         self.labelSelect.editTextChanged.connect(self.labelSelectEdit)
-        self.labelSelect.setMinimumWidth(100)
         self.labelSelect.setEnabled(False)
-        self.l.addWidget(self.labelSelect, 0, self.mainViewCols-3,1,2)
+        self.l.addWidget(self.labelSelect, 0, self.mainViewCols-5,1,2)
         self.l.setAlignment(self.labelSelect, QtCore.Qt.AlignLeft)
         setattr(self.labelSelect, "items", lambda: [self.labelSelect.itemText(i) for i in range(self.labelSelect.count())])
         self.labelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.labelSelect.setMinimumWidth(200)
         self.labelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+
+        self.imageTypeLabel = QLabel("image type:")
+        self.imageTypeLabel.setStyleSheet(self.labelstyle)
+        self.imageTypeLabel.setFont(self.smallfont)
+        self.l.addWidget(self.imageTypeLabel, 0, self.mainViewCols-3, 1, 1)
+        self.imageTypeSelect = QComboBox()
+        self.imageTypeSelect.setStyleSheet(self.dropdowns)
+        self.imageTypeSelect.setFont(self.medfont)
+        self.imageTypeSelect.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.imageTypeSelect.addItems(["image", "probability", "flowsXY"])
+        self.imageTypeSelect.setCurrentIndex(0)
+        self.imageTypeSelect.setEnabled(True)
+        self.imageTypeSelect.setMinimumWidth(100)
+        self.l.setAlignment(self.imageTypeSelect, QtCore.Qt.AlignLeft)
+        self.imageTypeSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.l.addWidget(self.imageTypeSelect, 0, self.mainViewCols-2, 1, 1)
+        self.imageTypeSelect.setEnabled(True)
+        self.set_prob_and_flows_dropdown(False)
+        self.imageTypeSelect.currentIndexChanged.connect(self.imageTypeChange)
 
         label = QLabel('Drawing:')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
@@ -728,16 +769,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.maskOnCheck.stateChanged.connect(self.toggleMask)
         self.l.addWidget(self.maskOnCheck, rowspace + 2, 17, 1, 1)
 
-        # "Probability" switch
-        probLabel = QLabel("pixel probability")
-        probLabel.setStyleSheet(self.labelstyle)
-        probLabel.setFont(self.medfont)
-        self.l.addWidget(probLabel, rowspace + 1, 18, 1, 1)
-        self.probOnCheck = SwitchControl()
-        self.probOnCheck.setStyleSheet(self.checkstyle)
-        self.probOnCheck.setEnabled(False)
-        self.probOnCheck.stateChanged.connect(self.toggleProb)
-        self.l.addWidget(self.probOnCheck, rowspace + 1, 19, 1, 1)
+        # # "Probability" switch
+        # probLabel = QLabel("pixel probability")
+        # probLabel.setStyleSheet(self.labelstyle)
+        # probLabel.setFont(self.medfont)
+        # self.l.addWidget(probLabel, rowspace + 1, 18, 1, 1)
+        # self.probOnCheck = SwitchControl()
+        # self.probOnCheck.setStyleSheet(self.checkstyle)
+        # self.probOnCheck.setEnabled(False)
+        # self.probOnCheck.stateChanged.connect(self.toggleProb)
+        # self.l.addWidget(self.probOnCheck, rowspace + 1, 19, 1, 1)
+
+        # "mother-daughters" switch
+        motherDaughtersLabel = QLabel("mother-daughters")
+        motherDaughtersLabel.setStyleSheet(self.labelstyle)
+        motherDaughtersLabel.setFont(self.medfont)
+        self.l.addWidget(motherDaughtersLabel, rowspace + 1, 18, 1, 1)
+        self.showMotherDaughtersButton = SwitchControl()
+        self.showMotherDaughtersButton.setStyleSheet(self.checkstyle)
+        self.showMotherDaughtersButton.setEnabled(False)
+        self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
+        self.l.addWidget(self.showMotherDaughtersButton, rowspace + 1, 19, 1, 1)
 
         # "cell nums" switch
         cellNumLabel = QLabel("cell numbers")
@@ -760,17 +812,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showLineageButton.setEnabled(False)
         self.showLineageButton.stateChanged.connect(self.toggleLineages)
         self.l.addWidget(self.showLineageButton, rowspace + 2, 19, 1, 1)
-
-        # "mother-daughters" switch
-        motherDaughtersLabel = QLabel("mother-daughters")
-        motherDaughtersLabel.setStyleSheet(self.labelstyle)
-        motherDaughtersLabel.setFont(self.medfont)
-        self.l.addWidget(motherDaughtersLabel, rowspace + 4, 16, 1, 1)
-        self.showMotherDaughtersButton = SwitchControl()
-        self.showMotherDaughtersButton.setStyleSheet(self.checkstyle)
-        self.showMotherDaughtersButton.setEnabled(False)
-        self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
-        self.l.addWidget(self.showMotherDaughtersButton, rowspace + 4, 17, 1, 1)
 
         # "lineage tree" switch
         treeLabel = QLabel("lineage tree")
@@ -812,7 +853,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.probOnCheck.setStyleSheet(self.checkstyle)
         # self.probOnCheck.setFont(self.medfont)
         # self.probOnCheck.setEnabled(False)
-        self.probOnCheck.setShortcut(QtCore.Qt.Key_F)
+        #self.probOnCheck.setShortcut(QtCore.Qt.Key_F)
         # self.probOnCheck.stateChanged.connect(self.toggleProb)
         # self.l.addWidget(self.probOnCheck, rowspace+2, 18,1,2)
 
@@ -867,6 +908,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.l.setColumnStretch(0,2)
         self.l.setContentsMargins(0,0,0,0)
         self.l.setSpacing(0)
+
+    def set_prob_and_flows_dropdown(self, b):
+        self.imageTypeSelect.model().item(1).setEnabled(b)
+        self.imageTypeSelect.model().item(2).setEnabled(b)
+        
+        if not b:
+            self.imageTypeSelect.setCurrentIndex(0)
     
     def updateThreadDisplay(self):
         threadCount = len(self.threads)+1
@@ -884,7 +932,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cellNumButton.setEnabled(True)
         self.maskOnCheck.setEnabled(True)
         self.maskOnCheck.setChecked(True)
-        self.probOnCheck.setEnabled(self.label().has_probability)
+        self.set_prob_and_flows_dropdown(self.label().has_probability and self.label().has_flows)
         self.lineageButton.setEnabled(True)
         self.lineageButton.setStyleSheet(self.styleUnpressed)
     
@@ -902,11 +950,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cellNumButton.setEnabled(False)
         self.maskOnCheck.setEnabled(False)
         self.maskOnCheck.setChecked(False)
-        self.probOnCheck.setEnabled(False)
+        self.set_prob_and_flows_dropdown(False)
         self.lineageButton.setEnabled(False)
         self.lineageButton.setStyleSheet(self.styleInactive)
-    
-
 
     def enableImageOperations(self):
         #self.saturationSlider.setEnabled(True)
@@ -917,6 +963,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.artiButton.setEnabled(True)
         # self.artiButton.setStyleSheet(self.styleUnpressed)
         self.channelSelect.setEnabled(True)
+        self.imageTypeSelect.setEnabled(True)
         self.checkInterpolation()
     
     def disableImageOperations(self):
@@ -927,11 +974,12 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.autoSaturationButton.setStyleSheet(self.styleUnpressed)
         self.modelButton.setEnabled(False)
         self.modelButton.setStyleSheet(self.styleInactive)
+        self.imageTypeSelect.setEnabled(False)
+        self.imageTypeSelect.setCurrentIndex(0)
         # self.artiButton.setEnabled(True)
         # self.artiButton.setStyleSheet(self.styleInactive)
         self.channelSelect.setEnabled(False)
 
-    
     def toggleDrawing(self,b):
         if b:
             idx = 0
@@ -946,7 +994,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.getModelNames()
         self.modelChoose.clear()
         self.modelChoose.addItems(sorted(self.modelNames))
-
     
     def deleteData(self, idx, channel = False, label = False):
         self.deleting = True
@@ -979,7 +1026,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.maskZ = new_index
         
             self.updateDisplay()
-    
+        
     def blockComboSignals(self, b):
         self.channelSelect.blockSignals(b)
         self.labelSelect.blockSignals(b)
@@ -1111,9 +1158,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return
     
     def checkProbability(self):
-        self.probOnCheck.setEnabled(self.label().has_probability)
+        self.set_prob_and_flows_dropdown(self.label().has_probability and self.label().has_flows)
 
-    
     def trackFinished(self, z, exp_idx, tracked):
         if isinstance(tracked, np.ndarray):
             contours = self.getCurrContourSet()
@@ -1438,6 +1484,31 @@ class MainWindow(QtWidgets.QMainWindow):
             elif self.sfPlotWindowOn:
                 self.showError("Single Frame Plot Window Already Open. Exit First to Start a New Plot Session")
 
+    def showInterpolationClicked(self):
+        if not self.imLoaded:
+            self.showError("No Images Loaded. Load an experiment and run interpolation first")
+            return
+        if not isinstance(self.channel(), InterpolatedChannel):
+            interpolated_channel_names = self.get_interpolated_channels()
+            if interpolated_channel_names:
+                interpolated_channel_str = ",".join(interpolated_channel_names)
+                self.showError(f"{self.channel().name} has not been interpolated. Choose one of {interpolated_channel_str}")
+            else:
+                self.showError("No interpolated channels are present. Run interpolation first")
+        else:
+            print(self.channel().interval_annotations)
+            self.interpPlotWindow = plot.InterpolationHeatmapWindow(self,
+                                                                    self.channel().interval_annotations, 
+                                                                    self.channel().max_t(),
+                                                                    self.channel().interp_intervals)
+            self.interpPlotWindow.show()
+
+
+
+    def get_interpolated_channels(self):
+        return [channel.name for channel in self.experiment().channels
+                if isinstance(channel, InterpolatedChannel)]
+
     def brushSizeChoose(self):
         self.brush_size = self.brushSelect.value()
         self.pg_mask.setDrawKernel(kernel_size=self.brush_size)
@@ -1473,8 +1544,11 @@ class MainWindow(QtWidgets.QMainWindow):
         dataString = ""
         if x is not None and y is not None and val is not None and x>=0 and y>=0 and x<self.currIm.shape[1] and y<self.currIm.shape[0]:
             self.labelX, self.labelY = x,y
-            if self.probOn:
+            if self.prob_on():
                 val = self.experiment().get_label("probability", idx = self.maskZ, t = self.tIndex)[y,x]/255
+            elif self.flow_on(): 
+                val = self.experiment().get_label("flows", idx = self.maskZ, t = self.tIndex)[y,x]/255
+
             dataString += f"x={str(x)}, y={str(y)}, value={str(val)}"
 
         if self.imLoaded:
@@ -1531,8 +1605,22 @@ class MainWindow(QtWidgets.QMainWindow):
         colors[:,-1] = colors[:,-1]//2
         return colors
     
-    def getFloatCmap(self):
-        cmap = plt.get_cmap("gist_rainbow", 256)
+    def getProbCmap(self):
+        cmap = plt.get_cmap("Reds", 256)
+        colors = []
+        i = 0
+        for i in range(0,256):
+            temp = np.array(list(cmap(i)))
+            temp *=255.0
+            colors.append(tuple(temp))
+        colors = colors*100
+        colors = np.array(colors, dtype = np.uint8)
+        colors[:,-1] = colors[:,-1]//2
+        colors[0,-1] = 0
+        return colors
+    
+    def getFlowCmap(self):
+        cmap = plt.get_cmap("Blues", 256)
         colors = []
         i = 0
         for i in range(0,256):
@@ -1721,8 +1809,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
     def loadMasks(self, masks, exp_idx = None, name = None, contours = None):
         if type(masks) is tuple:
-            mask1, mask2 = np.expand_dims(masks[0],0), np.expand_dims(masks[1],0)
-            masks = np.concatenate((mask1, mask2), axis = 0)
+            mask1, mask2, mask3 = np.expand_dims(masks[0],0), np.expand_dims(masks[1],0), np.expand_dims(masks[2],0)
+            masks = np.concatenate((mask1, mask2, mask3), axis = 0)
         self.newMasks(masks, name = name, exp_idx=exp_idx)
     
     def isUpperHalf(self,ev):
@@ -1743,7 +1831,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.deselectCell(selectedCell)
                 self.deleteCell(selectedCell)
         
-
         if event.key() == QtCore.Qt.Key_Y:
             self.cellToChange+=1
             self.maskColors[self.cellToChange,:] = [255,255,255,255]
@@ -1825,6 +1912,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def toggleProb(self):
         self.probOn = self.probOnCheck.isChecked()
         self.drawIm()
+    
+    def imageTypeChange(self):
+        if not self.emptying:
+            self.drawIm()
 
     def hideMask(self):
         self.maskOn = False
@@ -1901,14 +1992,26 @@ class MainWindow(QtWidgets.QMainWindow):
             return np.zeros((512,512))
         return self.experiments[self.experiment_index].get_channel(idx = self.imZ)
     
+    def getCurrImShapeExcludeRGB(self):
+        if not self.imLoaded:
+            return (512,512)
+        else:
+            len_t = self.experiments[self.experiment_index].get_t()
+            one_im_shape = self.experiments[self.experiment_index].shape()
+            return (len_t, one_im_shape[0], one_im_shape[1])
+
+
     def getCurrMaskSet(self):
         return self.experiments[self.experiment_index].get_label("labels", idx = self.maskZ)
     
     def getCurrIm(self):
         if self.tIndex > self.channel().max_t():
             return np.zeros((512,512))
-        if self.probOn:
-            im =  self.floatCmap[self.experiment().get_label("probability", idx = self.maskZ, t = self.tIndex)].astype(np.uint8)
+        if self.prob_on():
+            im =  self.probCmap[self.experiment().get_label("probability", idx = self.maskZ, t = self.tIndex)].astype(np.uint8)
+            return im
+        elif self.flow_on():
+            im =  self.flowCmap[self.experiment().get_label("flows", idx = self.maskZ, t = self.tIndex)].astype(np.uint8)
             return im
         else:
             return self.experiments[self.experiment_index].get_channel(idx = self.imZ, t = self.tIndex)
@@ -1960,7 +2063,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.saturation = self.computeSaturation()
         self.currIm = self.getCurrIm()
         self.currImDtype = str(self.currIm.dtype)
-        if self.probOn:
+        if self.prob_or_flow_on():
             self.pg_im.setImage(self.currIm, autoLevels = False, levels = [0,255])
         else:
             self.pg_im.setImage(self.currIm, autoLevels = False)
@@ -2064,53 +2167,12 @@ class MainWindow(QtWidgets.QMainWindow):
             intensityVals[i] = np.percentile(im[cellmask], 0.1)
         return np.min(radiusVals), np.max(radiusVals), np.min(intensityVals)
         
-    # def doFlou(self):
-    #     dlg = FlouParamDialog(self)
-
-    #     if dlg.exec():
-    #         self.segButton.setEnabled(False)
-    #         self.segButton.setStyleSheet(self.stylePressed)
-    #         params = dlg.getData()
-            
-    #         if params['extract from curr mask']:
-    #             minRadius, maxRadius, thresh = self.getBlobAttributes()
-                
-    #         else:
-    #             minSize, maxSize, thresh = params["min area"], params["max area"], params["threshold"]
-    #             minRadius, maxRadius = math.sqrt(minSize / math.pi), math.sqrt(maxSize / math.pi)
-
-    #         print(minRadius, maxRadius, thresh)
-
-    #         tStart,tStop = int(params["T Start"]), int(params["T Stop"])
-    #         channelIndex = self.channelSelect.findText(params['channel'])
-    #         ims = self.imData.channels[channelIndex][tStart:tStop+1,:,:]
-    #         if params['label']:
-    #             labelIndex = self.labelSelect.findText(params['label'])
-    #             if params["use contours"]:
-    #                 labels = self.maskData.channels[labelIndex][0,tStart:tStop+1,:,:]
-    #             else:
-    #                 labels = self.maskData.contours[labelIndex][tStart:tStop+1,:,:]
-    #         else:
-    #             labels = None
-    #         name = self.channelSelect.currentText() + "-blob_detection"
-    #         worker = Worker(self, lambda: self.loadMasks(Blob.run(ims, thresh, minRadius, maxRadius, labels), name = name), self.segButton)
-    #         worker.finished.connect(self.handleFinished)
-
-    #         try:
-    #             self.beginThread(worker)
-    #         except MemoryError:
-    #             error_dialog  = QErrorMessage()
-    #             error_dialog.showMessage(f"Cannot Segment Until Other Processes are Finished")
-    #             self.activateButton(self.segButton)
-    #             return
-    #     else:
-    #         return
-    
     def newModels(self):
         self.modelChoose.clear()
         self.getModels()
         self.getModelNames()
         self.modelChoose.addItems(sorted(self.modelNames, key = lambda x: x[0]))
+        self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
         
     def getModels(self):
         for modelName in self.modelNames:
@@ -2121,7 +2183,6 @@ class MainWindow(QtWidgets.QMainWindow):
         return f"yeastvision.models.{string}.model"
 
     def getModelClass(self, modelName):
-        
         module = importlib.import_module(self.getPkgString(modelName))
         modelClass = getattr(module, capitalize(modelName))
         return modelClass
@@ -2241,7 +2302,6 @@ class MainWindow(QtWidgets.QMainWindow):
         dirs = [dir for dir in glob.glob(join(MODEL_DIR,"*")) if (os.path.isdir(dir) and "__" not in dir)]
         for dir in dirs:
             dirPath, dirName = os.path.split(dir)
-
             for dirFile in glob.glob(join(dir,"*")):
                 dirPath2, dirName2 = os.path.split(dirFile)
                 if dirName.lower() in dirName2.lower():
@@ -2259,16 +2319,26 @@ class MainWindow(QtWidgets.QMainWindow):
         models_to_load = self.getUserRequestedModels()
         if models_to_load is not None:
             self.toggleWeights(models_to_load)
-            self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
             self.newModels()
-
 
     def toggleWeights(self, models_to_load):
         for model_name, status in models_to_load.items():
-            if (not status) and self.modelExists(model_name):
-                self.delete_model(model_name)
-            elif status and not self.modelExists(model_name):
-                self.install_model(model_name)
+            is_custom, custom_model_type = self.is_custom_model(model_name)
+            if is_custom:
+                if not status:
+                    self.delete_custom_model(model_name, custom_model_type)   
+            else:
+                if (not status) and self.modelExists(model_name):
+                    self.delete_model(model_name)
+                elif status and not self.modelExists(model_name):
+                    self.install_model(model_name)
+    
+    def is_custom_model(self, model_name):
+        for model in getModels():
+            if model in model_name and model != model_name:
+                return True, model
+        else:
+            return False, None
     
     def install_model(self, model_name):
         if model_name == self.INTERP_MODEL_NAME:
@@ -2286,6 +2356,10 @@ class MainWindow(QtWidgets.QMainWindow):
         logger.info(f"Removinng model {model} located at {model_path}")
         os.remove(model_path)
         assert (not os.path.exists(model_path))
+    
+    def delete_custom_model(self, custom_model_name, custom_model_type):
+        model_path = produce_weight_path(custom_model_type, custom_model_name)
+        os.remove(model_path)
             
     def getModelWeights(self, name = "proSeg"):
         weights = []
@@ -2334,11 +2408,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 do_insert = False
 
             templates = []
-            for i in [0,1]:
+            for i in [0,1,2]:
                 template = np.zeros_like(ims, dtype = output[i].dtype)
                 template[tStart:tStop+1] = output[i]
                 templates.append(template)
-            outputTup = (templates[0], templates[1])
+            outputTup = (templates[0], templates[1], templates[2])
 
             if do_insert:
                 self.do_segment_insert(exp_idx, mask_i, outputTup, tStart, tStop)
@@ -2365,7 +2439,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return zeroes
 
     def do_segment_insert(self, exp_idx, mask_idx, data_tup, tStart, tStop):
-        masks, probability = data_tup
+        masks, probability, flowsXY = data_tup
         contours = np.array([get_mask_contour(mask) for mask in masks])
         exp = self.experiments[exp_idx]
         mask_template = exp.get_label("labels", idx = mask_idx)
@@ -2379,21 +2453,26 @@ class MainWindow(QtWidgets.QMainWindow):
         del masks
         del contours
 
-        if exp.labels[mask_idx].has_probability:
+        if exp.labels[mask_idx].has_probability and exp.labels[mask_idx].has_flows:
             prob_template = exp.get_label("probability", idx = mask_idx)
+            flow_template = prob_template.copy()
             if len(prob_template) < len(probability):
                 prob_template = self.extend_array_length(prob_template, len(probability), dtype = np.float32)
+            if len(flow_template) < len(flowsXY):
+                flow_template = self.extend_array_length(flow_template, len(flowsXY), dtype = np.float32)
             for i in range(tStart,tStop+1):
                 prob_template[i] = probability[i]
+                flow_template[i] = flowsXY[i]
             del probability
+            del flowsXY
         else:
             prob_template = probability
+            flow_template = flowsXY
         
-        self.experiments[exp_idx].labels[mask_idx].set_data(mask_template, contour_template, prob_template)
+        self.experiments[exp_idx].labels[mask_idx].set_data(mask_template, contour_template, prob_template, flow_template)
         name = self.experiments[exp_idx].labels[mask_idx].name
         self.showTimedPopup(f"{name} HAS BEEN UPDATED ")
         self.updateDisplay()
-
 
     def evaluate(self):
         if not self.maskLoaded:
@@ -2484,20 +2563,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.deactivateButton(button)
         thread.finished.connect(lambda: self.activateButton(button))
         self.updateThreadDisplay()
-    
-    def interpolationFinished(self, ims, exp_idx, name, annotations, interpolation):
-        experiment = self.experiments[exp_idx]
-        new_channel = InterpolatedChannel(interpolation=interpolation, ims = ims, dir = experiment.dir , name = name, annotations=annotations)
-        experiment.add_channel_object(new_channel)
-        self.imZ+=1
-        new_name = self.experiment().channels[self.imZ].name
-        self.newInterpolation = True
-        self.channelSelect.addItem(new_name)
-        self.newInterpolation = False
-        self.computeMaxT()
-        self.drawIm()
-        self.showTimedPopup(f"{name} HAS BEEN ADDED TO CHANNELS OF EXPERIMENT {self.experiments[self.experiment_index].name} ")
-        self.checkInterpolation()
         
     def checkDoInsert(self, params):
         for param in params:
@@ -2511,9 +2576,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         modelType = self.modelTypes[self.modelNames.index(weightName)]
         weightPath = join(MODEL_DIR, modelType, weightName)
-
         modelClass = self.getModelClass(modelType)
-
         weightPath += modelClass.prefix
 
         self.deactivateButton(self.modelButton)
@@ -2567,31 +2630,39 @@ class MainWindow(QtWidgets.QMainWindow):
                 "t":self.tIndex}
 
     def interpolateButtonClicked(self):
-        if self.channel().max_t() == 0:
-            self.showError("Error: More than one frame must be present to interpolate")
-
-        dlg = GeneralParamDialog({"2x":False, "4x": False, "8x": False, "16x": False}, [bool,bool,bool,bool], "choose interpolation level", self)
+        dlg = InterpolationDialog(self)
         if dlg.exec():
-            data = dlg.getData()
-            exp = None
-            for data, isChecked in data.items():
-                if isChecked:
-                    interpolation = int(data[:-1])
-                    exp = math.log(interpolation,2)
-                    break
-        else:
-            return
-    
-        if exp:
-            curr_im = self.channel()
-            ims = curr_im.ims
-            currName = curr_im.name
- 
-            worker = InterpolationWorker(ims, f"{currName}_{interpolation}x{InterpolatedChannel.text_id}", curr_im.annotations, self.experiment_index, interpolation, interpolate, exp)
+            channel_name, intervals = dlg.get_data()
+            if not intervals:
+                return
         else:
             return
 
+        channel = self.get_channel_obj_from_name(channel_name)
+        ims = channel.ims
+        currName = channel.name
+        original_len = channel.max_t() + 1
+        worker = InterpolationWorker(ims, f"{currName}_x{InterpolatedChannel.text_id}", 
+                                     channel.annotations, self.experiment_index, 
+                                     interpolate_intervals, intervals, original_len)
         self.runLongTask(worker, self.interpolationFinished, self.interpolateButton)
+    
+    def interpolationFinished(self, ims, exp_idx, name, annotations, intervals, original_len, new_intervals):
+        experiment = self.experiments[exp_idx]
+        new_channel = InterpolatedChannel(intervals=intervals, ims = ims, dir = experiment.dir, 
+                                          name = name, annotations=annotations,
+                                          original_len=original_len, new_intervals=new_intervals)
+        experiment.add_channel_object(new_channel)
+        self.experiment_index = exp_idx
+        self.imZ = len(self.experiment().channels) - 1
+        new_name = new_channel.name
+        self.newInterpolation = True
+        self.channelSelect.addItem(new_name)
+        self.newInterpolation = False
+        self.computeMaxT()
+        self.drawIm()
+        self.showTimedPopup(f"{name} HAS BEEN ADDED TO CHANNELS OF EXPERIMENT {self.experiments[self.experiment_index].name} ")
+        self.checkInterpolation()
     
     def interpRemoveButtonClicked(self):
         assert isinstance(self.channel(), InterpolatedChannel)
@@ -2773,12 +2844,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     to_overlay.append(self.experiment().get_label("labels", name=label, t=t))
                     is_contours.append(False)
             return overlay_masks_on_image(im, to_overlay, is_contours, alpha = 50)
-
-
-
-            
-        
-
 
     def zNormalization(self):
         pass 
@@ -3025,6 +3090,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+    #cleanup_npz_files_from_sample_movie(__file__)
 
 
 
