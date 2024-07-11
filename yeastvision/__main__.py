@@ -12,7 +12,7 @@ from yeastvision.utils import *
 import yeastvision.ims.im_funcs as im_funcs
 from yeastvision.ims.interpolate import interpolate_intervals, rife_weights_loaded, RIFE_WEIGHTS_PATH, RIFE_WEIGHTS_NAME
 import yeastvision.parts.menu as menu
-from yeastvision.models.utils import MODEL_DIR, getModels, getModelLoadedStatus, produce_weight_path
+from yeastvision.models.utils import MODEL_DIR, getModels, getModelLoadedStatus, produce_weight_path, getModelsByType
 from yeastvision.install import TEST_MOVIE_DIR, TEST_MOVIE_URL, install_test_ims, install_weight, install_rife
 from yeastvision.disk.reader import ImageData
 import os
@@ -45,6 +45,7 @@ import argparse
 import shutil
 from skimage.io import imread, imsave
 from skimage.measure import regionprops_table
+from yeastvision.parts.fiest_wizard import FiestWizard
 
 os.environ['QT_LOGGING_RULES'] = '*.warning=false'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -405,7 +406,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.showError("Load Images First")
             return
         blankMasks = np.zeros(self.getCurrImShapeExcludeRGB(), dtype = np.uint16)
-        self.loadMasks(blankMasks, name = self.getNewLabelName("blank"))
+        self.loadMasks(blankMasks, name = "blank")
 
     def make_viewbox(self):
         self.view = ViewBoxNoRightDrag(
@@ -631,27 +632,15 @@ class MainWindow(QtWidgets.QMainWindow):
         label.setFont(self.boldfont)
         self.l.addWidget(label, rowspace,5,1,4)
 
-        self.trackButton = QPushButton('track cells')
-        #self.trackButton.setFixedWidth(90)
-        #self.trackButton.setFixedHeight(20)
-        self.trackButton.setStyleSheet(self.styleInactive)
-        self.trackButton.setFont(self.medfont)
-        self.trackButton.clicked.connect(self.trackButtonClick)
-        self.trackButton.setEnabled(False)
-        self.trackButton.setToolTip("Track current cell labels")
-        self.l.addWidget(self.trackButton, rowspace+1, 5,1,2)
+        self.fiestButton = QPushButton('track with FIEST')
+        self.fiestButton.setStyleSheet(self.styleInactive)
+        self.fiestButton.setFont(self.medfont)
+        self.fiestButton.clicked.connect(self.fiestButtonClick)
+        self.fiestButton.setEnabled(False)
+        self.fiestButton.setToolTip("Frame Interpolation Enhanced Tracking")
+        self.l.addWidget(self.fiestButton, rowspace+1, 5,1,4)
 
-        self.trackObjButton = QPushButton('track label to cell')
-        #self.trackObjButton.setFixedWidth(90)
-        #self.trackObjButton.setFixedHeight(20)
-        self.trackObjButton.setFont(self.medfont)
-        self.trackObjButton.setStyleSheet(self.styleInactive)
-        self.trackObjButton.clicked.connect(self.trackObjButtonClick)
-        self.trackObjButton.setEnabled(False)
-        self.trackObjButton.setToolTip("Track current non-cytoplasmic label to a cellular label")
-        self.l.addWidget(self.trackObjButton, rowspace+1, 7,1,2)
-
-        self.lineageButton = QPushButton("get lineages")
+        self.lineageButton = QPushButton("construct lineages")
         self.lineageButton.setStyleSheet(self.styleInactive)
         #self.lineageButton.setFixedWidth(90)
         #self.lineageButton.setFixedHeight(18)
@@ -661,21 +650,41 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMotherDaughters = False
         self.showLineages = False
         self.lineageButton.clicked.connect(self.getLineages)
-        self.l.addWidget(self.lineageButton, rowspace+3, 5,1,2)
+        self.l.addWidget(self.lineageButton, rowspace+2, 5,1,4)
+
+        self.trackButton = QPushButton('basic track')
+        #self.trackButton.setFixedWidth(90)
+        #self.trackButton.setFixedHeight(20)
+        self.trackButton.setStyleSheet(self.styleInactive)
+        self.trackButton.setFont(self.medfont)
+        self.trackButton.clicked.connect(self.trackButtonClick)
+        self.trackButton.setEnabled(False)
+        self.trackButton.setToolTip("Track current cell labels")
+        self.l.addWidget(self.trackButton, rowspace+3, 5,1,2)
+
+        self.trackObjButton = QPushButton('track label to cell')
+        #self.trackObjButton.setFixedWidth(90)
+        #self.trackObjButton.setFixedHeight(20)
+        self.trackObjButton.setFont(self.medfont)
+        self.trackObjButton.setStyleSheet(self.styleInactive)
+        self.trackObjButton.clicked.connect(self.trackObjButtonClick)
+        self.trackObjButton.setEnabled(False)
+        self.trackObjButton.setToolTip("Track current non-cytoplasmic label to a cellular label")
+        self.l.addWidget(self.trackObjButton, rowspace+3, 7,1,2)
 
         self.interpolateButton = QPushButton("interpolate movie")
         self.interpolateButton.setStyleSheet(self.styleInactive)
         self.interpolateButton.setFont(self.medfont)
         self.interpolateButton.setEnabled(False)
         self.interpolateButton.clicked.connect(self.interpolateButtonClicked)
-        self.l.addWidget(self.interpolateButton, rowspace+2, 5,1,2)
+        self.l.addWidget(self.interpolateButton, rowspace+4, 5,1,2)
 
         self.interpRemoveButton = QPushButton("remove interpolation")
         self.interpRemoveButton.setStyleSheet(self.styleInactive)
         self.interpRemoveButton.setFont(self.medfont)
         self.interpRemoveButton.setEnabled(False)
         self.interpRemoveButton.clicked.connect(self.interpRemoveButtonClicked)
-        self.l.addWidget(self.interpRemoveButton, rowspace+2, 7,1,2)
+        self.l.addWidget(self.interpRemoveButton, rowspace+4, 7,1,2)
 
         line = QVLine()
         line.setStyleSheet('color:white;')
@@ -926,8 +935,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.contourButton.setEnabled(True)
         self.labelSelect.setEnabled(True)
         self.trackButton.setEnabled(True)
+        self.fiestButton.setEnabled(True)
         self.trackObjButton.setEnabled(True)
         self.trackButton.setStyleSheet(self.styleUnpressed)
+        self.fiestButton.setStyleSheet(self.styleUnpressed)
         self.trackObjButton.setStyleSheet(self.styleUnpressed)
         self.cellNumButton.setEnabled(True)
         self.maskOnCheck.setEnabled(True)
@@ -944,8 +955,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.contourButton.setEnabled(False)
         self.labelSelect.setEnabled(False)
         self.trackButton.setEnabled(False)
+        self.fiestButton.setEnabled(False)
         self.trackObjButton.setEnabled(False)
         self.trackButton.setStyleSheet(self.styleInactive)
+        self.fiestButton.setStyleSheet(self.styleInactive)
         self.trackObjButton.setStyleSheet(self.styleInactive)
         self.cellNumButton.setEnabled(False)
         self.maskOnCheck.setEnabled(False)
@@ -1012,6 +1025,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.setEmptyDisplay(initial = False)
             else:
                 self.setDataSelects()
+                self.imChanged = True
                 self.updateDisplay()
             
             self.imZ = new_index
@@ -1024,7 +1038,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.disableMaskOperations()
             
             self.maskZ = new_index
-        
+            self.maskChanged = True
             self.updateDisplay()
         
     def blockComboSignals(self, b):
@@ -1177,7 +1191,38 @@ class MainWindow(QtWidgets.QMainWindow):
             self.maskZ = z
             self.drawMask()
             self.showTimedPopup(f"{curr_label} has been tracked")
+    
+    def fiestButtonClick(self):
+        SEG_MODEL_TYPE = "proSeg"
+        BUD_MODEL_TYPE = 'budSeg'
+
+        seg_model_options = getModelsByType(SEG_MODEL_TYPE)
+        bud_model_options = getModelsByType(BUD_MODEL_TYPE)
+
+        if not rife_weights_loaded():
+            self.showError("RIFE model weights are not loaded. Go to models>load model weights in the menu bar")
+            return
         
+
+        if not seg_model_options:
+            self.showError(f"No {SEG_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
+            return
+
+        if not bud_model_options:
+            self.showError(f"No {BUD_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
+            return
+        
+        exp = self.experiment()
+        valid_channels = exp.get_timeseries()
+        if not valid_channels:
+            self.showError("FIEST requires multi-frame channels. No timeseries detected.")
+            return
+        
+        wizard = FiestWizard(self, exp, valid_channels, seg_model_options, bud_model_options)
+        if wizard.exec():
+            print(wizard.getData())
+        
+
 
     def trackButtonClick(self):
         if self.label().max_t() == 0:
@@ -1496,7 +1541,6 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.showError("No interpolated channels are present. Run interpolation first")
         else:
-            print(self.channel().interval_annotations)
             self.interpPlotWindow = plot.InterpolationHeatmapWindow(self,
                                                                     self.channel().interval_annotations, 
                                                                     self.channel().max_t(),
@@ -1811,7 +1855,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if type(masks) is tuple:
             mask1, mask2, mask3 = np.expand_dims(masks[0],0), np.expand_dims(masks[1],0), np.expand_dims(masks[2],0)
             masks = np.concatenate((mask1, mask2, mask3), axis = 0)
-        self.newMasks(masks, name = name, exp_idx=exp_idx)
+        self.newMasks(masks, 
+                      name = self.getNewLabelName(name), 
+                      exp_idx=exp_idx)
     
     def isUpperHalf(self,ev):
         posY= ev.pos().y()
@@ -2472,6 +2518,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.experiments[exp_idx].labels[mask_idx].set_data(mask_template, contour_template, prob_template, flow_template)
         name = self.experiments[exp_idx].labels[mask_idx].name
         self.showTimedPopup(f"{name} HAS BEEN UPDATED ")
+        self.maskChanged = True
         self.updateDisplay()
 
     def evaluate(self):
@@ -2581,7 +2628,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.deactivateButton(self.modelButton)
         dlgCls = ModelParamDialog
-        dlg = dlgCls(modelClass.hyperparams, modelClass.types, modelType, self)
+        dlg = dlgCls(copy.deepcopy(modelClass.hyperparams), modelClass.types, modelType, self)
         
         if dlg.exec():
             params = dlg.getData()
@@ -2674,8 +2721,8 @@ class MainWindow(QtWidgets.QMainWindow):
         interp_bool = self.channel().interp_annotations
         masks = self.getCurrMaskSet()
         contours = self.getCurrContourSet()
-        newMasks = [mask for i, mask in enumerate(masks) if interp_bool[i]]
-        newContours = [mask for i, mask in enumerate(contours) if interp_bool[i]]
+        newMasks = [mask for i, mask in enumerate(masks) if not interp_bool[i]]
+        newContours = [mask for i, mask in enumerate(contours) if not interp_bool[i]]
         currMaskName = self.labelSelect.currentText()
         self.loadMasks(newMasks, name = f"{currMaskName}_removeinterpolation", contours=newContours)
 
@@ -2785,8 +2832,21 @@ class MainWindow(QtWidgets.QMainWindow):
                             "save masks to a directory", 
                             defaultFileName)
         if path:
-            write_images_to_dir(path, self.getCurrMaskSet())
-    
+            mask_obj = self.label()
+            mask_set = self.getCurrMaskSet()
+            intervals = nonzero_intervals(mask_set)
+            t1, t2 = get_longest_interval(intervals)
+
+            dlg = IntervalSelectionDialog(intervals, mask_obj.max_t(), 
+                                          f"Select Intervals of {mask_obj.name} to save",
+                                          parent = self, labels = f"nonzero intervals: {', '.join(intervals)}", 
+                                          presetT1=t1, presetT2 = t2)
+            if dlg.exec():
+                start, end = dlg.get_selected_interval()
+                write_images_to_dir(path, mask_set[start:end])
+            else:
+                return
+
     def saveFigure(self):
         if (not self.imLoaded):
             self.showError("No Images Loaded")
@@ -2812,7 +2872,6 @@ class MainWindow(QtWidgets.QMainWindow):
             imsave(path, self.overlayMasks())
     
     def overlayMasks(self):
-        
         def use_label(name, data):
             return data[name]["contours"] or data[name]["labels"]
 
@@ -2911,7 +2970,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.hasCellData():
             celldata = self.label().celldata.cell_data
             potential_heatmaps = getPotentialHeatMapNames(celldata)
-            print(potential_heatmaps)
             dlg = GeneralParamDialog({name:False for name in potential_heatmaps}, 
                                      [bool]*len(potential_heatmaps), 
                                      "heatmap property selection", self)

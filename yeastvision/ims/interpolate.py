@@ -13,6 +13,8 @@ RIFE_DIR = rife_model.__path__[0]
 RIFE_WEIGHTS_NAME = "flownet.pkl"
 RIFE_WEIGHTS_PATH = os.path.join(RIFE_DIR, RIFE_WEIGHTS_NAME)
 
+#def get_interp_mask(original_len, intervals, )
+
 def get_interpolated_length(t, intervals):
     """
     Calculate the number of frames after interpolation.
@@ -59,8 +61,8 @@ def interpolate_intervals(ims, intervals):
     model, device = load_model()
     single_im_shape = ims[0].shape
     new_length = get_interpolated_length(len(ims), intervals)
-    print(intervals)
-    print((new_length, single_im_shape[0], single_im_shape[1]))
+    #print(intervals)
+    #print((new_length, single_im_shape[0], single_im_shape[1]))
     template = np.zeros((new_length, single_im_shape[0], single_im_shape[1]), dtype=np.uint8)
 
     template_pos = 0  # This keeps track of where we are in the new template
@@ -70,17 +72,17 @@ def interpolate_intervals(ims, intervals):
     new_intervals = []
 
     while original_pos < original_len:
-        print()
-        print("original pos", original_pos)
-        print("template pos", template_pos)
-        print("interval indnex", interval_index)
+        #print()
+        #print("original pos", original_pos)
+        #print("template pos", template_pos)
+        #print("interval indnex", interval_index)
 
         if interval_index < len(intervals) and original_pos == intervals[interval_index]['start']:
-            print("original pos", original_pos, "aligns with start", intervals[interval_index]['start'])
+            #print("original pos", original_pos, "aligns with start", intervals[interval_index]['start'])
             start, stop, interp = intervals[interval_index]["start"], intervals[interval_index]["stop"], int(intervals[interval_index]["interp"])
             interval_interp = interpolate(ims[start:stop+1], interp, device, model)
-            print("Interp args: ", start, stop, interp)
-            print("Interpolation output: ", interval_interp.shape)
+            #print("Interp args: ", start, stop, interp)
+            #print("Interpolation output: ", interval_interp.shape)
 
             num_frames_added = interval_interp.shape[0]
             template[template_pos:template_pos+num_frames_added] = interval_interp
@@ -93,11 +95,11 @@ def interpolate_intervals(ims, intervals):
             original_pos = stop
             interval_index += 1
         else:
-            print("inserting image at original pos", original_pos, "into template pos", template_pos)
+            #print("inserting image at original pos", original_pos, "into template pos", template_pos)
             template[template_pos] = copy_and_normalize(ims[original_pos])
             original_pos += 1
             template_pos += 1
-        print("")
+        #print("")
 
     del model
     return template, new_intervals

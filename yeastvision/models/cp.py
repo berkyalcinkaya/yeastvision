@@ -135,6 +135,8 @@ class CustomCPWrapper(CustomModel):
         params = params if params else cls.hyperparams
         model = cls(params, weights)
         #ims3D = [cv2.merge((im,im,im)) for im in ims]
+        if isinstance(ims, np.ndarray):
+            ims = list(ims)
         masks, flows = model.get_masks_and_flows(ims)
         cellprobs = [flow[2] for flow in flows]
         flowsXY = model.process_flows(flows)

@@ -1,8 +1,13 @@
 from PyQt5 import QtCore
-from PyQt5.QtGui import QPainter, QIcon, QPixmap
+from PyQt5.QtGui import QPainter, QIcon, QPixmap, QIntValidator
 from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame,
-                            QStyledItemDelegate, QListView)
+                            QStyledItemDelegate, QListView, QLineEdit)
 from PyQt5.QtCore import Qt, QRect
+
+class NumericLineEdit(QLineEdit):
+    def __init__(self, default_value="", parent=None):
+        super().__init__(default_value, parent)
+        self.setValidator(QIntValidator())
 
 class RemoveItemDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):

@@ -1,6 +1,7 @@
 import os
 import glob
 import numpy as np
+import uuid
 
 image_extensions = ['.tif','.tiff',
                             '.jpg','.jpeg','.png','.bmp',
@@ -8,6 +9,10 @@ image_extensions = ['.tif','.tiff',
                             '.TIF','.TIFF',
                             '.JPG','.JPEG','.PNG','.BMP',
                             '.PBM','.PGM','.PPM','.PXM','.PNM','.JP2']
+
+
+def genereate_uid():
+    return uuid.uuid1()
 
 def get_file_name(path):
     _,path = os.path.split(path)

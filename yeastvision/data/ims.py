@@ -291,6 +291,9 @@ class Experiment():
             if channel.t == mask_obj.t and channel.shape == mask_obj.shape:
                 viable_ims.append(channel)
         return viable_ims
+    
+    def get_timeseries(self):
+        return [channel for channel in self.channels if channel.max_t() > 0]
 
     def shape(self):
         return self.channels[0].shape
@@ -317,7 +320,7 @@ class Files():
         self.load()
         self.get_properties()
         self.annotations = None
-    
+
     def load(self):
         self.ims = [imread(file) for file in self.files]
         self.loaded = True
@@ -460,7 +463,8 @@ class InterpolatedChannel(ChannelNoDirectory):
         self.get_properties()
         self.compute_saturation()
     
-    def insert_interpolated_values(self, original_list, intervals, val):
+    @staticmethod
+    def insert_interpolated_values(original_list, intervals, val):
         """
         Insert a specified value at locations where interpolated frames exist.
 
@@ -497,7 +501,7 @@ class InterpolatedChannel(ChannelNoDirectory):
     def extend_annotations(self):
         if not isinstance(self.annotations, list):
             self.annotations = self.annotations.tolist()
-        self.annotations = self.insert_interpolated_values(self.annotations, self.interval_annotations, ["INTERP"])
+        self.annotations = InterpolatedChannel.insert_interpolated_values(self.annotations, self.interval_annotations, ["INTERP"])
 
     def save_to_npz(self):
         np.savez(self.path, annotations = self.annotations, 
@@ -508,7 +512,7 @@ class InterpolatedChannel(ChannelNoDirectory):
     
     def make_interpolation_annotation(self):
         self.interp_annotations = [False for i in range(self.original_len)]
-        self.interp_annotations = self.insert_interpolated_values(self.interp_annotations, self.interval_annotations, True)
+        self.interp_annotations = InterpolatedChannel.insert_interpolated_values(self.interp_annotations, self.interval_annotations, True)
     
 class Label(Files):
         mask_types = ["labels", "probability", "contours", "flows"]
@@ -517,9 +521,8 @@ class Label(Files):
             self.celldata = None
             self.lineagedata = None
             self.labels, self.contours, self.probability, self.flows = None, None, None, None
-            
+
             if npz_path and os.path.exists(npz_path):
-                print("loading from npz")
                 self.npz_path = npz_path
                 self.get_dir_and_name_from_npz_path()
                 self.init_from_npz()
@@ -580,6 +583,7 @@ class Label(Files):
             self.dtype = str(labels[0].dtype)
             self.t = len(labels)
             self.has_probability = bool(np.any(data["probability"][:,:,:]!=0))
+            self.has_flows = bool(np.any(data["flows"][:,:,:]!=0))
             del labels
             del data
 

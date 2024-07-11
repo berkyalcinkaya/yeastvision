@@ -16,6 +16,10 @@ def getModels():
     models = [model for model in os.listdir(MODEL_DIR) if os.path.isdir(join(MODEL_DIR, model)) and model != "__pycache__"]
     return models
 
+def getModelsByType(model_type):
+    model_dir = os.path.join(MODEL_DIR, model_type)
+    return [file for file in os.listdir(model_dir) if "." not in file and file != "__pycache__"]
+
 def getModelLoadedStatus(model):
     return os.path.exists(produce_weight_path(model, model))
 

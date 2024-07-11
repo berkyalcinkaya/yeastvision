@@ -11,8 +11,41 @@ import pathlib
 import sys
 import os
 from PIL import Image
+import pandas as pd
 
 YV_DIR = pathlib.Path.home().joinpath(".yeastvision")
+
+def get_longest_interval(intervals):
+        longest = (0, 0)
+        max_length = 0
+        for interval in intervals:
+            start, end = map(int, interval.split('-'))
+            length = end - start  # End is exclusive
+            if length > max_length:
+                max_length = length
+                longest = (start, end)
+        return longest
+
+def nonzero_intervals(images, max_blanks = 1):
+    """
+    Finds all non-zero image intervals allowing for up to max_blanks blank images within the sequence.
+    
+    :param images: A NumPy array of shape (n, r, c) where n is the number of images
+    :param max_blanks: Maximum number of blank images allowed within the sequence
+    :return: List of strings representing intervals in the format "{start}-{end},
+    where end is exlusive and start is inclusive"
+    """
+    num_images = images.shape[0]
+    non_empty = np.any(images > 0, axis=(1, 2))
+    intervals = []
+    df = pd.DataFrame({"Value": non_empty})
+    df['tag'] = df['Value'] > 0
+    fst = df.index[df['tag'] & ~ df['tag'].shift(1).fillna(False)]
+    lst = df.index[df['tag'] & ~ df['tag'].shift(-1).fillna(False)]
+    pr = [(i, j) for i, j in zip(fst, lst)]
+    for i, j in pr:
+        intervals.append(f"{i}-{j+1}")
+    return intervals
 
 def cleanup_npz_files_from_sample_movie(script_file):
     # Get the current script path
