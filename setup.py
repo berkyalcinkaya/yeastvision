@@ -25,7 +25,7 @@ requires = [
 "torch==1.12.0",
 "tqdm",
 "trackpy",
-"torchvision==0.13.0",
+"torchvision==0.13.1",
 "chardet==5.2.0",
 "memory-profiler",
 "QSwitchControl"]
@@ -36,7 +36,7 @@ try:
     major_version, minor_version, _ = torch.__version__.split(".")
     if major_version == "2" or int(minor_version) >= 12:
         requires.remove("torch==1.12.0")
-        requires.remove("torchvision==0.13.0")
+        requires.remove("torchvision==0.13.1")
 except:
     pass
 

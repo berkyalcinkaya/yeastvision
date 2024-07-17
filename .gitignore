@@ -1,3 +1,4 @@
+*.vscode
 build/
 dist/
 yeastvision.egg-info/
