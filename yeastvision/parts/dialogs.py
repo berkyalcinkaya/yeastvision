@@ -2,7 +2,7 @@ from PyQt5 import QtGui, QtCore
 from PyQt5.QtWidgets import (QTreeWidgetItem, QPushButton, QDialog,
                         QDialogButtonBox, QLineEdit, QFormLayout, QCheckBox,  QSpinBox, QDoubleSpinBox, QLabel, 
                             QWidget, QComboBox, QGridLayout, QHBoxLayout, QHeaderView, QVBoxLayout, QMessageBox,
-                            QTreeWidget, QButtonGroup, QFrame)
+                            QTreeWidget, QButtonGroup, QFrame, QRadioButton)
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 import numpy as np
 import os
@@ -10,6 +10,39 @@ from yeastvision.parts.guiparts import *
 from yeastvision.plot.plot import PlotProperty
 import math
 from yeastvision.data.ims import InterpolatedChannel
+
+class ChoiceDialog(QDialog):
+    def __init__(self, choices, title, parent=None):
+        super().__init__(parent)
+        
+        self.setWindowTitle(title)
+        
+        self.layout = QVBoxLayout()
+        self.button_group = QButtonGroup(self)
+        
+        # Create radio buttons for each choice
+        for choice in choices:
+            radio_button = QRadioButton(choice)
+            self.layout.addWidget(radio_button)
+            self.button_group.addButton(radio_button)
+        
+        # Add OK and Cancel buttons
+        self.ok_button = QPushButton("OK")
+        self.cancel_button = QPushButton("Cancel")
+        self.ok_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
+        
+        self.layout.addWidget(self.ok_button)
+        self.layout.addWidget(self.cancel_button)
+        
+        self.setLayout(self.layout)
+        
+    def get_choice(self):
+        # Returns the selected choice, or None if no selection is made
+        selected_button = self.button_group.checkedButton()
+        if selected_button:
+            return selected_button.text()
+        return None
 
 class ComboBoxDialog(QDialog):
     def __init__(self, choices, label, title, parent=None):

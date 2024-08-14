@@ -16,11 +16,9 @@ from yeastvision.models.utils import MODEL_DIR, getBuiltInModelTypes, getModelLo
 from yeastvision.install import TEST_MOVIE_DIR, TEST_MOVIE_URL, install_test_ims, install_weight, install_rife
 from yeastvision.disk.reader import ImageData
 import os
-import sys
 import torch
 import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore
-from PyQt5.QtCore import QSignalBlocker
 from PyQt5.QtWidgets import (QApplication, QGroupBox, QPushButton, QMessageBox,
                              QStatusBar, QFileDialog, QSpinBox, QLabel, QWidget, QComboBox, 
                              QSizePolicy, QGridLayout, QProgressBar)
@@ -46,6 +44,7 @@ import shutil
 from skimage.io import imread, imsave
 from skimage.measure import regionprops_table
 from yeastvision.parts.fiest_wizard import FiestWizard
+from yeastvision.parts.fiest_full_lifecycle_wizard import FiestFullLifeCycleWizard
 
 os.environ['QT_LOGGING_RULES'] = '*.warning=false'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -1190,8 +1189,50 @@ class MainWindow(QtWidgets.QMainWindow):
             self.maskZ = z
             self.drawMask()
             self.showTimedPopup(f"{curr_label} has been tracked")
-    
+            
     def fiestButtonClick(self):
+        choices = ['full_lifecycle (mating/tetrads)', 'asexual_only']
+        dlg = ChoiceDialog(choices, "Full lifecycle movie?", parent=self)
+        if dlg.exec():
+            choice = dlg.get_choice()
+            if choice:
+                if choice == choices[1]:
+                    self.fiestProliferating()
+                elif choice == choices[0]:
+                    self.fiestFullLifecycle()
+                     
+    def fiestFullLifecycle(self):
+        SEG_MODEL_TYPE = "proSeg"
+        MATING_MODEL_TYPE = "matSeg"
+        SPORE_MODEL_TYPE = "spoSeg"
+        
+        seg_model_options = getModelsByType(SEG_MODEL_TYPE)
+        mat_model_options = getModelsByType(MATING_MODEL_TYPE)
+        spore_model_options = getModelsByType(SPORE_MODEL_TYPE)
+
+        if not rife_weights_loaded():
+            self.showError("RIFE model weights are not loaded. Go to models>load model weights in the menu bar")
+            return
+        if not seg_model_options:
+            self.showError(f"No {SEG_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
+            return
+        if not mat_model_options:
+            self.showError(f"No {MATING_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
+            return
+        if not spore_model_options:
+            self.showError(f"No {SPORE_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
+            return
+        
+        exp = self.experiment()
+        valid_channels = exp.get_timeseries()
+        if not valid_channels:
+            self.showError("FIEST requires multi-frame channels. No timeseries detected in {exp.name}")
+            return
+        wizard = FiestFullLifeCycleWizard(self, exp, valid_channels, seg_model_options, bud_model_options)
+        if wizard.exec():
+            print(wizard.getData())
+        
+    def fiestProliferating(self):
         SEG_MODEL_TYPE = "proSeg"
         BUD_MODEL_TYPE = 'budSeg'
 
@@ -1201,28 +1242,21 @@ class MainWindow(QtWidgets.QMainWindow):
         if not rife_weights_loaded():
             self.showError("RIFE model weights are not loaded. Go to models>load model weights in the menu bar")
             return
-        
-
         if not seg_model_options:
             self.showError(f"No {SEG_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
             return
-
         if not bud_model_options:
             self.showError(f"No {BUD_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
             return
-        
         exp = self.experiment()
         valid_channels = exp.get_timeseries()
         if not valid_channels:
             self.showError("FIEST requires multi-frame channels. No timeseries detected.")
             return
-        
         wizard = FiestWizard(self, exp, valid_channels, seg_model_options, bud_model_options)
         if wizard.exec():
             print(wizard.getData())
         
-
-
     def trackButtonClick(self):
         if self.label().max_t() == 0:
             self.showError("Error: More than one frame must be present to track")
