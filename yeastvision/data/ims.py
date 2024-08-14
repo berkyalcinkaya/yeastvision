@@ -612,11 +612,12 @@ class Label(Files):
             data["lineagedata"] = np.array([self.lineagedata])
             return data
         
-        def insert(self, new_mask, t, new_prob_im = None):
+        def insert(self, new_mask, t, new_prob_im = None, new_flows_im = None):
             self.npzdata["labels"][t] = new_mask
             self.npzdata["contours"][t]  = get_mask_contour(new_mask)
             if self.has_probability:
                 self.npzdata["probability"][t] = new_prob_im
+                self.npzdata["flows"][t] = new_flows_im
             self.save()
 
         def extract_probability_labels_flows(self, raw_arrays):

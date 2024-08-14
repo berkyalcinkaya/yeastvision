@@ -74,13 +74,9 @@ GPU is detected by running `nvidia-smi` in the terminal.
 
 `yeastvision` relies on `pytorch` for implementation of the deep-learning models, which we will need to configure for gpu usage. Ensure your yeastvision conda environment is active for the following commands.
 
-First, we need to remove the CPU version of torch:
+First, we need to remove the CPU version of torch and torchvision:
 ~~~
-pip uninstall torch
-~~~
-And the cpu version of torchvision:
-~~~
-pip uninstall torchvision
+pip uninstall torch; pip uninstall torchvision
 ~~~
 
 Now install `torch` and `torchvision` for CUDA version 11.3. Ensure that your nvidia drivers are up to date for version 11.3 by running `nvidia-smi` and check that a version 11.3 or greater is displayed in the top right corner of the output table.
@@ -89,6 +85,12 @@ conda install pytorch==1.12.0 torchvision==0.13.0 cudatoolkit=11.3 -c pytorch
 ~~~~
 
 After install you can check `conda list` for `pytorch`, and its version info should have `cuXX.X`, not `cpu`.
+
+#### Common Install Issues:
+1. `ModuleNotFoundError: No module named 'chardet'`\
+2. `lib/python3.10/site-packages/torch/lib/libtorch_cpu.so: undefined symbol: iJIT_NotifyEvent`
+
+These are addressed below in [Troubleshooting: Common Problems](##troubleshooting:-common-problems)
 
 # Running yeastvision
 
@@ -190,6 +192,7 @@ Yeastvision contains models to accurately segment yeast in all stages of their l
 
 | Problem     | Solution |
 | ----------- | ----------- |
+|`lib/python3.10/site-packages/torch/lib/libtorch_cpu.so: undefined symbol: iJIT_NotifyEvent`| Install the latest version of torch and torchvision for your system into your yeastvision Conda env. Instructions [here](https://pytorch.org/get-started/locally/).|
 | `ModuleNotFoundError: No module named 'chardet'` | run `pip install chardet` |
 | Cannot scroll through images/masks on the display | Click on the display to bring focus back to this widget|
 | Loaded images without masks but cannot draw | An existing label must be present to draw: Add a blank label with File -> Add Blank Label |

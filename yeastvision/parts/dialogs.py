@@ -11,6 +11,27 @@ from yeastvision.plot.plot import PlotProperty
 import math
 from yeastvision.data.ims import InterpolatedChannel
 
+class ComboBoxDialog(QDialog):
+    def __init__(self, choices, label, title, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.setLayout(QVBoxLayout())
+
+        self.label = QLabel(label)
+        self.layout().addWidget(self.label)
+
+        self.comboBox = QComboBox()
+        self.comboBox.addItems(choices)
+        self.layout().addWidget(self.comboBox)
+
+        self.okButton = QPushButton("OK")
+        self.okButton.clicked.connect(self.accept)
+        self.layout().addWidget(self.okButton)
+
+    def getSelection(self):
+        return self.comboBox.currentText()
+
 class SimpleTextDialog(QDialog):
     def __init__(self, text, parent=None):
         super().__init__(parent)

@@ -107,9 +107,11 @@ class CustomCPWrapper(CustomModel):
     def process_probability(self, rawProb):
         return (np.clip(normalize99(rawProb), 0, 1) * 255).astype(np.uint8)
 
-    def train(self, ims, labels, params):
+    def train(self, ims, labels, params, savepath):
         ims = [cv2.merge((im,im,im)) for im in ims]
-        self.model.cp.train(ims, labels, 
+        
+        modelToTrain = self.model if isinstance(self.model, CellposeModel) else self.model.cp
+        modelToTrain.train(ims, labels, 
                                         channels=[0,0], 
                                         save_path=params["dir"], 
                                         min_train_masks=1,

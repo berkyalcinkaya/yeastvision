@@ -1,4 +1,5 @@
 *.vscode
+models/
 *.jpg
 build/
 dist/
