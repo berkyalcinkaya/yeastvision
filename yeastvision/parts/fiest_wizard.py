@@ -195,6 +195,7 @@ class ParameterInputPage(QWizardPage):
     def __init__(self, params_dict, model_weights, modelName, channels, parent=None):
         super().__init__(parent)
         self.setTitle(f"Set {modelName} Parameters")
+        self.modelName = modelName
 
         self.params_dict = params_dict
 
@@ -295,13 +296,22 @@ class FiestWizard(QWizard):
         self.setPage(3, InterpolationDialog(channels, parent=self))
         self.setPage(4, ParameterInputPage(ProSeg.hyperparams, proSeg_weights, "proSeg", channels, parent=self))
         self.setPage(5, AdditionalParameterInputPage(BudSeg.hyperparams, budSeg_weights, "budSeg", channels, parent=self))
+
+        self.non_model_param_ids = [2,3]
+        self.cyto_seg_id = 4
+        self.bud_seg_id = 5
     
     def getData(self):
         data = {}
-        for page_id in self.pageIds():
+        for page_id in self.non_model_param_ids:
             page = self.page(page_id)
             page_data = page.getData()
             data.update(page_data)
+        proSeg_page = self.page(self.cyto_seg_id)
+        data["proSeg"] = proSeg_page.getData()
+        if self.field("doLineage"):
+            bud_page = self.page(self.bud_seg_id)
+            data["budSeg"] = bud_page.getData()
         return data
 
 

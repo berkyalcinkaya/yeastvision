@@ -6,8 +6,15 @@ from skimage.morphology import disk, binary_erosion, binary_dilation
 import yeastvision.models as models
 from os.path import join
 import os
+from yeastvision.utils import capitalize
+import importlib
 
 MODEL_DIR = models.__path__[0]
+
+def getModelClass(self, modelName):
+    module = importlib.import_module(self.getPkgString(modelName))
+    modelClass = getattr(module, capitalize(modelName))
+    return modelClass
 
 def is_RGB(ims):
     return ims.shape[-1] == 3
