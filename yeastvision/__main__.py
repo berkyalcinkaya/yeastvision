@@ -12,7 +12,7 @@ from yeastvision.utils import *
 import yeastvision.ims.im_funcs as im_funcs
 from yeastvision.ims.interpolate import interpolate_intervals, rife_weights_loaded, RIFE_WEIGHTS_PATH, RIFE_WEIGHTS_NAME
 import yeastvision.parts.menu as menu
-from yeastvision.models.utils import MODEL_DIR, getModels, getModelLoadedStatus, produce_weight_path, getModelsByType
+from yeastvision.models.utils import MODEL_DIR, getBuiltInModelTypes, getModelLoadedStatus, produce_weight_path, getModelsByType
 from yeastvision.install import TEST_MOVIE_DIR, TEST_MOVIE_URL, install_test_ims, install_weight, install_rife
 from yeastvision.disk.reader import ImageData
 import os
@@ -99,7 +99,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.firstMaskLoad = True
 
         self.getModelNames()
-        self.getModels()
+        self.importModelClses()
         self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
 
         self.cwidget = QWidget(self)
@@ -271,7 +271,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return self.flow_on() or self.prob_on()
     
     def get_models_loaded_status(self):
-        models_loaded = {model: getModelLoadedStatus(model) for model in getModels()}
+        models_loaded = {model: getModelLoadedStatus(model) for model in getBuiltInModelTypes()}
         for custom_model in self.find_custom_models():
             models_loaded[custom_model] = True
         return models_loaded
@@ -279,7 +279,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def find_custom_models(self):
         custom_models = []
         for model in self.modelNames:
-            for default_model in getModels():
+            for default_model in getBuiltInModelTypes():
                 if default_model in model and default_model != model:
                     custom_models.append(model)
         return custom_models
@@ -927,7 +927,7 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def updateThreadDisplay(self):
         threadCount = len(self.threads)+1
-        self.cpuCoreDisplay.setText(f"{threadCount}/{self.idealThreadCount} cores |")
+        self.cpuCoreDisplay.setText(f"{threadCount}/{self.idealThreadCount} threads |")
 
     def enableMaskOperations(self):
         self.brushSelect.setEnabled(True)
@@ -1024,11 +1024,10 @@ class MainWindow(QtWidgets.QMainWindow):
             if new_index == -1:
                 self.setEmptyDisplay(initial = False)
             else:
+                self.imZ = new_index
                 self.setDataSelects()
                 self.imChanged = True
                 self.updateDisplay()
-            
-            self.imZ = new_index
         
         else:
             self.experiment().delete_label(index)
@@ -1870,8 +1869,10 @@ class MainWindow(QtWidgets.QMainWindow):
             return True
 
     def keyPressEvent(self, event):
+        if (not self.maskLoaded) and (not self.imLoaded):
+            return 
+        
         nextMaskOn  = self.maskOn
-
         if (event.key() == QtCore.Qt.Key_Delete or event.key() == QtCore.Qt.Key_Backspace) and self.selectedCells:
             for selectedCell in self.selectedCells.copy():
                 self.deselectCell(selectedCell)
@@ -2215,23 +2216,28 @@ class MainWindow(QtWidgets.QMainWindow):
         
     def newModels(self):
         self.modelChoose.clear()
-        self.getModels()
         self.getModelNames()
+        self.importModelClses()
         self.modelChoose.addItems(sorted(self.modelNames, key = lambda x: x[0]))
         self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
-        
-    def getModels(self):
-        for modelName in self.modelNames:
-            if os.path.exists(os.path.join("models",modelName,"model.py")):
-                importlib.import_module(self.getPkgString(modelName))
+    
+    def importModelClass(self, modelName):
+        module = importlib.import_module(self.getPkgString(modelName))
+        return getattr(module, capitalize_first_letter(modelName))
+    
+    def importModelClses(self):
+        self.model_classes = {}
+        for model in getBuiltInModelTypes():
+            self.model_classes[model] = self.importModelClass(model)
     
     def getPkgString(self, string):
         return f"yeastvision.models.{string}.model"
 
     def getModelClass(self, modelName):
-        module = importlib.import_module(self.getPkgString(modelName))
-        modelClass = getattr(module, capitalize(modelName))
-        return modelClass
+        if modelName not in self.model_classes:
+            raise ValueError(f"{modelName} yet imported")
+        else:
+            return self.model_classes[modelName]
     
     def showTW(self):
         if not self.maskLoaded:
@@ -2287,21 +2293,24 @@ class MainWindow(QtWidgets.QMainWindow):
         #check_gpu()
         # model is initiated with default hyperparams
         self.model = modelCls(modelCls.hyperparams, weightPath)
-        self.model.train(self.trainIms, self.trainLabels, data)
+        weightPath1 = join(data["dir"], "models", data["model_name"])+self.model.prefix # to users working directory
+        weightPath2 = join(MODEL_DIR, modelType, data["model_name"])+self.model.prefix # going to correct model dir
+        self.model.train(self.trainIms, self.trainLabels, data, weightPath2)
         #check_gpu()
-        weightPath = join(data["dir"], "models", data["model_name"])+self.model.prefix
-        print("Saving new weights to",weightPath)
 
         if autorun and self.trainTStop < self.maxT:
             im = self.getCurrMaskSet()[self.trainTStop:self.trainTStop+1,:,:]
-            newIms, newProbIms = modelCls.run(im,None,weightPath)
+            mask, prob, flows = modelCls.run(im,None,weightPath2)
             self.tIndex = self.trainTStop
-            self.label().insert(newIms, self.tIndex, new_prob_im = newProbIms)
+            self.label().insert(mask, self.tIndex, new_prob_im=prob, new_flows_im=flows )
         elif self.trainTStop == self.maxT:
             self.tIndex = self.trainTStop
-            print("Not enough data to autorun")
+            self.showError("no images left: cannot autorun new model on next image")
         self.drawMask()
-
+        logger.info(f"Weights will be available for the user at {weightPath1}. They are also saved internall at {weightPath2} for use within yeastvision")
+        logger.info(f"To remove your custom model from yeastvision, go to models>toggle model weights")
+        shutil.copy2(weightPath1, weightPath2)
+        
     def hasProbIm(self):
         return self.label().has_probability
 
@@ -2320,7 +2329,6 @@ class MainWindow(QtWidgets.QMainWindow):
         no_cell_frames = get_frames_with_no_cells(labels)
 
         files = self.channel().get_file_names()
-        print(files)
         if len(files) == imT:
             self.trainFiles = files
         else:
@@ -2343,6 +2351,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return None
         
     def getModelNames(self):
+        '''Retrieves all weight path file names along with their parent directory (model type)'''
         self.modelNames = []
         self.modelTypes = []
         dirs = [dir for dir in glob.glob(join(MODEL_DIR,"*")) if (os.path.isdir(dir) and "__" not in dir)]
@@ -2350,9 +2359,8 @@ class MainWindow(QtWidgets.QMainWindow):
             dirPath, dirName = os.path.split(dir)
             for dirFile in glob.glob(join(dir,"*")):
                 dirPath2, dirName2 = os.path.split(dirFile)
-                if dirName.lower() in dirName2.lower():
-                    if "." not in dirName2 or (dirFile.endswith("h5") or dirFile.endswith("hdf5")):
-                        self.modelNames.append(os.path.split(dirFile)[1].split(".")[0])
+                if (dirName2 != "__pycache__")  and ("." not in dirName2 or dirName2.endswith(".pt")):
+                        self.modelNames.append(dirName2.split(".")[0])
                         self.modelTypes.append(dirName)
     
     def modelExists(self, model):
@@ -2369,9 +2377,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def toggleWeights(self, models_to_load):
         for model_name, status in models_to_load.items():
-            is_custom, custom_model_type = self.is_custom_model(model_name)
+            is_custom = self.is_custom_model(model_name)
             if is_custom:
                 if not status:
+                    custom_model_type = self.modelTypes[self.modelNames.index(model_name)]
                     self.delete_custom_model(model_name, custom_model_type)   
             else:
                 if (not status) and self.modelExists(model_name):
@@ -2380,16 +2389,13 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.install_model(model_name)
     
     def is_custom_model(self, model_name):
-        for model in getModels():
-            if model in model_name and model != model_name:
-                return True, model
-        else:
-            return False, None
+        return model_name not in getBuiltInModelTypes() and model_name != self.INTERP_MODEL_NAME
     
     def install_model(self, model_name):
         if model_name == self.INTERP_MODEL_NAME:
             logger.info(f"installing {self.INTERP_MODEL_NAME}")
             install_rife()
+            logger.info("RIFE INSTALLED")
         else:
             logger.info(f"Installing segmentation model {model_name}")
             install_weight(model_name)
@@ -3103,7 +3109,7 @@ def main():
         Example usage: python script.py -test \
         or python script.py --dir /path/to/directory --num_channels 10")
 
-    parser.add_argument("-test", action="store_true",
+    parser.add_argument("--test", action="store_true",
                         help="Use the test directory. No arguments needed. \
                         Example: -test")
     parser.add_argument("--dir", type=str, 

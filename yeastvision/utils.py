@@ -283,7 +283,7 @@ def check_torch_gpu(gpu_number = 0):
 def count_objects(labeledMask):
     return len(np.unique(labeledMask))-1
 
-def capitalize(string):
+def capitalize_first_letter(string):
     first_letter = string[0]
     rest_of_string = string[1:]
     return first_letter.capitalize()+rest_of_string
@@ -297,7 +297,6 @@ def get_mask_contour(mask):
     return out_mask
 
 def get_cell_contour(mask, cellnum):
-    out_mask = np.zeros_like(mask)
     mask_binary = (mask==cellnum).astype(np.uint8)
     in_mask = shrink_bud(mask_binary, kernel_size = 2)
     mask_binary[in_mask]=0

@@ -1,4 +1,5 @@
 import patchify
+import json
 import numpy as np
 from patchify import patchify, unpatchify
 import skimage
@@ -7,20 +8,27 @@ import yeastvision.models as models
 from os.path import join
 import os
 
+CUSTOM_MODELS_FILE = "model_types.json"
 MODEL_DIR = models.__path__[0]
+with open(os.path.join(MODEL_DIR, CUSTOM_MODELS_FILE), "r") as file:
+    CUSTOM_MODEL_TYPES = json.load(file)
 
 def is_RGB(ims):
     return ims.shape[-1] == 3
 
-def getModels():
+def getBuiltInModelTypes():
+    '''Retrieves the builtin model names'''
     models = [model for model in os.listdir(MODEL_DIR) if os.path.isdir(join(MODEL_DIR, model)) and model != "__pycache__"]
     return models
 
 def getModelsByType(model_type):
+    '''Returns all the weights that exist within model_type directory'''
     model_dir = os.path.join(MODEL_DIR, model_type)
     return [file for file in os.listdir(model_dir) if "." not in file and file != "__pycache__"]
 
 def getModelLoadedStatus(model):
+    '''Determines whether or not a model is loaded. Built for default models type
+    Assumes that model name is identical to model type'''
     return os.path.exists(produce_weight_path(model, model))
 
 def produce_weight_path(modeltype, modelname):

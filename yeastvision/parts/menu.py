@@ -77,7 +77,7 @@ def menubar(parent):
     evaluate.triggered.connect(parent.evaluate)
     modelMenu.addAction(evaluate)
 
-    loadModels = QAction("Load Model Weights", parent)
+    loadModels = QAction("Load/Remove Models", parent)
     loadModels.triggered.connect(parent.userLoadModels)
     modelMenu.addAction(loadModels)
 

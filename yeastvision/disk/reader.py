@@ -5,7 +5,6 @@ from skimage.io import imread
 from skimage.measure import label
 from yeastvision.utils import get_mask_contour
 import pickle
-import pandas as pd
 from tqdm import tqdm
 from os.path import splitext, basename
 
