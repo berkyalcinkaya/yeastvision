@@ -27,7 +27,6 @@ from QSwitchControl import SwitchControl
 import pyqtgraph as pg
 import matplotlib.pyplot as plt
 import cv2
-import importlib
 import glob
 from os.path import join
 from datetime import datetime
@@ -1242,6 +1241,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if not rife_weights_loaded():
             self.showError("RIFE model weights are not loaded. Go to models>load model weights in the menu bar")
             return
+<<<<<<< HEAD
+=======
+
+>>>>>>> refs/remotes/origin/main
         if not seg_model_options:
             self.showError(f"No {SEG_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
             return
@@ -1256,6 +1259,26 @@ class MainWindow(QtWidgets.QMainWindow):
         wizard = FiestWizard(self, exp, valid_channels, seg_model_options, bud_model_options)
         if wizard.exec():
             print(wizard.getData())
+    
+    def startFiestWizard(self, fiest_data):
+        channel = self.experiment().channels[fiest_data["channelIndex"]]
+        ims = channel.ims
+        currName = channel.name
+        original_len = channel.max_t() + 1
+
+
+        # fiestModelTypes = ["proSeg", "budSeg"]
+        # for fiestModelType in fiestModelTypes:
+        #     if fiestModelType in fiest_data:
+        proSegModelClass = getModelClass("proSeg")
+        proSegWeightName = fiest_data["proSeg"]["modelWeight"]
+        proSegWeightPath = join(MODEL_DIR, "proSeg", proSegWeightName)
+
+        budSegModelClass, budSegWeightName, budSegWeightPath = None, None, None
+        if fiest_data["doLineage"]:
+            budSegModelClass = getModelClass("budSeg")
+            budSegWeightName = fiest_data["budSeg"]["modelWeight"]
+            budSegWeightPath = join(MODEL_DIR, "budSeg", budSegWeightName)
         
     def trackButtonClick(self):
         if self.label().max_t() == 0:
@@ -1269,7 +1292,6 @@ class MainWindow(QtWidgets.QMainWindow):
     
         self.runLongTask(worker,self.trackFinished, self.trackButton)
 
-        
     def updateCellData(self, idx = None, exp_idx = None):
         if not self.maskLoaded:
             return
@@ -2292,7 +2314,7 @@ class MainWindow(QtWidgets.QMainWindow):
         modelType = self.modelTypes[self.modelNames.index(weightName)]
         weightPath = join(MODEL_DIR, modelType, weightName)
 
-        modelClass = self.getModelClass(modelType)
+        modelClass = getModelClass(modelType)
 
         weightPath += modelClass.prefix
 
@@ -2323,7 +2345,7 @@ class MainWindow(QtWidgets.QMainWindow):
             weightPath = None
         # directory to save weights is current image directory stored in reader
         data["dir"] = os.getcwd()
-        modelCls = self.getModelClass(modelType)
+        modelCls = getModelClass(modelType)
         #check_gpu()
         # model is initiated with default hyperparams
         self.model = modelCls(modelCls.hyperparams, weightPath)
@@ -2663,7 +2685,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         modelType = self.modelTypes[self.modelNames.index(weightName)]
         weightPath = join(MODEL_DIR, modelType, weightName)
-        modelClass = self.getModelClass(modelType)
+        modelClass = getModelClass(modelType)
         weightPath += modelClass.prefix
 
         self.deactivateButton(self.modelButton)
@@ -2862,7 +2884,10 @@ class MainWindow(QtWidgets.QMainWindow):
                             "save images to a directory", 
                             defaultFileName)
         if path:
-            write_images_to_dir(path, self.getCurrImSet())
+            if isinstance(self.channel(), InterpolatedChannel):
+                write_images_to_dir(path, self.getCurrImSet(), self.channel().interp_annotations, annotation="_interp")
+            else:
+                write_images_to_dir(path, self.getCurrImSet())
     
     def saveMasks(self):
         if not self.maskLoaded:
@@ -2897,8 +2922,8 @@ class MainWindow(QtWidgets.QMainWindow):
                             "save figures to directory", 
                             defaultFileName)
         if path:
-            write_images_to_dir(path, self.createFigure())
-    
+            write_images_to_dir(path, self.createFigure(), extension=".jpeg")
+
     def createMaskOverlay(self):
         if (not self.imLoaded):
             self.showError("No Images Loaded")

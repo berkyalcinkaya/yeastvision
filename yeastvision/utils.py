@@ -144,17 +144,21 @@ def overlay_masks_on_image(phase_img, masks, is_contour, alpha=100):
     result_array = np.asarray(phase_image_pil, dtype=np.uint8)
     return result_array
 
-def write_images_to_dir(path, ims, extension = ".tif"):
+def write_images_to_dir(path, ims, flags = None, annotation = None, extension = ".tif", ):
     dir = os.path.dirname(path)
     if os.path.exists(path):
         return
     os.mkdir(path)
     if "." not in extension:
         extension = "." + extension
+    num_digits = len(str(len(ims)))
     for i, im in enumerate(ims):
-        name = f"im_{i}{extension}"
-        fname = os.path.join(path, name)
-        skimage.io.imsave(fname, im)
+        base_name = f"{str(i+1).zfill(num_digits)}"
+        if flags is not None and flags[i] and annotation is not None:
+            base_name += f"_{annotation}"
+        new_file_name = f"{base_name}{os.path.splitext(im)[1]}"
+        new_file_path = os.path.join(path, new_file_name)
+        skimage.io.imsave(new_file_path, im)
 
 def save_image(path, im, extension  = ".tif"):
     pass

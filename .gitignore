@@ -1,5 +1,6 @@
 *.vscode
 models/
+*.jpg
 build/
 dist/
 yeastvision.egg-info/
