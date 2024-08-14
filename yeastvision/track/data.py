@@ -155,10 +155,14 @@ class LineageData(TimeSeriesData):
     _hasLineage:bool
     _hasMating:bool
 
-    def __init__(self, idx, cells, buds = None, mating = None, cell_data = None, channels = None, channel_names = None, life_data = None):
+    def __init__(self, idx, cells, buds = None, mating = None, cell_data = None, channels = None, channel_names = None, life_data = None, daughters=None, mothers=None):
         super().__init__(idx, cells, channels = channels, channel_names=channel_names, cell_data=cell_data, life_data=life_data)
 
         self._hasLineage = False
+        if daughters is not None and mothers is not None:
+            self._hasLineage=True
+            self.daughters, self.mothers = daughters, mothers
+            self.set_generations()
         if buds is not None:
             self.add_lineages(cells,buds)
         

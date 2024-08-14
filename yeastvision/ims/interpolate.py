@@ -1,3 +1,4 @@
+from typing import List, Tuple
 import cv2
 from torch.nn import functional as F
 import torch
@@ -6,6 +7,7 @@ from yeastvision.ims.rife_model.pytorch_msssim import ssim_matlab
 from queue import Queue, Empty
 from .rife_model.RIFE import Model
 from yeastvision.ims import rife_model
+from yeastvision.data.ims import InterpolatedChannel
 import copy
 import os
 
@@ -13,9 +15,32 @@ RIFE_DIR = rife_model.__path__[0]
 RIFE_WEIGHTS_NAME = "flownet.pkl"
 RIFE_WEIGHTS_PATH = os.path.join(RIFE_DIR, RIFE_WEIGHTS_NAME)
 
-#def get_interp_mask(original_len, intervals, )
 
-def get_interpolated_length(t, intervals):
+def get_interp_labels(original_len: int, intervals: List[dict])->List[bool]:
+    '''Produces a list of boolean flags that is parrallel to the number of interpolated images, where
+    True corresponds to all frame that are interpolated and false corresponds to all real images
+    
+    Parameters
+    - original_len (int): length of the original movie without interpolation
+    - intervals (list of dictionaries): the interpolation intervals that were input to interpolate_intervals
+    
+    Returns
+    - interp_labels (list of bools)'''
+    
+    interp_labels = [False for i in range(original_len)]
+    interp_labels = InterpolatedChannel.insert_interpolated_values(interp_labels, intervals, True)
+    return interp_labels
+    
+def deinterpolate(interpolated_ims:np.ndarray[np.uint8], interp_labels: List[bool])->List[np.ndarray[np.uint8]]:
+    '''Isolates the real images in interolated_ims and returns them as a new list.
+    
+    Parameters
+    - interpolated_ims (uint8 np.ndaray): output of RIFE interpolation
+    - interp_labels (list): a list parrallel to the length of interpolate ims that specifies the location of interpolated frames with True values, False for real-images '''
+    return [im for i, im in enumerate(interpolated_ims) if not interp_labels[i]]
+
+
+def get_interpolated_length(t: int, intervals: List[dict])->int:
     """
     Calculate the number of frames after interpolation.
 
@@ -44,7 +69,9 @@ def copy_and_normalize(im):
     new_im = copy.deepcopy(im)
     return cv2.normalize(new_im, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
 
-def load_model():
+def load_model()->Tuple[Model, str]:
+    '''
+    Instantiates the RIFE model class and determines device.'''
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.set_grad_enabled(False)
     if torch.cuda.is_available():
@@ -57,7 +84,23 @@ def load_model():
     model.device()
     return model, device
 
-def interpolate_intervals(ims, intervals):
+def interpolate_intervals(ims: np.ndarray, intervals: List[dict])->Tuple[np.ndarray, List[dict]]:
+    '''
+    Interpolates ims over an arbitrary number of intervals
+    
+    Parameters
+    ims (np.ndarray): an (n x h x w) array with n images of h x w dimensions to be interpolated
+    interp_intervals (lists of dict): list specifying interpolation levels and intervals, each entry
+                                                of the list should be a dictionary with the keys (start, stop, interp)
+                                                where interp is an integer value in [1,2,3,4]. If none, no interpolation is
+                                                performed
+                                                
+    Returns
+    interpolated (np.ndarray): resulting images (uint8) that have been interpolated over the specified intervals. Has same height and width dimensions 
+                                as original
+    new_intervals (List[dict]): a list of dictionaries, each with the keys start, stop, and interp, that specify where interpolated frames exist in 
+    'interpolated'
+    '''
     model, device = load_model()
     single_im_shape = ims[0].shape
     new_length = get_interpolated_length(len(ims), intervals)
@@ -80,7 +123,7 @@ def interpolate_intervals(ims, intervals):
         if interval_index < len(intervals) and original_pos == intervals[interval_index]['start']:
             #print("original pos", original_pos, "aligns with start", intervals[interval_index]['start'])
             start, stop, interp = intervals[interval_index]["start"], intervals[interval_index]["stop"], int(intervals[interval_index]["interp"])
-            interval_interp = interpolate(ims[start:stop+1], interp, device, model)
+            interval_interp = interpolate(ims[start:stop+1], interp, device, model, include_last=False)
             #print("Interp args: ", start, stop, interp)
             #print("Interpolation output: ", interval_interp.shape)
 
@@ -104,7 +147,22 @@ def interpolate_intervals(ims, intervals):
     del model
     return template, new_intervals
 
-def interpolate(ims: np.ndarray, exp: int, device, model)->np.ndarray:
+def interpolate(ims: np.ndarray, exp: int, device, model, include_last=True)->np.ndarray:
+    
+    '''Interpolates the entirety of ims at scale of exp, meaning that 2^exp interpolated
+    images are added between every pair of images in ims. new movie will have len(ims) * (2^exp -1 )
+    frames
+    
+    Parameters:
+    ims (np.ndarray) - images to be interpolated. Should be of shape (n x r x c)
+    exp (int) - the interpolation level.
+    device (str) - device on which model should run. Either cuda or cpu. Call load_model() for device
+    model (torch.Net) - the RIFE model. Call load_model() for this
+    
+    Returns
+    interpoalted (np.ndarray) -  a uint8 array of images inlcuding the real images with 2^exp interpolated
+                                ims between each pair of real images
+    '''
     scale = 1
     
     def make_inference(model, I0, I1, n):
@@ -134,8 +192,12 @@ def interpolate(ims: np.ndarray, exp: int, device, model)->np.ndarray:
         for im in ims:
             read_buffer.put(im)
         return read_buffer
-    # final_im = copy.deepcopy(ims[-1])
-    # final_im = cv2.normalize(final_im, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    
+    # if user specifies, save last image to add it later
+    if include_last:
+        final_im = copy.deepcopy(ims[-1])
+        final_im = cv2.normalize(final_im, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    
     ims = ims = [reformat(im) for im in ims]
     lastframe = ims[0]
     h,w,_ = lastframe.shape
@@ -197,4 +259,8 @@ def interpolate(ims: np.ndarray, exp: int, device, model)->np.ndarray:
         if break_flag:
             break
         i+=1
-    return np.array([im[:,:,0] for im in write_buffer], dtype = np.uint8)
+    
+    if include_last:
+        return np.array([im[:,:,0] for im in write_buffer] + [final_im], dtype = np.uint8)
+    else:
+        return np.array([im[:,:,0] for im in write_buffer], dtype = np.uint8)

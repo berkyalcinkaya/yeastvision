@@ -65,11 +65,10 @@ class InterpolationWorker(QtCore.QObject):
         self.finished.emit(ims, self.exp_idx, self.name, self.annotations, 
                            self.intervals, self.original_len, new_intervals)
 
-
 class FiestWorker(QtCore.QObject):
     finished = QtCore.pyqtSignal()
     def __init__(self, modelClass,ims, params, exp_idx, weightPath, modelType, mask_template_i = None):
-        super(SegmentWorker,self).__init__()
+        super(FiestWorker,self).__init__()
         self.mc = modelClass
         self.ims = ims
         self.params = params

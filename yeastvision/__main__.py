@@ -4,13 +4,13 @@ from yeastvision.parts.canvas import ImageDraw, ViewBoxNoRightDrag
 from yeastvision.parts.guiparts import *
 from yeastvision.parts.workers import SegmentWorker, TrackWorker, InterpolationWorker
 from yeastvision.parts.dialogs import *
-from yeastvision.track.track import track_to_cell, trackYeasts
+from yeastvision.track.track import track_to_cell, track_proliferating
 from yeastvision.track.data import LineageData, TimeSeriesData
 from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, exportCellData, getHeatMaps, getPotentialHeatMapNames
 import yeastvision.plot.plot as plot
 from yeastvision.utils import *
 import yeastvision.ims.im_funcs as im_funcs
-from yeastvision.ims.interpolate import interpolate_intervals, rife_weights_loaded, RIFE_WEIGHTS_PATH, RIFE_WEIGHTS_NAME
+from yeastvision.ims.interpolate import interpolate_intervals, rife_weights_loaded, deinterpolate, RIFE_WEIGHTS_PATH, RIFE_WEIGHTS_NAME
 import yeastvision.parts.menu as menu
 from yeastvision.models.utils import MODEL_DIR, getBuiltInModelTypes, getModelLoadedStatus, produce_weight_path, getModelsByType
 from yeastvision.install import TEST_MOVIE_DIR, TEST_MOVIE_URL, install_test_ims, install_weight, install_rife
@@ -677,7 +677,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.interpolateButton.clicked.connect(self.interpolateButtonClicked)
         self.l.addWidget(self.interpolateButton, rowspace+4, 5,1,2)
 
-        self.interpRemoveButton = QPushButton("remove interpolation")
+        self.interpRemoveButton = QPushButton("de-interpolate")
         self.interpRemoveButton.setStyleSheet(self.styleInactive)
         self.interpRemoveButton.setFont(self.medfont)
         self.interpRemoveButton.setEnabled(False)
@@ -1241,10 +1241,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if not rife_weights_loaded():
             self.showError("RIFE model weights are not loaded. Go to models>load model weights in the menu bar")
             return
-<<<<<<< HEAD
-=======
-
->>>>>>> refs/remotes/origin/main
         if not seg_model_options:
             self.showError(f"No {SEG_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
             return
@@ -1287,7 +1283,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         idxToTrack = self.maskZ
         cells = self.getCurrMaskSet()
-        task = trackYeasts
+        task = track_proliferating
         worker = TrackWorker(task, cells, idxToTrack, self.experiment_index)     
     
         self.runLongTask(worker,self.trackFinished, self.trackButton)
@@ -2103,9 +2099,14 @@ class MainWindow(QtWidgets.QMainWindow):
             one_im_shape = self.experiments[self.experiment_index].shape()
             return (len_t, one_im_shape[0], one_im_shape[1])
 
-
     def getCurrMaskSet(self):
         return self.experiments[self.experiment_index].get_label("labels", idx = self.maskZ)
+    
+    def getAllMaskTypes(self): 
+        masks = []
+        for mask_type in ["labels", "probability", "flows"]:
+            masks.append(self.experiments[self.experiment_index].get_label(mask_type, idx = self.maskZ))
+        return masks
     
     def getCurrIm(self):
         if self.tIndex > self.channel().max_t():
@@ -2777,16 +2778,13 @@ class MainWindow(QtWidgets.QMainWindow):
         assert isinstance(self.channel(), InterpolatedChannel)
         lengthsMatch = self.channel().max_t() == self.label().max_t()
         if not lengthsMatch:
-            self.showError("Error: Length of label must match length of interpolated channel to perform this operation")
+            self.showError("Error: Length of label must match length of interpolated channel to perform this operation. Re-select channel and masks from dropdown menu.")
             return
-
         interp_bool = self.channel().interp_annotations
-        masks = self.getCurrMaskSet()
-        contours = self.getCurrContourSet()
-        newMasks = [mask for i, mask in enumerate(masks) if not interp_bool[i]]
-        newContours = [mask for i, mask in enumerate(contours) if not interp_bool[i]]
+        masks = self.getAllMaskTypes()
+        deinterpolated = [deinterpolate(mask_set, interp_bool) for mask_set in masks]
         currMaskName = self.labelSelect.currentText()
-        self.loadMasks(newMasks, name = f"{currMaskName}_removeinterpolation", contours=newContours)
+        self.loadMasks(deinterpolated, name = f"{currMaskName}_deinterpolated")
 
     def doAdaptHist(self):
         curr_im = self.channel()

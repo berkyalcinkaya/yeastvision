@@ -127,13 +127,23 @@ class CustomCPWrapper(CustomModel):
             masks, flows, _ = self.model.eval(ims, **self.eval_params(self.params))
         return masks,flows
     
-    def process_flows(self, flow_list)->np.ndarray[np.uint8]:
-        flowsXY = np.array([normalize_im(np.mean(flow[0], axis = -1)) for flow in flow_list], dtype = np.float32) * 255
+    def process_flows(self, flow_list) -> np.ndarray[np.uint8]:
+        '''Reduces cellpose 3D flows into 2D images by taking the magnitude of the flow vector'''
+        # Calculate the magnitude of the vector along the last dimension
+        flowsXY = np.array([normalize_im(np.linalg.norm(flow[0], axis=-1)) for flow in flow_list], dtype=np.float32) * 255
         return flowsXY.astype(np.uint8)
 
     @classmethod
     @torch.no_grad()
     def run(cls, ims, params, weights):
+        '''Class method for running a built-in model type
+        
+        Returns
+        - masks (np.ndarray[uint16]): the segmentation results where each pixel is given an index according to the object
+        - cellprobs (np.ndarray[uint8]): the probability of each pixel being an object or background. Scaled such that 255 is 100% confidence
+                                        and 0 is 0% confidence
+        - flowsXY (np.ndarray[np.uint8]): each pixel gives the magnitude of the outputted flow vector at that location
+        '''
         params = params if params else cls.hyperparams
         model = cls(params, weights)
         #ims3D = [cv2.merge((im,im,im)) for im in ims]

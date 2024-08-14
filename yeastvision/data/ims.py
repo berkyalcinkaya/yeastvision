@@ -427,6 +427,15 @@ class ChannelNoDirectory(Channel):
         return [get_file_name(self.path)]
 
 class InterpolatedChannel(ChannelNoDirectory):
+    '''Stores interpolated images and associated information for front-end display and interaction. Also contains the
+    class method 'insert_interpolated_values' which is used by yeastvision.ims.interpolate.get_interp_labels to produce
+    
+    Important fields:
+    - new_interval (self.interp_intervals) specifies the location of interpolation with the new interpolated movie as reference, used for visualization purposes
+    - intervals (self.interval_annotations) stores the interpolation intervals with reference to the original movie, served as input to
+                                            yeastvision.ims.interpolate.interpolate_intervals
+    - self.interp_annotations (List of booleans) is the same length as the image data and gives the location of interpolated frames with a true value, false for
+                            real images. '''
     text_id = "interp"
     def __init__(self, npz_path = None, ims = None, dir = None, name = None, 
                  annotations = None, intervals = None, original_len = None,

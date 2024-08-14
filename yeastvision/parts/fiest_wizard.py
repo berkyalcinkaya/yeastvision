@@ -4,7 +4,7 @@ from yeastvision.models.proSeg.model import ProSeg
 from yeastvision.models.budSeg.model import BudSeg
 from yeastvision.parts.wizard_utils import InterpolationDialog, SimpleTextPage, ParameterInputPage
 
-fiest_instructs = '''Frame Interpolation-Enhanced Segmentation Tracking (FIEST):\n
+fiest_instructs = '''Frame Interpolation Enhanced Single-cell Tracking (FIEST),(FIEST):\n
 Step 1: Interpolate images over specified intervals to enhance resolution\n
 Step 2: Segment interpolation-enhanced images with proSeg\n
 Step 3: Track resulting masks\n

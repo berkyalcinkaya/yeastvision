@@ -4,7 +4,6 @@ from yeastvision.parts.dialogs import InterpolationIntervalWidget
 from yeastvision.parts.guiparts import NumericLineEdit
 
 
-
 class SimpleTextPage(QWizardPage):
     def __init__(self, text, parent=None):
         super().__init__(parent)
@@ -214,8 +213,3 @@ class ParameterInputPage(QWizardPage):
             data[key] = self.line_edits[key].text()
         return data
 
-    def nextId(self):
-        if self.field("doLineage"):
-            return 5  # ID of the additional DisplaySelectionPage
-        else:
-            return -1  # Complete the wizard

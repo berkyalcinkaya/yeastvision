@@ -5,10 +5,7 @@ from yeastvision.models.proSeg.model import ProSeg
 from yeastvision.models.matSeg.model import MatSeg
 from yeastvision.models.spoSeg.model import SpoSeg
 
-
-
-
-fiest_instructs = '''Frame Itnerpolation-Enhanced Segmentation Tracking (FIEST) for the Full Yeast Lifecycle:\n
+fiest_instructs = '''Frame Interpolation Enhanced Single-cell Tracking (FIEST), for the Full Yeast Lifecycle:\n
 Step 1: Interpolate images over specified intervals to enhance resolution\n
 Step 2: Segment (interpolated) move with matSeg, spoSeg, and tetradSeg\n
 Step 3: Track tetrads, mating cells, and proliferating cells independently\n
