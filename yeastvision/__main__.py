@@ -1396,8 +1396,6 @@ class MainWindow(QtWidgets.QMainWindow):
         except AttributeError:
             return
     
-
-    
     def getMatingLineages(self, cellI, matingI):
         mating = self.experiment().get_label("labels", idx = matingI)
         cells = self.experiment().get_label("labels", idx = cellI)
