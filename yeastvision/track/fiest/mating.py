@@ -151,14 +151,15 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
 
     #plt.imshow(all_obj, extent=[0, len(rang2), 0, ccel], aspect='auto', interpolation='nearest')
 
-    for iv in range(ccel):
-        if np.any(all_obj[iv, min(rang):shock_period[-1]] > 0):
-            if all_obj[iv, shock_period[-1] + 1] != 0:
-                for its in range(shock_period[-1] + 1, rang[-1] + 1):
-                    if all_obj[iv, its] != -1:
-                        pix = np.where(MATC[0][its] == iv + 1)
-                        MATC[0][its][pix] = 0
-                        all_obj[iv, its] = np.sum(MATC[0][its] == iv + 1)
+    if shock_period is not None:
+        for iv in range(ccel):
+            if np.any(all_obj[iv, min(rang):shock_period[-1]] > 0):
+                if all_obj[iv, shock_period[-1] + 1] != 0:
+                    for its in range(shock_period[-1] + 1, rang[-1] + 1):
+                        if all_obj[iv, its] != -1:
+                            pix = np.where(MATC[0][its] == iv + 1)
+                            MATC[0][its][pix] = 0
+                            all_obj[iv, its] = np.sum(MATC[0][its] == iv + 1)
 
     cell_data = cal_celldata(all_obj, ccel)
     k = 1

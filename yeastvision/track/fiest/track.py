@@ -4,7 +4,7 @@ import numpy as np
 from scipy.stats import mode
 import scipy.io as sio
 from skimage.morphology import thin, disk, binary_opening, dilation, opening
-from yeastvision.track.fiest.utils import remove_artif
+from yeastvision.track.fiest.utils import remove_artif, binar, OAM_23121_tp3
 
 def track_correct_artilife(art_masks:np.ndarray, shock_period:Optional[List[int]]=None):
 
@@ -34,11 +34,8 @@ def track_correct_artilife(art_masks:np.ndarray, shock_period:Optional[List[int]
     for it0 in mm: # notice IS1 will be updated in the loop
         print(f'it0={it0}')
         # Load the future cellpose mask, IS2: IS2 is the current image being re-indexed for tracking
-        if not take_img:
-            IS2 = np.copy(Masks3[:,:,it0]).astype('uint16') # plt.imshow(IS2)
-        else:
-            IS2 = io.imread(file_list[it0]).astype(np.uint16)
-            
+        IS2 = np.copy(Masks3[:,:,it0]).astype('uint16') # plt.imshow(IS2)
+    
         IS2 = remove_artif(IS2, disk_size) # set disk_size as needed # 5 is ideal to match MATLAB's disk_size=6
         
         IS2C = np.copy(IS2) # plt.imshow(IS2C) # <--- a copy of IS2, gets updated in it1
@@ -122,13 +119,6 @@ def track_correct_artilife(art_masks:np.ndarray, shock_period:Optional[List[int]
         for i in range(im_no):
             pix = np.sum(Maa[:, :, i])
             all_ob[ccell-1, i] = pix
-
-    plt.figure()
-    plt.imshow(all_ob, aspect='auto', cmap='viridis', interpolation="nearest")
-    plt.title("all_obj")
-    plt.xlabel("Time")
-    plt.ylabel("Cells")
-    plt.show()
 
     """
     Tracks as a tensor
@@ -250,12 +240,12 @@ def track_correct_artilife(art_masks:np.ndarray, shock_period:Optional[List[int]
                 tp_im[cel-1, ih] = 1
 
 
-    plt.figure()
-    plt.imshow(tp_im, aspect='auto', interpolation="nearest")
-    plt.title("Cell Presence Over Time")
-    plt.xlabel("Time")
-    plt.ylabel("Cells")
-    plt.show()
+    # plt.figure()
+    # plt.imshow(tp_im, aspect='auto', interpolation="nearest")
+    # plt.title("Cell Presence Over Time")
+    # plt.xlabel("Time")
+    # plt.ylabel("Cells")
+    # plt.show()
 
     """
     Get good cells
@@ -310,12 +300,12 @@ def track_correct_artilife(art_masks:np.ndarray, shock_period:Optional[List[int]
             if Ma[:, :, ih].sum() != 0:
                 tp_im[cel-1, ih] = 1
 
-    plt.figure()
-    plt.imshow(tp_im, aspect='auto', interpolation="nearest")
-    plt.title("Cell Presence Over Time")
-    plt.xlabel("Time")
-    plt.ylabel("Cells")
-    plt.show()
+    # plt.figure()
+    # plt.imshow(tp_im, aspect='auto', interpolation="nearest")
+    # plt.title("Cell Presence Over Time")
+    # plt.xlabel("Time")
+    # plt.ylabel("Cells")
+    # plt.show()
 
     #######
     cell_exists0 = np.zeros((2, tp_im.shape[0]))

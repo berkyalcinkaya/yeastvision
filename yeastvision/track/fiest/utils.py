@@ -36,11 +36,11 @@ def remove_artif(I2A,disk_size): # I2A = IS2 % disk radius is 3 for ~500x~1000, 
     return I4
 
 #Helper Functions
+
 def OAM_23121_tp3(M, cel, no_obj1, A):
-    tp3 = np.array(M)  # Ensure M is a numpy array
+    tp3 = M.copy()
     tp3[tp3 == cel] = no_obj1 + A
     return tp3
-
 
 def resize_image(image, target_shape):
     zoom_factors = [n / float(o) for n, o in zip(target_shape, image.shape)]
