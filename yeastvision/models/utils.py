@@ -7,18 +7,12 @@ from skimage.morphology import disk, binary_erosion, binary_dilation
 import yeastvision.models as models
 from os.path import join
 import os
-from yeastvision.utils import capitalize
-import importlib
+from yeastvision.utils import capitalize_first_letter
 
 CUSTOM_MODELS_FILE = "model_types.json"
 MODEL_DIR = models.__path__[0]
 with open(os.path.join(MODEL_DIR, CUSTOM_MODELS_FILE), "r") as file:
     CUSTOM_MODEL_TYPES = json.load(file)
-
-def getModelClass(self, modelName):
-    module = importlib.import_module(self.getPkgString(modelName))
-    modelClass = getattr(module, capitalize(modelName))
-    return modelClass
 
 def is_RGB(ims):
     return ims.shape[-1] == 3

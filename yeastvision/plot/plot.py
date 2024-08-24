@@ -450,9 +450,8 @@ class TimeSeriesPlotWindow(QWidget):
         if self.hasHeatmaps():
             self.updateHeatMaps()
         if self.hasPopulationPlots():
-            self.updatePopulationPlots
+            self.updatePopulationPlots()
 
-    
     def addSingleCellPlots(self):
         self.singleCellPlots = []
         single_cell_prop_obj = self.propDict["single"]

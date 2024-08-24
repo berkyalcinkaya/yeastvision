@@ -1,4 +1,3 @@
-from yeastvision.models.proSeg.model import ArtilifeFullLifeCycle
 from yeastvision.data.ims import Experiment, ChannelNoDirectory, InterpolatedChannel
 from yeastvision.parts.canvas import ImageDraw, ViewBoxNoRightDrag
 from yeastvision.parts.guiparts import *
@@ -29,6 +28,7 @@ import matplotlib.pyplot as plt
 import cv2
 import glob
 from os.path import join
+import importlib
 from datetime import datetime
 import pandas as pd
 import math
@@ -48,7 +48,7 @@ from yeastvision.parts.fiest_full_lifecycle_wizard import FiestFullLifeCycleWiza
 os.environ['QT_LOGGING_RULES'] = '*.warning=false'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 torch.cuda.empty_cache() 
-warnings.filterwarnings("ignore")
+#warnings.filterwarnings("ignore")
 
 global logger
 logger, _ = logger_setup()
@@ -97,7 +97,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.firstMaskLoad = True
 
         self.getModelNames()
-        self.importModelClses()
+        self.importModelClasses()
         self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
 
         self.cwidget = QWidget(self)
@@ -1564,7 +1564,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.buildTSPlotWindow()
         else:
             if not self.hasCellData():
-                self.showError("No Timeseries Data Available - Track or Get Cell Data First")   
+                self.showError(f"No Timeseries Data Available for {self.label().name} - Switch Labels or Track/Record Cell Data First")   
             elif self.tsPlotWindowOn:
                 self.showError("Time Series Plot Window Already Open. Exit First to Start a New Plot Session")
     
@@ -2272,15 +2272,18 @@ class MainWindow(QtWidgets.QMainWindow):
     def newModels(self):
         self.modelChoose.clear()
         self.getModelNames()
-        self.importModelClses()
+        self.importModelClasses()
         self.modelChoose.addItems(sorted(self.modelNames, key = lambda x: x[0]))
         self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
     
+
+
     def importModelClass(self, modelName):
         module = importlib.import_module(self.getPkgString(modelName))
-        return getattr(module, capitalize_first_letter(modelName))
-    
-    def importModelClses(self):
+        modelClass = getattr(module, capitalize_first_letter(modelName))
+        return modelClass
+
+    def importModelClasses(self):
         self.model_classes = {}
         for model in getBuiltInModelTypes():
             self.model_classes[model] = self.importModelClass(model)
@@ -2309,11 +2312,10 @@ class MainWindow(QtWidgets.QMainWindow):
         except IndexError:
             return
         
-
         modelType = self.modelTypes[self.modelNames.index(weightName)]
         weightPath = join(MODEL_DIR, modelType, weightName)
 
-        modelClass = getModelClass(modelType)
+        modelClass = self.getModelClass(modelType)
 
         weightPath += modelClass.prefix
 
@@ -2324,7 +2326,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.trainModelName = f"{modelType}_{suffix}"
             self.trainModelSuffix = suffix
     
-        
         TW = TrainWindow(modelType, weightPath, self)
         if TW.exec_():
             data = TW.getData()
@@ -2335,7 +2336,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             return
 
-
     def train(self, data, modelType, weightPath, autorun = True):
         # weights are overwritten if model is to be trained from scratch
         #check_gpu()
@@ -2344,7 +2344,7 @@ class MainWindow(QtWidgets.QMainWindow):
             weightPath = None
         # directory to save weights is current image directory stored in reader
         data["dir"] = os.getcwd()
-        modelCls = getModelClass(modelType)
+        modelCls = self.getModelClass(modelType)
         #check_gpu()
         # model is initiated with default hyperparams
         self.model = modelCls(modelCls.hyperparams, weightPath)
@@ -2684,7 +2684,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         modelType = self.modelTypes[self.modelNames.index(weightName)]
         weightPath = join(MODEL_DIR, modelType, weightName)
-        modelClass = getModelClass(modelType)
+        modelClass = self.getModelClass(modelType)
         weightPath += modelClass.prefix
 
         self.deactivateButton(self.modelButton)

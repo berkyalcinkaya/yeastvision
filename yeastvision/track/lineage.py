@@ -53,12 +53,12 @@ class LineageConstruction:
         """
         i = 0
         for cellmask, neckmask in zip(self.cellMasks, self.neckMasks):
-            logger.info("\tshave mask", i)
+            logger.info(f"\tshave mask  {i}")
             newNeckMask = np.zeros_like(neckmask)
             if np.any(neckmask):
                 for neckI in np.unique(neckmask):
                     if neckI > 0:
-                        logger.info("\t\t", neckI)
+                        logger.info(f"\t\t {neckI}")
                         newNeckMask += self.processNeckMask(cellmask, neckmask == neckI)
             self.neckMasks[i] = newNeckMask
             i += 1
@@ -133,7 +133,7 @@ class LineageConstruction:
         cellVals = np.unique(self.cellMasks)
         cellVals = cellVals[cellVals != 0]
 
-        logger.info("computing lineages for", numCells, "cells")
+        logger.info(f"computing lineages for {numCells} cells")
         daughterArray = np.zeros((numCells, numCells), dtype=bool)  # rows = cell, column = daughter
         motherDict = getLifeData(self.cellMasks)
         motherDict["cell"] = cellVals
@@ -284,7 +284,7 @@ def compute_mating_lineage(tracked, cyto):
 
     numCells = np.count_nonzero(matingCells)
     
-    logger.info("computing lineages for", numCells, "cells")
+    logger.info(f"computing lineages for {numCells} cells")
     gamete_dict = {
                   "gamete1":[],
                     "gamete2":[],

@@ -124,3 +124,5 @@ def replace_none_with_empty_array(data):
         return np.array([])
     else:
         return data
+    
+    
