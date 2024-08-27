@@ -40,24 +40,23 @@ class PopulationReplicate():
 
 
 class TimeSeriesData():
-    name: str
-    obj_data: pd.core.frame.DataFrame
-    obj_data_export: pd.core.frame.DataFrame
-    life_data: pd.core.frame.DataFrame
-    cell_data: pd.core.frame.DataFrame
-    properties: list[str]
-    populations:list[list[int]]
-    population_names: list[str]
-    label_vals: np.ndarray
-    num_objs: int
 
-    def __init__(self, idx, labels, channels = None, channel_names = None, cell_data = None, life_data = None):
-        self.i = idx
-        self.set_label_props(labels)
+    '''Class used to store and create time series cell properties. A TimeSeriesData object should correspond
+    to a single set of tracked masks. This object has several important properties (above) and methods. '''
+
+    def __init__(self, labels, channels = None, channel_names = None, cell_data = None, life_data = None):
+        ''''
+        Instantiates a new TimeSeriesData instance, given a set of tracked masks. It will compute cell data for the masks
+        if not provided. 
+        
+        '''
+        self._set_label_props(labels)
+
+        # populations
         self.populations = [self.label_vals-1]
         self.population_names = ["all"]
-        
-        
+
+
         self.channel_names = channel_names
         
         if cell_data is not None:
@@ -73,19 +72,21 @@ class TimeSeriesData():
         self.update_props()
 
     def update_cell_data(self, labels, channels = None, channel_names = None):
-        self.set_label_props(labels)
+        self._set_label_props(labels)
         self.life_data = getLifeData(labels)
         self.cell_data = getCellData(labels, channels, channel_names)
         self.channel_names = channel_names
         self.update_props()
 
-
     def update_props(self):
         self.properties = self.cell_data.columns.tolist()
         self.properties.remove("labels")
 
-
-    def set_label_props(self, labels):
+    def _set_label_props(self, labels):
+        '''
+        Collects a the number and values of unique cell indices in the given labels. Stores
+        them as attributes for later data processing
+        '''
         label_vals = np.unique(labels)
         self.label_vals = label_vals[label_vals>0]
         self.num_objs = len(self.label_vals)

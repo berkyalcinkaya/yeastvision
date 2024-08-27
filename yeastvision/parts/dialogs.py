@@ -1167,7 +1167,8 @@ class PlotWindowCustomizeTimeSeries(QDialog):
             return [prop for prop in populationObj.properties if prop not in self.morphProps]
 
     def produceParamTreeSingleCell(self):
-        populations = self.parent.getLabelsWithPopulationData()      
+        populations = self.parent.getLabelsWithPopulationData()    
+        
         tree = self.produceTree()
         self.trees.append(tree)
         level1 = "single"

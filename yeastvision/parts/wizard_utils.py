@@ -130,12 +130,11 @@ class InterpolationDialog(QWizardPage):
         self.showMessage("") 
 
 
-
 class ParameterInputPage(QWizardPage):
     def __init__(self, params_dict, model_weights, modelName, channels, parent=None):
         super().__init__(parent)
         self.setTitle(f"Set {modelName} Parameters")
-
+        self.modelName = modelName
         self.params_dict = params_dict
 
         # Layout for the parameters
@@ -201,6 +200,7 @@ class ParameterInputPage(QWizardPage):
         max_t = self.channel_obj.max_t()
         self.t_start_spinbox.setMaximum(max_t)
         self.t_stop_spinbox.setMaximum(max_t)
+        self.t_stop_spinbox.setValue(max_t)
     
     def getData(self):
         data = {

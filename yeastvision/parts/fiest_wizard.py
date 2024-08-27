@@ -69,7 +69,7 @@ class AdditionalParameterInputPage(ParameterInputPageFiestAsexual):
         super().__init__(params_dict, model_weights, modelName, channels, parent=parent)
     
 class FiestWizard(QWizard):
-    def __init__(self, parent, exp, channels, proSeg_weights, budSeg_weights):
+    def __init__(self, parent, channels, proSeg_weights, budSeg_weights):
         super().__init__(parent)
         
         self.setWindowTitle("Frame Interpolation Enhanced Segmentation Tracking")
@@ -96,6 +96,3 @@ class FiestWizard(QWizard):
             bud_page = self.page(self.bud_seg_id)
             data["budSeg"] = bud_page.getData()
         return data
-
-
-        

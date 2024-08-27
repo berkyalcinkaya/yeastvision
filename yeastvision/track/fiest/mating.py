@@ -6,8 +6,11 @@ from skimage.morphology import skeletonize, thin
 from scipy.stats import mode
 from yeastvision.track.fiest.utils import cal_allob, cal_celldata, replace_none_with_empty_array
 
-
+# step 3
 def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_period:Optional[List[int]]):
+    '''
+    Tracking of mating cells
+    '''
     # tetrad masks are extended to go from index 0 of the movie to the end of the tetrad interval
     mat_masks = [None] * mating_interval[-1]
     im_shape = matSeg_output[0].shape
@@ -220,3 +223,15 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
     rang3=range(len(MATC[0]))
     Matmasks = [MATC[0][i] for i in rang3]; 
     Matmasks =replace_none_with_empty_array(Matmasks)
+
+    return {
+    "Matmasks": Matmasks,
+    "no_obj": no_obj,
+    "all_obj": all_obj,
+    "cell_data": cell_data,
+    "rang": rang,
+    "rang3": rang3,
+    "shock_period": shock_period,
+    "mat_masks_original": mat_masks_original,
+    "start": start
+}

@@ -1,211 +1,296 @@
+from scipy.stats import mode
+import scipy.io as sio
+from skimage.morphology import thin, disk, binary_opening, dilation, opening
+from yeastvision.track.fiest.utils import remove_artif, binar, OAM_23121_tp3
 import numpy as np
 from typing import List, Optional
 import math
 from skimage.morphology import skeletonize
 from scipy.stats import mode
 from yeastvision.track.fiest.utils import cal_allob2, cal_allob1, cal_celldata, replace_none_with_empty_array, binar
-    
+import time
+import logging
 
-def track_tetrads(spoSeg_ouptut:np.ndarray, tetrad_interval: List, movie_length:int, shock_period:Optional[List[int]]=None):
-    
-    # define some global variables
-    thresh_percent = 0.015
-    thresh_remove_last_mask = 10
-    thresh_next_cell = 400
-    thresh = 80
+logger = logging.getLogger(__name__)
 
+##### one of the steps of the fiest full lifecycle tracking code
+##### TODO: port this to main tracking module
+## corresponds to step5 of the pipeline
+def track_correct_artilife(art_masks:np.ndarray, shock_period:Optional[List[int]]=None):
+    begin = time.time()
+    Masks3 = art_masks
+    Masks3 = np.transpose(Masks3, (1, 2, 0))
+    im_no1 = 0
+    im_no = 50 #Masks3.shape[2]
+    mm = range(im_no) # time points to track
 
-    # tetrad masks are extended to go from index 0 of the movie to the end of the tetrad interval
-    tet_masks = [None] * tetrad_interval[-1]
-    im_shape = spoSeg_ouptut[0].shape
-    for i in range(len(tet_masks)):
-        if i >= tetrad_interval[0]:
-            tet_masks[i] = spoSeg_ouptut[i]
-        else:
-            tet_masks[i] = np.zeros(im_shape, dtype=np.uint16)
-    
-    # Remove shock-induced timepoints, if possible
-    if shock_period:
-        for start, end in [shock_period]:
-            for i in range(start-1, end):
-                tet_masks[i] = None
+    """
+    Load the first mask that begins the indexing for all the cells; IS1 is updated to most recently processed tracked mask at the end of it0
+    """
+    IS1 = np.copy(Masks3[:,:,im_no1]).astype('uint16') # start tracking at first time point # plt.imshow(IS1)
+    IS1 = remove_artif(IS1) # remove artifacts and start tracking at first time point # plt.imshow(IS1)
+    masks = np.zeros((IS1.shape[0], IS1.shape[1], im_no)) # contains the re-labeled masks according to labels in the last tp mask
+    masks[:,:,im_no1] = IS1.copy() # first time point defines indexing; IS1 is first segmentation output
 
-    start = -1
-    for its in range(len(tet_masks)):
-        if tet_masks[its] is not None and np.sum(tet_masks[its]) > 0:
-            start = its
-            break
-
-    # Tracking all detections
-    if start != -1:
-        rang = range(start, len(tet_masks))
-        I2 = tet_masks[start]
-        A = np.zeros_like(tet_masks[start])
-    else:
-        rang = range(len(tet_masks))
-        I2 = tet_masks[0]
-        A = np.zeros_like(tet_masks[0])
-
-    IS6 = np.zeros_like(I2)
-    TETC = [None] * 2
-    TETC[0] = [None] * len(tet_masks)
-    TETC[1] = [None] * len(tet_masks)
-    xx = start
-    rang2 = rang
-    ccel = 1
-
-    while xx != -1:
-        k = 0
-        for im_no in rang2:
-            # im_no = 72
-            I2 = tet_masks[im_no] if ccel == 1 else TETC[1][im_no]
-            if I2 is None or I2.size == 0:
-                continue
-            if im_no == min(rang2):
-                ind1 = np.unique(I2)[1:]  # Exclude background
-                I3 = (I2 == ind1[0])
-                I3A = I3.copy()
-            else:
-                I3A = IS6.copy()
-
-            I3A = skeletonize(binar(I3A))
-            I2A = I2.copy()
-            I3B = I3A.astype(np.uint16) * I2A.astype(np.uint16)
-            ind = mode(I3B[I3B != 0])[0]
-
-            if (ind == 0 or math.isnan(ind)) and ccel == 1:
-                k += 1
-                if k > thresh_next_cell:
-                    for im_no_1 in range(im_no, rang[-1] + 1):
-                        if tet_masks[im_no_1] is not None:
-                            TETC[0][im_no_1] = np.zeros_like(tet_masks[start])
-                        TETC[1][im_no_1] = tet_masks[im_no_1]
-                    break
-                else:
-                    TETC[0][im_no] = I3B.copy()
-                    TETC[1][im_no] = I2A.copy()
-                    continue
-            elif (ind == 0 or math.isnan(ind)) and ccel != 1:
-                k += 1
-                if k > thresh_next_cell:
-                    break
-                else:
-                    continue
-
-            k = 0
-            pix = np.where(I2A == ind)
-            pix0 = np.where(I2A != ind)
-            
-            # pix = np.flatnonzero(I2A == ind)
-            # pix0 = np.flatnonzero(I2A != ind)
-            
-            I2A[pix] = ccel
-            I2A[pix0] = 0
-            
-            IS6 = I2A.copy()
-            I22 = np.zeros_like(I2)
-            
-            pix1 = np.where(IS6 == ccel)
-            
-            I2[pix1] = 0
-            pix2 = np.unique(I2)
-            pix2 = pix2[1:]  # Exclude background
-
-            if ccel == 1:
-                for ity, p2 in enumerate(pix2):
-                    pix4 = np.where(I2 == p2)
-                    I22[pix4] = ity + 1
-                TETC[0][im_no] = IS6.copy()
-            else:
-                if len(pix2) > 0:
-                    for ity, p2 in enumerate(pix2):
-                        pix4 = np.where(I2 == p2)
-                        I22[pix4] = ity + 1
-                else:
-                    I22 = I2.copy()
-                IS61 = TETC[0][im_no]
-                IS61[pix] = ccel
-                TETC[0][im_no] = IS61.astype(np.uint16)
-
-            TETC[1][im_no] = I22.copy()
-
-        xx = -1
-        for i in rang:
-            if TETC[1][i] is not None and np.sum(TETC[1][i]) > 0:
-                xx = i
-                break
-        ccel += 1
-        rang2 = range(xx, len(tet_masks))
-        print(xx + 1)
-
-
-    ccel -= 1  # number of cells tracked
-
-    # Removing the shock-induced points from rang
-    if shock_period:
-        rang3 = list(rang)
-        for start, end in [shock_period]:
-            for i in range(start-1, end):
-                if i in rang3:
-                    rang3.remove(i)
-    
-    all_obj = cal_allob1(ccel, TETC, rang)
-    cell_data = cal_celldata(all_obj, ccel) ## double check values
-    k = 1
-    cell_artifacts = []
-    for iv in range(ccel):
-        if cell_data[iv, 2] < thresh_percent * len(rang3) or cell_data[iv, 4] > thresh:
-            cell_artifacts.append(iv + 1)
-            k += 1
-
-    all_ccel = list(range(1, ccel + 1))
-
-    if len(cell_artifacts) > 0:
-        cell_artifacts = list(set(cell_artifacts))
-        for iv in cell_artifacts:
-            for its in rang3:
-                pix = np.where(TETC[0][its] == iv)
-                TETC[0][its][pix] = 0
-
-    # Retaining and relabeling the new cells
-    good_cells = sorted(set(all_ccel) - set(cell_artifacts))
-
-    for iv in range(len(good_cells)):
-        for its in rang3:
-            pix = np.where(TETC[0][its] == good_cells[iv])
-            TETC[0][its][pix] = iv + 1
-
-    # Correcting the SpoSeg track masks or filling the empty spaces between the first and last appearance
-    # Removing artifacts
-    all_obj1 = cal_allob1(len(good_cells), TETC, rang)
-    # plt.imshow(all_obj1, extent=[0, x_scale, 0, y_scale], aspect='auto')
-    cell_data1 = cal_celldata(all_obj1, len(good_cells))
-
-    for iv in range(len(good_cells)):
-        for its in range(int(cell_data1[iv, 0] + 1), int(cell_data1[iv, 1])):
-            if all_obj1[iv, its] == 0:
-                prev = np.where(all_obj1[iv, :its] > 0)[0][-1]
-                all_obj1[iv, its] = all_obj1[iv, prev]
-                pix = np.where(TETC[0][prev] == iv + 1)
-                TETC[0][its][pix] = iv + 1
-
-    # Cell array that contains the fully tracked TetSeg masks
-    TETmasks = [TETC[0][i] for i in range(len(TETC[0]))]
-
-    TET_obj = len(good_cells)
-    all_obj_final = cal_allob2(TET_obj, TETmasks, list(range(len(TETmasks))))
-    TET_Size = all_obj_final.copy()
-
-    # Calculate first detection and last detection of tetrads
-    TET_exists = np.zeros((2, TET_obj), dtype=int)
-    for iv in range(TET_obj):
-        TET_exists[0, iv] = np.where(TET_Size[iv, :] > 0)[0][0]  # 1st occurrence
-        TET_exists[1, iv] = np.where(TET_Size[iv, :] > 0)[0][-1]  # last occurrence
-
-    tet_masks_exists_tp = rang3
-
-    TETmasks = replace_none_with_empty_array(TETmasks)
+    """
+    Allocate a mask for cells where there's a gap in the segmentation; IblankG is updated within the loops it1 and itG
+    """
+    IblankG = np.zeros(IS1.shape, dtype="uint16")
+    for it0 in mm: # notice IS1 will be updated in the loop
+        #print(f'it0={it0}')
+        # Load the future cellpose mask, IS2: IS2 is the current image being re-indexed for tracking
+        IS2 = np.copy(Masks3[:,:,it0]).astype('uint16') # plt.imshow(IS2)
+        IS2 = remove_artif(IS2, disk_size=5) # set disk_size as needed # 5 is ideal to match MATLAB's disk_size=6
+        
+        IS2C = np.copy(IS2) # plt.imshow(IS2C) # <--- a copy of IS2, gets updated in it1
+        IS1B = binar(IS1)
+        
+        IS3 = IS1B.astype('uint16') * IS2 # past superimposed to future; updated in it1
+        tr_cells = np.unique(IS1[IS1 != 0]) # the tracked cells present in the present mask, IS1
+        
+        gap_cells = np.unique(IblankG[IblankG != 0]) # the tracked cells that had a gap in their segmentation; were not detected in IS1
+        cells_tr = np.concatenate((tr_cells, gap_cells)) # all the cells that have been tracked up to this tp for this position
 
         
-    
-    
+        # Allocate space for the re-indexed IS2 according to tracking
+        Iblank0 = np.zeros_like(IS1)
+        
+        # Go to the previously tracked cells and find corresponding index in current tp being processed, IS2 -> Iblank0: mask of previously tracked cells with new position in IS2
+        
+        if cells_tr.sum() != 0: # this is required in case the mask goes blank because cells mate immediately during germination
+            for it1 in np.sort(cells_tr): # cells are processed in order according to birth/appearance
+                IS5 = (IS1 == it1).copy() # go to past mask, IS1, to look for the cell
+                IS6A = np.uint16(thin(IS5, max_num_iter=1)) * IS3
+
+                if IS5.sum() == 0: # if the cell was missing in the past mask; look at the gaps in segmentation, otherwise, continue to look at the past mask
+                    IS5 = (IblankG == it1).copy()
+                    IS6A = np.uint16(thin(IS5, max_num_iter=1)) * IS2C
+                    IblankG[IblankG == it1] = 0 # remove the cell from the segmentation gap mask - it'll be updated in the past mask for next round of processing
+
+                # Find the tracked cell's corresponding index in IS2, update IS3 and IS2C to avoid overwriting cells 
+                if IS6A.sum() != 0:
+                    IS2ind = 0 if not IS6A[IS6A != 0].any() else mode(IS6A[IS6A != 0])[0]
+                    Iblank0[IS2 == IS2ind] = it1
+                    IS3[IS3 == IS2ind] = 0
+                    IS2C[IS2 == IS2ind] = 0
+
+            # Define cells with segmentation gap, update IblankG, the segmentation gap mask
+            seg_gap = np.setdiff1d(tr_cells, np.unique(Iblank0)) # cells in the past mask (IS1), that were not found in IS2 
+
+            if seg_gap.size > 0:
+                for itG in seg_gap:
+                    IblankG[IS1 == itG] = itG
+
+            # Define cells that were not relabelled in IS2; these are the buds and new cells entering the frame
+            Iblank0B = Iblank0.copy()
+            Iblank0B[Iblank0 != 0] = 1
+            ISB = IS2 * np.uint16(1 - Iblank0B)
+            
+            # Add new cells to the mask with a new index Iblank0->Iblank, Iblank0 with new cells added
+            newcells = np.unique(ISB[ISB != 0])
+            Iblank = Iblank0.copy()
+            A = 1
+
+            if newcells.size > 0:
+                for it2 in newcells:
+                    Iblank[IS2 == it2] = np.max(cells_tr) + A # create new index that hasn't been present in tracking
+                    A += 1
+
+            masks[:, :, it0] = np.uint16(Iblank).copy() #<---convert tracked mask to uint16 and store
+            IS1 = masks[:, :, it0].copy() # IS1, past mask, is updated for next iteration of it0
+
+        else:
+            masks[:, :, it0] = IS2.copy()
+            IS1 = IS2.copy()
+
+
+    """
+    Tracks as tensor
+    """
+    im_no = masks.shape[2] # last time point to segment
+    ccell2 = np.unique(masks[masks != 0]) 
+
+    Mask2 = np.zeros_like(masks)
+
+    try:
+        
+        import cupy as cp
+        mak = cp.asarray(masks)
+        # re-assign ID
+        for itt3 in range(ccell2.shape[0]): # cells
+            pix3 = cp.where(mak == ccell2[itt3])
+            Mask2[pix3.get()] = itt3 + 1
+            #print(itt3)
+            
+    except ModuleNotFoundError as e:
+        
+        logger.info(f"{e} not installed, proceeding with normal Numpy CPU processing")
+        #re-assign ID
+        for itt3 in range(ccell2.shape[0]):
+            pix3 = np.where(masks == ccell2[itt3])
+            Mask2[pix3] = itt3 + 1
+            #print(itt3)
+            
+    finally:
+        
+        pass
+
+
+    """
+    Get cell presence
+    """
+    Mask3 = Mask2.copy()
+    numbM = im_no
+    obj = np.uint16((np.unique(Mask3))) 
+    no_obj1 = int(np.max(obj))
+    A = 1
+
+    tic = time.time()
+
+    tp_im = np.zeros((no_obj1, numbM), dtype=np.float64)
+
+    try:
+        
+        import cupy as cp
+        for cel in range(1, np.max(obj) + 1):
+            Ma = (Mask3 == cel)
+            mak1 = cp.asarray(Ma)
+            for ih in range(numbM):
+                if cp.sum(mak1[:, :, ih]) != 0:
+                    tp_im[cel - 1, ih] = 1
+            #print(cel)
+        
+    except ModuleNotFoundError as e:
+        
+        logger.info(f"{e} not installed, proceeding with normal Numpy CPU processing")
+        for cel in range(1, no_obj1 + 1):
+            Ma = (Mask3 == cel)
+            for ih in range(numbM):
+                if np.sum(Ma[:, :, ih]) != 0:
+                    tp_im[cel - 1, ih] = 1
+        
+    finally:
+        
+        pass
+
+
+    logger.info(f"Elapsed time is {time.time() - tic} seconds.")
+
+    """
+    Split interrupted time series
+    """
+    tic = time.time()
+
+    for cel in range(1, np.max(obj) + 1):
+        #print(cel)
+        tp_im2 = np.diff(tp_im[cel - 1, :])
+        
+        tp1 = np.where(tp_im2 == 1)[0]
+        tp2 = np.where(tp_im2 == -1)[0]
+
+        maxp = np.sum(Mask3[:, :, numbM - 1] == cel)
+        
+        if len(tp1) == 1 and len(tp2) == 1 and maxp != 0: # has one interruption
+            for itx in range(tp1[0], numbM):
+                tp3 = OAM_23121_tp3(Mask3[:, :, itx], cel, no_obj1, A)
+                Mask3[:, :, itx] = tp3
+            no_obj1 += A
+
+        elif len(tp1) == 1 and len(tp2) == 1 and maxp == 0: # has one interruption
+            pass
+
+        elif len(tp1) == len(tp2) + 1 and maxp != 0:
+            tp2 = np.append(tp2, numbM - 1)
+            for itb in range(1, len(tp1)): # starts at 1 because the first cell index remains unchanged
+                for itx in range(tp1[itb] + 1, tp2[itb] + 1):
+                    tp3 = OAM_23121_tp3(Mask3[:, :, itx], cel, no_obj1, A)
+                    Mask3[:, :, itx] = tp3
+                no_obj1 += A
+
+        elif not tp2.size or not tp1.size: # its a normal cell, its born and stays until the end
+            pass
+
+        elif len(tp1) == len(tp2): # one interruption
+            if tp1[0] > tp2[0]:
+                tp2 = np.append(tp2, numbM - 1)
+                for itb in range(1, len(tp1)): # starts at 1 because the first cell index remains unchanged
+                    for itx in range(tp1[itb] + 1, tp2[itb] + 1):
+                        tp3 = OAM_23121_tp3(Mask3[:, :, itx], cel, no_obj1, A)
+                        Mask3[:, :, itx] = tp3
+                    no_obj1 += A
+            elif tp1[0] < tp2[0]:
+                for itb in range(1, len(tp1)):
+                    for itx in range(tp1[itb] + 1, tp2[itb] + 1):
+                        tp3 = OAM_23121_tp3(Mask3[:, :, itx], cel, no_obj1, A)
+                        Mask3[:, :, itx] = tp3
+                    no_obj1 += A
+            elif len(tp2) > 1: # if it has multiple
+                for itb in range(1, len(tp1)): # starts at 2 because the first cell index remains unchanged
+                    for itx in range(tp1[itb] + 1, tp2[itb] + 1):
+                        tp3 = OAM_23121_tp3(Mask3[:, :, itx], cel, no_obj1, A)
+                        Mask3[:, :, itx] = tp3
+                    no_obj1 += A
+
+    logger.info(f"Elapsed time is {time.time() - tic} seconds.")
+
+    """
+    Calculate size
+    """
+    no_obj2 = np.max(np.unique(Mask3)).astype('uint16')
+    all_ob = np.zeros((no_obj2, im_no))
+
+    tic = time.time()
+
+
+    try:
+        import cupy as cp
+        for ccell in range(1, no_obj2 + 1):
+            #print(ccell)
+            Maa = (Mask3 == ccell)
+            mak2 = cp.asarray(Maa)
+            for io in range(im_no):
+                pix = cp.sum(mak2[:, :, io])
+                all_ob[ccell - 1, io] = pix
+        
+    except ModuleNotFoundError as e:
+        
+        logger.info(f"{e} not installed, proceeding with normal Numpy CPU processing. See docs for accelerating tracking with GPU")
+        for ccell in range(1, no_obj2 + 1):
+            #print(ccell)
+            Maa = (Mask3 == ccell)
+            for io in range(im_no):
+                pix = np.sum(Maa[:, :, io])
+                all_ob[ccell - 1, io] = pix
+                
+    finally:
+        
+        pass
+
+    logger.info(f"Elapsed time is {time.time() - tic} seconds.")
+
+    # Cell existing birth and disappear times
+    cell_exists = np.zeros((2, all_ob.shape[0]))
+
+    for itt2 in range(all_ob.shape[0]):
+        cell_exists[0, itt2] = np.argmax(all_ob[itt2, :] != 0)
+        cell_exists[1, itt2] = len(all_ob[itt2, :]) - np.argmax(all_ob[itt2, ::-1] != 0) - 1
+        
+    no_obj = len(cell_exists[0])
+
+    Mask3 = [Mask3[:, :, its] for its in range(Mask3.shape[2])] # Creates a list of 2D slices from 3D tensor Mask3
+    Mask3 = np.array(Mask3).transpose((1,2,0))
+
+    logger.info(f"Total run time is {time.time() - begin} seconds.")
+
+    # Save the results
+    return {
+        'all_ob': all_ob,
+        'Mask3': Mask3,
+        'no_obj': no_obj2,
+        'im_no': im_no,
+        'ccell2': ccell2,
+        'cell_exists': cell_exists,
+        'shock_period': shock_period,
+    }
+
+

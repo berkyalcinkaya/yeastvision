@@ -1073,14 +1073,10 @@ class MainWindow(QtWidgets.QMainWindow):
             curr_text = self.channelSelect.currentText()
             idx = self.channelSelect.currentIndex()
             if not self.emptying:
-                if isinstance(self.experiment().channels[idx], InterpolatedChannel) and InterpolatedChannel.text_id not in text:
-                    if not self.newInterpolation:
-                        self.showError(f"Removal of the {InterpolatedChannel.text_id} text id from the name of this channel will disable certain features upon reloading")
                 if self.experiment().new_channel_name(idx, text):
                     self.channelSelect.setItemText(idx, str(text))
             else:
                 self.channelSelect.setItemText(idx, "")
-
 
     def channelSelectIndexChange(self,index):
         if not self.emptying:
@@ -1227,7 +1223,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if not valid_channels:
             self.showError("FIEST requires multi-frame channels. No timeseries detected in {exp.name}")
             return
-        wizard = FiestFullLifeCycleWizard(self, exp, valid_channels, seg_model_options, bud_model_options)
+        wizard = FiestFullLifeCycleWizard(self, valid_channels, seg_model_options, mat_model_options, 
+                                          spore_model_options)
         if wizard.exec():
             print(wizard.getData())
         
@@ -1247,12 +1244,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if not bud_model_options:
             self.showError(f"No {BUD_MODEL_TYPE} weights detected. Go to models>load model weights in the menu bar")
             return
-        exp = self.experiment()
-        valid_channels = exp.get_timeseries()
+        valid_channels = self.experiment().get_timeseries()
         if not valid_channels:
             self.showError("FIEST requires multi-frame channels. No timeseries detected.")
             return
-        wizard = FiestWizard(self, exp, valid_channels, seg_model_options, bud_model_options)
+        wizard = FiestWizard(self, valid_channels, seg_model_options, bud_model_options)
         if wizard.exec():
             print(wizard.getData())
     
@@ -1266,13 +1262,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # fiestModelTypes = ["proSeg", "budSeg"]
         # for fiestModelType in fiestModelTypes:
         #     if fiestModelType in fiest_data:
-        proSegModelClass = getModelClass("proSeg")
+        proSegModelClass = self.getModelClass("proSeg")
         proSegWeightName = fiest_data["proSeg"]["modelWeight"]
         proSegWeightPath = join(MODEL_DIR, "proSeg", proSegWeightName)
 
         budSegModelClass, budSegWeightName, budSegWeightPath = None, None, None
         if fiest_data["doLineage"]:
-            budSegModelClass = getModelClass("budSeg")
+            budSegModelClass = self.getModelClass("budSeg")
             budSegWeightName = fiest_data["budSeg"]["modelWeight"]
             budSegWeightPath = join(MODEL_DIR, "budSeg", budSegWeightName)
         

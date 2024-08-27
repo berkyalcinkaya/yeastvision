@@ -2,6 +2,7 @@ import os
 import glob
 import numpy as np
 import uuid
+import hashlib
 
 image_extensions = ['.tif','.tiff',
                             '.jpg','.jpeg','.png','.bmp',
@@ -11,8 +12,33 @@ image_extensions = ['.tif','.tiff',
                             '.PBM','.PGM','.PPM','.PXM','.PNM','.JP2']
 
 
-def genereate_uid():
-    return uuid.uuid1()
+def get_id_from_name(name: str) -> str:
+    """
+    Generates a unique ID based on the provided string.
+    
+    Args:
+        name (str): The input string for which a unique ID is needed.
+        
+    Returns:
+        str: A unique hexadecimal ID corresponding to the input string.
+    """
+    # Create a unique hash using SHA-256
+    hash_object = hashlib.sha256(name.encode())
+    unique_id = hash_object.hexdigest()
+    
+    return unique_id
+
+def get_id() -> str:
+    """
+    Generates a unique ID that is not based on any input string.
+    
+    Returns:
+        str: A unique ID.
+    """
+    # Generate a random UUID
+    unique_id = str(uuid.uuid4())
+    
+    return unique_id
 
 def get_file_name(path):
     _,path = os.path.split(path)

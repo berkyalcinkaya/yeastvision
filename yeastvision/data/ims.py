@@ -1,10 +1,10 @@
+from yeastvision.track.data import LineageData, TimeSeriesData
+from .utils import *
+from yeastvision.utils import get_mask_contour
 import os 
 from skimage.io import imread
-from yeastvision.utils import get_mask_contour
 import numpy as np
-from .utils import *
 from tqdm import tqdm
-from yeastvision.track.data import LineageData, TimeSeriesData
 import logging
 from typing import List
 
@@ -16,6 +16,7 @@ class Experiment():
     MASK_KEYWORD = "_mask"
 
     def __init__(self, dir, num_channels = 1, v = False):
+        self.id = get_id()
         self.dir = dir
         _, self.name = os.path.split(self.dir)
         self.num_channels = num_channels
@@ -72,8 +73,8 @@ class Experiment():
     def load_channels_from_npz_files(self, npz_channel_files):
         self.npz_channel_files = npz_channel_files
         for path in self.npz_channel_files:
-            _, name = os.path.split(path)
-            if InterpolatedChannel.text_id in name:
+            id = np.load(path)["id"].item()
+            if InterpolatedChannel.text_id in id:
                 self.add_channel_object(InterpolatedChannel(npz_path=path))
             else:
                 self.add_channel_object(ChannelNoDirectory(npz_path=path))
@@ -313,13 +314,14 @@ class Files():
     '''
     Lowest level class for storing information about a related set of filenames which should exist in the same directory and should be identifiable by a certain keyword'''
     def __init__(self, fnames, load_on_init = True):
-        self.files = fnames
+        self.files = sorted(fnames)
         self.dir = os.path.dirname(self.files[0])
         self.ims = None
         self.loaded = False
         self.load()
         self.get_properties()
         self.annotations = None
+        self.id = get_id_from_name(self.files[0])
 
     def load(self):
         self.ims = [imread(file) for file in self.files]
@@ -369,6 +371,7 @@ class Channel(Files):
         self.labels = labels
         self.name = name
         self.compute_saturation()
+
     def __str__(self):
         return f"{self.shape} | {self.dtype}"
     
@@ -387,15 +390,17 @@ class ChannelNoDirectory(Channel):
             data = np.load(npz_path, allow_pickle=True)
             self.annotations = data["annotations"]
             self.ims = data["ims"]
+            self.id = data["id"]
             self.path = npz_path
         else:
             self.dir = dir
             self.name = name 
             self.ims = ims
             self.path = self.make_path()
-            if annotations is None or annotations == None:
+            if annotations is None:
                 annotations = [[] for _ in range(len(ims))]
             self.annotations = np.array(annotations, dtype = object)
+            self.id = get_id()
             self.save_to_npz()
         
         self.get_properties()
@@ -412,7 +417,7 @@ class ChannelNoDirectory(Channel):
         self.path = new_npz_name
 
     def save_to_npz(self):
-        np.savez(self.path, annotations = self.annotations, ims = self.ims)
+        np.savez(self.path, annotations=self.annotations, ims=self.ims, id=self.id)
     
     def get_string(self,t):
         if self.annotations is not None:
@@ -427,15 +432,18 @@ class ChannelNoDirectory(Channel):
         return [get_file_name(self.path)]
 
 class InterpolatedChannel(ChannelNoDirectory):
-    '''Stores interpolated images and associated information for front-end display and interaction. Also contains the
+    '''
+    Stores interpolated images and associated information for front-end display and interaction. Also contains the
     class method 'insert_interpolated_values' which is used by yeastvision.ims.interpolate.get_interp_labels to produce
+    masks to determine what images are interpolated
     
     Important fields:
     - new_interval (self.interp_intervals) specifies the location of interpolation with the new interpolated movie as reference, used for visualization purposes
     - intervals (self.interval_annotations) stores the interpolation intervals with reference to the original movie, served as input to
                                             yeastvision.ims.interpolate.interpolate_intervals
     - self.interp_annotations (List of booleans) is the same length as the image data and gives the location of interpolated frames with a true value, false for
-                            real images. '''
+                            real images.
+    '''
     text_id = "interp"
     def __init__(self, npz_path = None, ims = None, dir = None, name = None, 
                  annotations = None, intervals = None, original_len = None,
@@ -445,6 +453,7 @@ class InterpolatedChannel(ChannelNoDirectory):
             self.dir, fname = os.path.split(npz_path)
             self.name = os.path.splitext(fname)[0]
             data = np.load(npz_path, allow_pickle=True)
+            self.id = data["id"]
             self.annotations = data["annotations"]
             self.ims = data["ims"]
             self.interp_annotations = data["interpolation"]
@@ -452,6 +461,7 @@ class InterpolatedChannel(ChannelNoDirectory):
             self.interp_intervals = data["interp_intervals"]
             self.path = npz_path
         else:
+            self.id = f"{self.text_id}_{get_id()}" # we distinguish interpolated channels with their id
             self.interval_annotations = intervals
             self.dir = dir
             self.name = name 
@@ -513,7 +523,9 @@ class InterpolatedChannel(ChannelNoDirectory):
         self.annotations = InterpolatedChannel.insert_interpolated_values(self.annotations, self.interval_annotations, ["INTERP"])
 
     def save_to_npz(self):
-        np.savez(self.path, annotations = self.annotations, 
+        np.savez(self.path, 
+                id=self.id,
+                annotations = self.annotations, 
                 ims = self.ims, 
                 interpolation = self.interp_annotations,
                 intervals = self.interval_annotations,
@@ -537,6 +549,7 @@ class Label(Files):
                 self.init_from_npz()
 
             else:   
+                self.id = get_id()
                 self.name = name           
                 if fnames is not None:
                     self.files = fnames
@@ -585,6 +598,7 @@ class Label(Files):
 
         def init_from_npz(self):
             data = np.load(self.npz_path, allow_pickle=True)
+            self.id = data["id"]
             self.celldata = data["celldata"][0]
             self.lineagedata = data["lineagedata"][0]
             labels = data["labels"][:,:,:]
@@ -615,6 +629,7 @@ class Label(Files):
 
         def get_data_dict(self):
             data = {}
+            data["id"] = self.id
             for property_name in ["labels", "contours", "probability", "flows"]:
                 data[property_name] = getattr(self,f"get_{property_name}")()
             data["celldata"] = np.array([self.celldata])

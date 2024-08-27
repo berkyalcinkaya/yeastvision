@@ -13,7 +13,6 @@ Step 4: Correction Steps\n
 Step 5: De-interpolate masks, leaving only masks corresponding to original images
 '''
 
-
 class DropDownCheckBoxPage(QWizardPage):
     completeChanged = pyqtSignal()
     def __init__(self, viable_channels, parent=None):
@@ -62,10 +61,21 @@ class FiestFullLifeCycleWizard(QWizard):
         self.setPage(5, ParameterInputPage(MatSeg.hyperparams, matSeg_weights, "matSeg", channels, parent=self))
         self.setPage(6, ParameterInputPage(SpoSeg.hyperparams, spoSeg_weights, "spoSeg", channels, parent=self))
 
+        self.non_model_param_ids = [2,3]
+        self.cyto_seg_id = 4
+        self.mat_seg_id = 5
+        self.spo_seg_id = 6
+
     def getData(self):
         data = {}
-        for page_id in self.pageIds():
+        for page_id in self.non_model_param_ids:
             page = self.page(page_id)
             page_data = page.getData()
             data.update(page_data)
+        proSeg_page = self.page(self.cyto_seg_id)
+        data["proSeg"] = proSeg_page.getData()
+        matSeg_page = self.page(self.mat_seg_id)
+        data["matSeg"] = matSeg_page.getData()
+        spoSeg_page = self.page(self.spo_seg_id)
+        data["spoSeg"] = spoSeg_page.getData()
         return data
