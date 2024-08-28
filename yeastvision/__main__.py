@@ -1,7 +1,7 @@
 from yeastvision.data.ims import Experiment, ChannelNoDirectory, InterpolatedChannel
 from yeastvision.parts.canvas import ImageDraw, ViewBoxNoRightDrag
 from yeastvision.parts.guiparts import *
-from yeastvision.parts.workers import SegmentWorker, TrackWorker, InterpolationWorker
+from yeastvision.parts.workers import FiestWorker, SegmentWorker, TrackWorker, InterpolationWorker
 from yeastvision.parts.dialogs import *
 from yeastvision.track.track import track_to_cell, track_proliferating
 from yeastvision.track.data import LineageData, TimeSeriesData
@@ -14,6 +14,9 @@ import yeastvision.parts.menu as menu
 from yeastvision.models.utils import MODEL_DIR, getBuiltInModelTypes, getModelLoadedStatus, produce_weight_path, getModelsByType
 from yeastvision.install import TEST_MOVIE_DIR, TEST_MOVIE_URL, install_test_ims, install_weight, install_rife
 from yeastvision.disk.reader import ImageData
+from yeastvision.parts.fiest_wizard import FiestWizard
+from yeastvision.parts.fiest_full_lifecycle_wizard import FiestFullLifeCycleWizard
+from yeastvision.track.fiest.track import fiest_basic, fiest_basic_with_lineage, fiest_full_lifecycle
 import os
 import torch
 import numpy as np
@@ -32,23 +35,21 @@ import importlib
 from datetime import datetime
 import pandas as pd
 import math
-from skimage.io import imsave
+from skimage.io import imsave, imread
 from cellpose.metrics import average_precision
 from tqdm import tqdm
-import warnings
 import copy
 from collections import OrderedDict
 import argparse
 import shutil
-from skimage.io import imread, imsave
 from skimage.measure import regionprops_table
-from yeastvision.parts.fiest_wizard import FiestWizard
-from yeastvision.parts.fiest_full_lifecycle_wizard import FiestFullLifeCycleWizard
+import warnings 
+import functools
 
 os.environ['QT_LOGGING_RULES'] = '*.warning=false'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 torch.cuda.empty_cache() 
-#warnings.filterwarnings("ignore")
+# warnings.filterwarnings("ignore") TODO: remove this for deployment
 
 global logger
 logger, _ = logger_setup()
@@ -933,10 +934,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.contourButton.setEnabled(True)
         self.labelSelect.setEnabled(True)
         self.trackButton.setEnabled(True)
-        self.fiestButton.setEnabled(True)
         self.trackObjButton.setEnabled(True)
         self.trackButton.setStyleSheet(self.styleUnpressed)
-        self.fiestButton.setStyleSheet(self.styleUnpressed)
         self.trackObjButton.setStyleSheet(self.styleUnpressed)
         self.cellNumButton.setEnabled(True)
         self.maskOnCheck.setEnabled(True)
@@ -953,10 +952,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.contourButton.setEnabled(False)
         self.labelSelect.setEnabled(False)
         self.trackButton.setEnabled(False)
-        self.fiestButton.setEnabled(False)
         self.trackObjButton.setEnabled(False)
         self.trackButton.setStyleSheet(self.styleInactive)
-        self.fiestButton.setStyleSheet(self.styleInactive)
         self.trackObjButton.setStyleSheet(self.styleInactive)
         self.cellNumButton.setEnabled(False)
         self.maskOnCheck.setEnabled(False)
@@ -976,6 +973,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setEnabled(True)
         self.imageTypeSelect.setEnabled(True)
         self.checkInterpolation()
+        
+        self.fiestButton.setEnabled(True)
+        self.fiestButton.setStyleSheet(self.styleUnpressed)
     
     def disableImageOperations(self):
         self.brushSelect.setEnabled(False)
@@ -990,6 +990,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.artiButton.setEnabled(True)
         # self.artiButton.setStyleSheet(self.styleInactive)
         self.channelSelect.setEnabled(False)
+        self.fiestButton.setEnabled(False)
+        self.fiestButton.setStyleSheet(self.styleInactive)
 
     def toggleDrawing(self,b):
         if b:
@@ -1250,28 +1252,52 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         wizard = FiestWizard(self, valid_channels, seg_model_options, bud_model_options)
         if wizard.exec():
-            print(wizard.getData())
+            self.startFiestWizard(wizard.getData())
     
     def startFiestWizard(self, fiest_data):
+        print(fiest_data)
         channel = self.experiment().channels[fiest_data["channelIndex"]]
         ims = channel.ims
-        currName = channel.name
-        original_len = channel.max_t() + 1
-
-
-        # fiestModelTypes = ["proSeg", "budSeg"]
-        # for fiestModelType in fiestModelTypes:
-        #     if fiestModelType in fiest_data:
-        proSegModelClass = self.getModelClass("proSeg")
+        intervals = fiest_data["intervals"]
         proSegWeightName = fiest_data["proSeg"]["modelWeight"]
         proSegWeightPath = join(MODEL_DIR, "proSeg", proSegWeightName)
-
-        budSegModelClass, budSegWeightName, budSegWeightPath = None, None, None
-        if fiest_data["doLineage"]:
-            budSegModelClass = self.getModelClass("budSeg")
+        doLineage = fiest_data["doLineage"]
+        if doLineage:
             budSegWeightName = fiest_data["budSeg"]["modelWeight"]
             budSegWeightPath = join(MODEL_DIR, "budSeg", budSegWeightName)
+            
+            def worker_func(): return fiest_basic_with_lineage(ims, intervals, fiest_data["proSeg"], proSegWeightPath,
+                                     fiest_data["budSeg"], budSegWeightPath)     
+        else:
+            def worker_func(): return fiest_basic(ims, intervals, fiest_data["proSeg"], proSegWeightPath)
+        worker = FiestWorker(worker_func, self.experiment_index, channel.id, doLineage)
+        self.runLongTask(worker, self.fiestProlifFinished, self.fiestButton)        
+    
+    def fiestProlifFinished(self, fiest_output, exp_idx, channel_id, lineage):
+        im_name = self.getChannelFromId(channel_id, exp_idx=exp_idx)
+        proSeg_name = f"{im_name}_fiest"
+        if lineage:
+            self.loadMasks(fiest_output["cells"], exp_idx=exp_idx, name=proSeg_name)
+            new_label_obj = self.experiments[exp_idx].labels[-1]
+            self.experiments[exp_idx].labels[-1].celldata = LineageData(new_label_obj.id, new_label_obj.get_labels(),
+                                                                        daughters=fiest_output["lineages"][0],
+                                                                        mothers=fiest_output["lineages"][1])
+            self.loadMasks(fiest_output["buds"], exp_idx=exp_idx, name=f"{im_name}_buds_fiest")
+        else:
+            self.loadMasks(fiest_output, exp_idx=exp_idx, name=proSeg_name)
         
+    def getChannelNameFromId(self, id, exp_idx=None):
+        return self.getChannelFromId(id, exp_idx=exp_idx).name
+    
+        
+    def getChannelFromId(self, id, exp_idx=None):
+        if exp_idx is None:
+            exp_idx = self.experiment_index
+        for channel in self.experiments[exp_idx].channels:
+            if channel.id == id:
+                return channel
+        raise ValueError(f"No channel with id {id} exists")
+    
     def trackButtonClick(self):
         if self.label().max_t() == 0:
             self.showError("Error: More than one frame must be present to track")
@@ -1310,7 +1336,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if mask_obj.has_cell_data():
             mask_obj.celldata.update_cell_data(masks, channels = viableIms, channel_names = viableImNames)
         else:
-            mask_obj.celldata = TimeSeriesData(idx, masks, channels = viableIms, channel_names=viableImNames)
+            mask_obj.celldata = TimeSeriesData(mask_obj.id, masks, channels = viableIms, channel_names=viableImNames)
 
         mask_obj.save()
         self.checkDataAvailibility()  
@@ -1351,8 +1377,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return self.label().celldata
     
     def getTimeSeriesDataName(self, tsObj):
-        index = tsObj.i
-        return self.labelSelect.items()[index]
+        return self.getChannelNameFromId(tsObj.mask_id)
 
     def getCellDataAbbrev(self):
         if not self.maskLoaded:
@@ -1370,6 +1395,7 @@ class MainWindow(QtWidgets.QMainWindow):
             cellI = self.labelSelect.findText(data["cells"])
             necks = self.experiment().get_label("labels", idx = neckI)
             cells = self.experiment().get_label("labels", idx = cellI)
+            cell_id = self.experiment().channels[cellI].id
         else:
             return
   
@@ -1382,7 +1408,7 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 life, cell_data = None, None
 
-            self.experiment().labels[cellI].celldata = LineageData(cellI, cells, buds = necks, cell_data=cell_data, life_data=life)
+            self.experiment().labels[cellI].celldata = LineageData(cell_id, cells, buds = necks, cell_data=cell_data, life_data=life)
 
         self.experiment().labels[cellI].save()
         self.checkDataAvailibility()
@@ -1442,8 +1468,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def showTimedPopup(self, text, time = 30):
         new_text =f"<b>{text}</b>"
-        popup = TimedPopup(new_text, time)
-        popup.exec_()
+        self.popup = TimedPopup(new_text, time, parent=self)
+        self.popup.show()
 
     def closeThread(self, thread):
         index = self.threads.index(thread)
@@ -2484,43 +2510,22 @@ class MainWindow(QtWidgets.QMainWindow):
         tStart, tStop = int(params["T Start"]), int(params["T Stop"])
         imName = params["Channel"]
 
-        if modelClass.__name__ == "ArtilifeFullLifeCycle" :
-            counter = 0
-            for labelName, outputTup in output.items():
-                if type(outputTup[0]) == np.ndarray:
-                    counter += 1
-                    templates = []
-                    for i in [0,1]:
-                        template = np.zeros_like(ims, dtype = outputTup[i].dtype)
-                        template[tStart:tStop+1] = outputTup[i]
-                        templates.append(template)
-                    outputTup = (templates[0], templates[1])
-                    self.loadMasks(outputTup, exp_idx=exp_idx, name = f"{imName}_{labelName}")
-            if params["Mating Cells"]:
-                mating_idx = self.maskZ -1
-                cell_idx = self.maskZ
-                self.getMatingLineages(cell_idx, mating_idx)
+        do_insert = mask_i is not None 
+        if do_insert and not self.check_valid_insert(exp_idx, mask_i, ims.shape):
+            self.showError("Masks must have same dimension along x and y to perform insertion. Loading generated masks as seperate mask channel")
+            do_insert = False
 
-                idx = self.maskZ - counter
-                self.updateCellData(idx = idx)
+        templates = []
+        for i in [0,1,2]:
+            template = np.zeros_like(ims, dtype = output[i].dtype)
+            template[tStart:tStop+1] = output[i]
+            templates.append(template)
+        outputTup = (templates[0], templates[1], templates[2])
 
+        if do_insert:
+            self.do_segment_insert(exp_idx, mask_i, outputTup, tStart, tStop)
         else:
-            do_insert = mask_i is not None 
-            if do_insert and not self.check_valid_insert(exp_idx, mask_i, ims.shape):
-                self.showError("Masks must have same dimension along x and y to perform insertion. Loading generated masks as seperate mask channel")
-                do_insert = False
-
-            templates = []
-            for i in [0,1,2]:
-                template = np.zeros_like(ims, dtype = output[i].dtype)
-                template[tStart:tStop+1] = output[i]
-                templates.append(template)
-            outputTup = (templates[0], templates[1], templates[2])
-
-            if do_insert:
-                self.do_segment_insert(exp_idx, mask_i, outputTup, tStart, tStop)
-            else:
-                self.loadMasks(outputTup, exp_idx=exp_idx, name = f"{imName}_{modelType}_{tStart}-{tStop}")
+            self.loadMasks(outputTup, exp_idx=exp_idx, name =f"{imName}_{modelType}_{tStart}-{tStop}")
         
         torch.cuda.empty_cache()
         del modelClass
@@ -2656,7 +2661,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.workers.append(worker)
         self.threads.append(thread)
-
         worker.moveToThread(thread)
         # Step 5: Connect signals and slots
         thread.started.connect(worker.run)
@@ -2701,26 +2705,6 @@ class MainWindow(QtWidgets.QMainWindow):
             ims = self.experiment().get_channel(idx = channelIndex)
             worker = SegmentWorker(modelClass,ims, params, self.experiment_index, 
                                    weightPath, modelType, mask_template_i =  mask_template_i)
-            self.runLongTask(worker, 
-                             self.segment,
-                             self.modelButton)
-        else:
-            self.activateButton(self.modelButton)
-
-    def computeArtilifeModel(self):
-        modelType = "artilife"
-        modelClass = ArtilifeFullLifeCycle
-        self.deactivateButton(self.artiButton)
-        dlgCls = ArtilifeParamDialog
-        dlg = dlgCls(modelClass.hyperparams, modelClass.types, modelType, self)
-        
-        if dlg.exec():
-            params = dlg.getData()
-            channel = params["Channel"]
-            weightPath = params["artiWeights"]
-            channelIndex = self.channelSelect.findText(channel)
-            ims = self.experiment().get_channel(idx = channelIndex)
-            worker = SegmentWorker(modelClass,ims, params, self.experiment_index, weightPath, modelType)
             self.runLongTask(worker, 
                              self.segment,
                              self.modelButton)

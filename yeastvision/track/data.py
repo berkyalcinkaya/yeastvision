@@ -44,25 +44,30 @@ class TimeSeriesData():
     '''Class used to store and create time series cell properties. A TimeSeriesData object should correspond
     to a single set of tracked masks. This object has several important properties (above) and methods. '''
 
-    def __init__(self, labels, channels = None, channel_names = None, cell_data = None, life_data = None):
+    def __init__(self, mask_id, labels, channels = None, channel_names = None, cell_data = None, life_data = None, 
+                 no_cell_data=False): # user can specify that they do not want to compute cell data
+                                     # life data is always required
         ''''
         Instantiates a new TimeSeriesData instance, given a set of tracked masks. It will compute cell data for the masks
         if not provided. 
         
         '''
+        self.mask_id = mask_id
+        
         self._set_label_props(labels)
 
         # populations
         self.populations = [self.label_vals-1]
         self.population_names = ["all"]
-
-
         self.channel_names = channel_names
         
         if cell_data is not None:
             self.cell_data = cell_data
         else:
-            self.cell_data = getCellData(labels, channels, channel_names)
+            if not no_cell_data:
+                self.cell_data = getCellData(labels, channels, channel_names)
+            else:
+                self.cell_data = None
         
         if life_data is not None:
             self.life_data = life_data
@@ -70,6 +75,9 @@ class TimeSeriesData():
             self.life_data = getLifeData(labels)
         
         self.update_props()
+    
+    def has_cell_data(self):
+        return self.cell_data is not None
 
     def update_cell_data(self, labels, channels = None, channel_names = None):
         self._set_label_props(labels)
@@ -156,15 +164,21 @@ class LineageData(TimeSeriesData):
     _hasLineage:bool
     _hasMating:bool
 
-    def __init__(self, idx, cells, buds = None, mating = None, cell_data = None, channels = None, channel_names = None, life_data = None, daughters=None, mothers=None):
-        super().__init__(idx, cells, channels = channels, channel_names=channel_names, cell_data=cell_data, life_data=life_data)
+    def __init__(self, mask_id, cells, buds = None, mating = None, 
+                 cell_data = None, channels = None, channel_names = None, 
+                 life_data = None, daughters=None, mothers=None):
+        
+        super().__init__(mask_id, cells, channels = channels, channel_names=channel_names, 
+                         cell_data=cell_data, life_data=life_data, 
+                         no_cell_data=(cell_data is None)) # if no cell data is given, then by default none is computed
 
         self._hasLineage = False
         if daughters is not None and mothers is not None:
-            self._hasLineage=True
+            self._hasLineage = True
             self.daughters, self.mothers = daughters, mothers
             self.set_generations()
-        if buds is not None:
+        
+        if buds is not None and not self._hasLineage:
             self.add_lineages(cells,buds)
         
         self._hasMating = False

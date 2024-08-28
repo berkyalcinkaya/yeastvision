@@ -1,13 +1,8 @@
 from scipy.stats import mode
-import scipy.io as sio
-from skimage.morphology import thin, disk, binary_opening, dilation, opening
+from skimage.morphology import thin
 from yeastvision.track.fiest.utils import remove_artif, binar, OAM_23121_tp3
 import numpy as np
 from typing import List, Optional
-import math
-from skimage.morphology import skeletonize
-from scipy.stats import mode
-from yeastvision.track.fiest.utils import cal_allob2, cal_allob1, cal_celldata, replace_none_with_empty_array, binar
 import time
 import logging
 

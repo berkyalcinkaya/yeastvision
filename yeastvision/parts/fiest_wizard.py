@@ -55,8 +55,8 @@ class DropDownCheckBoxPage(QWizardPage):
         }
 
 class ParameterInputPageFiestAsexual(ParameterInputPage):
-    def __init__(self, params_dict, model_weights, modelName, channels, parent=None):
-        super().__init__(params_dict, model_weights, modelName, channels, parent=parent)
+    def __init__(self, params_dict, model_weights, modelName, channels, parent=None, includeTime=True):
+        super().__init__(params_dict, model_weights, modelName, channels, parent=parent, includeTime=includeTime)
     
     def nextId(self):
         if self.field("doLineage"):
@@ -65,8 +65,11 @@ class ParameterInputPageFiestAsexual(ParameterInputPage):
             return -1  # Complete the wizard
     
 class AdditionalParameterInputPage(ParameterInputPageFiestAsexual):
-    def __init__(self, params_dict, model_weights, modelName, channels, parent=None):
-        super().__init__(params_dict, model_weights, modelName, channels, parent=parent)
+    def __init__(self, params_dict, model_weights, modelName, channels, parent=None, includeTime=True):
+        super().__init__(params_dict, model_weights, modelName, channels, parent=parent, includeTime=includeTime)
+    
+    def nextId(self):
+        return -1
     
 class FiestWizard(QWizard):
     def __init__(self, parent, channels, proSeg_weights, budSeg_weights):
@@ -77,8 +80,10 @@ class FiestWizard(QWizard):
         self.setPage(1, SimpleTextPage(fiest_instructs))
         self.setPage(2, DropDownCheckBoxPage(channels, parent=self))
         self.setPage(3, InterpolationDialog(channels, parent=self))
-        self.setPage(4, ParameterInputPage(ProSeg.hyperparams, proSeg_weights, "proSeg", channels, parent=self))
-        self.setPage(5, AdditionalParameterInputPage(BudSeg.hyperparams, budSeg_weights, "budSeg", channels, parent=self))
+        self.setPage(4, ParameterInputPage(ProSeg.hyperparams, proSeg_weights, "proSeg", channels, parent=self, 
+                                           includeTime=False))
+        self.setPage(5, AdditionalParameterInputPage(BudSeg.hyperparams, budSeg_weights, "budSeg", channels, parent=self, 
+                                                     includeTime=False))
 
         self.non_model_param_ids = [2,3]
         self.cyto_seg_id = 4

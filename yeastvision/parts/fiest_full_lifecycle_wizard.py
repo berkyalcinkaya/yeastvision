@@ -57,7 +57,7 @@ class FiestFullLifeCycleWizard(QWizard):
         self.setPage(1, SimpleTextPage(fiest_instructs))
         self.setPage(2, DropDownCheckBoxPage(channels, parent=self))
         self.setPage(3, InterpolationDialog(channels, parent=self))
-        self.setPage(4, ParameterInputPage(ProSeg.hyperparams, proSeg_weights, "proSeg", channels, parent=self))
+        self.setPage(4, ParameterInputPage(ProSeg.hyperparams, proSeg_weights, "proSeg", channels, parent=self, includeTime=False))
         self.setPage(5, ParameterInputPage(MatSeg.hyperparams, matSeg_weights, "matSeg", channels, parent=self))
         self.setPage(6, ParameterInputPage(SpoSeg.hyperparams, spoSeg_weights, "spoSeg", channels, parent=self))
 

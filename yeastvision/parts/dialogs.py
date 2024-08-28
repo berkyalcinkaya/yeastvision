@@ -341,8 +341,8 @@ class InterpolationDialog(QDialog):
         self.showMessage("") 
 
 class TimedPopup(QDialog):
-    def __init__(self, text, seconds):
-        super().__init__()
+    def __init__(self, text, seconds, parent=None):
+        super().__init__(parent)
         self.setWindowTitle('Popup')
         label = QLabel(text)
         layout = QVBoxLayout()
@@ -354,6 +354,8 @@ class TimedPopup(QDialog):
 
     def closeEvent(self, event):
         self.timer.stop()
+        if self.parent():
+            self.parent().popup = None
         super().closeEvent(event)
 
 class FigureDialog(QDialog):

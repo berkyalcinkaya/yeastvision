@@ -1,4 +1,5 @@
 from typing import Optional, List, Tuple
+import torch
 import time
 import numpy as np
 import logging
@@ -38,24 +39,28 @@ def fiest_basic(ims:np.ndarray, interp_intervals:Optional[List[dict]], proSeg_pa
             np.ndarray[uint8] - the cell flows masks
     '''
     logger.info("---FIEST Tracking Basic---")
+    to_segment = ims
     if interp_intervals:
         logger.info(f"Performing interpolation over intervals:\n {interp_intervals}")
-        interpolated, new_intervals = interpolate_intervals(ims, interp_intervals)
+        to_segment, new_intervals = interpolate_intervals(ims, interp_intervals)
         interp_locs = get_interp_labels(len(ims), interp_intervals)
 
     proSeg, proSeg_params, proSeg_weights = _get_proSeg(proSeg_params, proSeg_weights)
     
-    masks, probs, flows = proSeg.run(interpolated, proSeg_params, proSeg_weights)
+    masks, probs, flows = proSeg.run(to_segment, proSeg_params, proSeg_weights)
     masks = track_proliferating(masks)
     
     if interp_intervals:
         masks, probs, flows = [deinterpolate(mask_type, interp_locs) for mask_type in [masks, probs, flows]]
     
+    torch.cuda.empty_cache()
+    del proSeg
+    
     return masks, probs, flows
     
 
 def fiest_basic_with_lineage(ims:np.ndarray, interp_intervals:Optional[List[dict]], proSeg_params:Optional[dict], proSeg_weights:Optional[str]=None,
-                            budSeg_params:Optional[dict]=None, budSeg_weights:Optional[str]=None)->Tuple[np.ndarray[np.uint16], np.ndarray[np.uint8], np.ndarray[np.uint8]]:
+                            budSeg_params:Optional[dict]=None, budSeg_weights:Optional[str]=None)->dict:
     '''
     Implementation 2 of Frame Interpolation Enhanced Single-cell Tracking (FIEST) and lineage reconstruction alogirthm 
     from the paper 'Deep learning-driven imaging of cell division and cell growth across an entire eukaryotic life cycle' 
@@ -78,36 +83,49 @@ def fiest_basic_with_lineage(ims:np.ndarray, interp_intervals:Optional[List[dict
         budSeg_weights (str, optional): path to weights for budSeg predictions, see proSeg_weights. 
                                     
     Returns:
-        tuple:
-            np.ndarray[uint16] - the tracked masks
-            np.ndarray[uint8] - the cell probability masks
-            np.ndarray[uint8] - the cell flows masks
-            np.ndarray[uint16] - cell daughters array
-            pd.DataFrame - a DataFrame containing cell life data with columns 'birth', 'death', 'mother', and 'confidence'.
+        dict: a dictionary with the segmentation outputs and lineage data, containing the following keys:
+            'cells' (tuple): the output of the cytoplasm (proSeg) model with the following items
+                np.ndarray[uint16] - the tracked masks
+                np.ndarray[uint8] - the cell probability masks
+                np.ndarray[uint8] - the cell flows masks
+            'buds' (tuple): the output of the bud segmentation used for lineage constructions:
+                np.ndarray[uint16] - the labeled buds
+                np.ndarray[uint8] - the bud probability masks
+                np.ndarray[uint8] - the bud flows masks
+            'lineage' (tuple): the lineage information:
+                np.ndarray[uint16] - cell daughters array
+                pd.DataFrame - a DataFrame containing cell life data with columns 'birth', 'death', 'mother', and 'confidence'.
     '''
     logger.info("---FIEST Tracking With Lineage Reconstruction---")
-    
+    to_segment = ims
     if interp_intervals:
         logger.info(f"Performing interpolation over intervals:\n {interp_intervals}")
-        interpolated, new_intervals = interpolate_intervals(ims, interp_intervals)
+        to_segment, new_intervals = interpolate_intervals(ims, interp_intervals)
         interp_locs = get_interp_labels(len(ims), interp_intervals)
-
 
     proSeg, proSeg_params, proSeg_weights = _get_proSeg(proSeg_params, proSeg_weights)
     budSeg, budSeg_params, budSeg_weights = _get_budSeg(budSeg_params, budSeg_weights)
     
-    masks, probs, flows = proSeg.run(interpolated, proSeg_params, proSeg_weights)
+    masks, probs, flows = proSeg.run(to_segment, proSeg_params, proSeg_weights)
     masks = track_proliferating(masks)
     
-    buds, _, _ = budSeg.run(interpolated, budSeg_params, budSeg_weights)
+    buds, bud_probs, bud_flows = budSeg.run(to_segment, budSeg_params, budSeg_weights)
     
     lineage = LineageConstruction(masks, buds, forwardskip=3)
     daughters, mothers = lineage.computeLineages()
     
     if interp_intervals:
         masks, probs, flows = [deinterpolate(mask_type, interp_locs) for mask_type in [masks, probs, flows]]
+        bud, bud_probs, bud_flows = [deinterpolate(mask_type, interp_locs) for mask_type in [buds, bud_probs, bud_flows]]
     
-    return masks, probs, flows, daughters, mothers
+    torch.cuda.empty_cache()
+    del proSeg
+    del budSeg
+    
+    return {"cells": (masks, probs, flows), 
+            "buds": (buds, bud_probs, bud_flows),
+            "lineage": (daughters, mothers)
+    }
 
 
 def _get_proSeg(proSeg_params, proSeg_weights)->ProSeg: 

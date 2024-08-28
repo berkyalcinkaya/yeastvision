@@ -571,7 +571,7 @@ class Label(Files):
             self.load()
 
         def has_cell_data(self):
-            return isinstance(self.celldata, TimeSeriesData)
+            return isinstance(self.celldata, TimeSeriesData) and self.celldata.has_cell_data
         
         def has_lineage_data(self):
             return isinstance(self.celldata, LineageData)

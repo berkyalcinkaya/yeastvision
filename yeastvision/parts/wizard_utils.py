@@ -131,11 +131,12 @@ class InterpolationDialog(QWizardPage):
 
 
 class ParameterInputPage(QWizardPage):
-    def __init__(self, params_dict, model_weights, modelName, channels, parent=None):
+    def __init__(self, params_dict, model_weights, modelName, channels, parent=None, includeTime=True):
         super().__init__(parent)
         self.setTitle(f"Set {modelName} Parameters")
         self.modelName = modelName
         self.params_dict = params_dict
+        self.includeTime=includeTime
 
         # Layout for the parameters
         self.param_layout = QVBoxLayout()
@@ -151,19 +152,20 @@ class ParameterInputPage(QWizardPage):
             h_layout.addWidget(line_edit)
             self.param_layout.addLayout(h_layout)
 
-        # Create spin boxes for t_start and t_stop
-        self.t_start_spinbox = QSpinBox()
-        self.t_stop_spinbox = QSpinBox()
+        if self.includeTime:
+            # Create spin boxes for t_start and t_stop
+            self.t_start_spinbox = QSpinBox()
+            self.t_stop_spinbox = QSpinBox()
 
-        self.t_start_spinbox.setRange(0, 1000)  # Arbitrary large max, will be set correctly in initializePage
-        self.t_stop_spinbox.setRange(0, 1000)
+            self.t_start_spinbox.setRange(0, 1000)  # Arbitrary large max, will be set correctly in initializePage
+            self.t_stop_spinbox.setRange(0, 1000)
 
-        # Create layout for the spin boxes
-        spin_layout = QHBoxLayout()
-        spin_layout.addWidget(QLabel("t_start:"))
-        spin_layout.addWidget(self.t_start_spinbox)
-        spin_layout.addWidget(QLabel("t_stop:"))
-        spin_layout.addWidget(self.t_stop_spinbox)
+            # Create layout for the spin boxes
+            spin_layout = QHBoxLayout()
+            spin_layout.addWidget(QLabel("t_start:"))
+            spin_layout.addWidget(self.t_start_spinbox)
+            spin_layout.addWidget(QLabel("t_stop:"))
+            spin_layout.addWidget(self.t_stop_spinbox)
 
         # Create combo box for model weights
         self.model_weights_combo = QComboBox()
@@ -176,13 +178,15 @@ class ParameterInputPage(QWizardPage):
         # Main layout
         layout = QVBoxLayout()
         layout.addLayout(self.param_layout)
-        layout.addLayout(spin_layout)
+        if self.includeTime:
+            layout.addLayout(spin_layout)
         layout.addLayout(model_weights_layout)
         self.setLayout(layout)
 
         # Connect signals to ensure proper min/max behavior
-        self.t_start_spinbox.valueChanged.connect(self.update_t_stop_min)
-        self.t_stop_spinbox.valueChanged.connect(self.update_t_start_max)
+        if self.includeTime:
+            self.t_start_spinbox.valueChanged.connect(self.update_t_stop_min)
+            self.t_stop_spinbox.valueChanged.connect(self.update_t_start_max)
 
         self.channels = channels
         self.channel_obj = None
@@ -198,18 +202,23 @@ class ParameterInputPage(QWizardPage):
         channel_index = self.field("channelIndex")
         self.channel_obj = self.channels[channel_index]
         max_t = self.channel_obj.max_t()
-        self.t_start_spinbox.setMaximum(max_t)
-        self.t_stop_spinbox.setMaximum(max_t)
-        self.t_stop_spinbox.setValue(max_t)
-    
+        
+        if self.includeTime:
+            self.t_start_spinbox.setMaximum(max_t)
+            self.t_stop_spinbox.setMaximum(max_t)
+            self.t_stop_spinbox.setValue(max_t)
+        
     def getData(self):
         data = {
             "modelName": self.modelName,
             "modelWeight": self.model_weights_combo.currentText(),
-            "t_start": self.t_start_spinbox.value(),
-            "t_stop": self.t_stop_spinbox.value()
         }
+        
+        if self.includeTime:
+            data.update({"t_start": int(self.t_start_spinbox.value()), 
+                         "t_stop": int(self.t_stop_spinbox.value())}
+            )
         for key in self.line_edits:
-            data[key] = self.line_edits[key].text()
+            data[key] = float(self.line_edits[key].text())
         return data
 
