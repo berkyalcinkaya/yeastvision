@@ -92,7 +92,7 @@ def fiest_basic_with_lineage(ims:np.ndarray, interp_intervals:Optional[List[dict
                 np.ndarray[uint16] - the labeled buds
                 np.ndarray[uint8] - the bud probability masks
                 np.ndarray[uint8] - the bud flows masks
-            'lineage' (tuple): the lineage information:
+            'lineages' (tuple): the lineage information:
                 np.ndarray[uint16] - cell daughters array
                 pd.DataFrame - a DataFrame containing cell life data with columns 'birth', 'death', 'mother', and 'confidence'.
     '''
@@ -124,7 +124,7 @@ def fiest_basic_with_lineage(ims:np.ndarray, interp_intervals:Optional[List[dict
     
     return {"cells": (masks, probs, flows), 
             "buds": (buds, bud_probs, bud_flows),
-            "lineage": (daughters, mothers)
+            "lineages": (daughters, mothers)
     }
 
 

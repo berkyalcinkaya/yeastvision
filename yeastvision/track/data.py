@@ -87,8 +87,11 @@ class TimeSeriesData():
         self.update_props()
 
     def update_props(self):
-        self.properties = self.cell_data.columns.tolist()
-        self.properties.remove("labels")
+        if self.has_cell_data():
+            self.properties = self.cell_data.columns.tolist()
+            self.properties.remove("labels")
+        else:
+            self.properties = None
 
     def _set_label_props(self, labels):
         '''

@@ -1274,7 +1274,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.runLongTask(worker, self.fiestProlifFinished, self.fiestButton)        
     
     def fiestProlifFinished(self, fiest_output, exp_idx, channel_id, lineage):
-        im_name = self.getChannelFromId(channel_id, exp_idx=exp_idx)
+        im_name = self.getChannelNameFromId(channel_id, exp_idx=exp_idx)
         proSeg_name = f"{im_name}_fiest"
         if lineage:
             self.loadMasks(fiest_output["cells"], exp_idx=exp_idx, name=proSeg_name)
@@ -1360,7 +1360,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return False
         if not isinstance(i,int):
             i = self.maskZ
-        return self.experiment().labels[i].has_cell_data()
+        return (isinstance(self.experiment().labels[i], TimeSeriesData) and 
+                        self.experiment().labels[i].has_cell_data())
     
     def hasLineageData(self, i = None):
         if not i:
