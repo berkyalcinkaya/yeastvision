@@ -8,6 +8,15 @@ from yeastvision.models.spoSeg.model import SpoSeg
 from yeastvision.models.utils import produce_weight_path
 
 
+def extend_seg_output(to_segment, output, start, stop):
+    correct_len = []
+    for i in range(len(output)):
+        template = np.zeros_like(to_segment, dtype=np.uint16)
+        template[start:stop] = output[i]
+        correct_len.append(template)
+    return correct_len
+
+
 def _get_proSeg(proSeg_params, proSeg_weights)->ProSeg: 
     if not proSeg_params:
         proSeg_params = ProSeg.hyperparams

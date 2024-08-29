@@ -3,7 +3,7 @@ import torch
 import time
 import numpy as np
 import logging
-from .utils import _get_budSeg, _get_matSeg, _get_proSeg, _get_spoSeg
+from .utils import _get_budSeg, _get_matSeg, _get_proSeg, _get_spoSeg, extend_seg_output
 from .mating import track_mating
 from .tetrads import track_tetrads
 from .full_lifecycle_utils import track_correct_artilife
@@ -130,7 +130,7 @@ def fiest_basic_with_lineage(ims:np.ndarray, interp_intervals:Optional[List[dict
     }
 
 
-def fiest_full_lifecycle(ims: np.ndarray, interpolation_intervals:Optional[List[dict]]=None, 
+def fiest_full_lifecycle(ims: np.ndarray, interp_intervals:Optional[List[dict]]=None, 
                          proSeg_params:Optional[dict]=None, matSeg_params:Optional[dict]=None, 
                          spoSeg_params: Optional[dict]=None):
     '''
@@ -143,17 +143,51 @@ def fiest_full_lifecycle(ims: np.ndarray, interpolation_intervals:Optional[List[
     (1) segment ims with matSeg, proSeg, and spoSeg
     (2) track using a novel full-lifecycle track method based frame overlap and corrections that leverage all three outputs
     (3) de-interpolate all outputs
-    (4) 
     '''
-    return
+    logger.info("---FIEST Full Lifecycle Tracking---")
+    to_segment = ims
+    if interp_intervals:
+        logger.info(f"Performing interpolation over intervals:\n {interp_intervals}")
+        to_segment, new_intervals = interpolate_intervals(ims, interp_intervals)
+        interp_locs = get_interp_labels(len(ims), interp_intervals)
 
+    proSeg, proSeg_params, proSeg_weights = _get_proSeg(proSeg_params, proSeg_weights)
+    spoSeg, spoSeg_params, spoSeg_weights = _get_spoSeg(spoSeg_params, spoSeg_weights)
+    matSeg, matSeg_params, matSeg_weights = _get_matSeg(matSeg_params, matSeg_weights)
+
+    masks, probs, flows = proSeg.run(to_segment, proSeg_params, proSeg_weights)
+
+    mat_start, mat_stop = matSeg_params["t_start"], matSeg_params["t_stop"]
+    spo_start, spo_stop = spoSeg_params["t_start"], spoSeg_params["t_stop"]
+    mat_out = matSeg.run(to_segment[mat_start:mat_stop], matSeg_params, matSeg_weights)
+    mat_out_correct_len = extend_seg_output(to_segment, mat_out, mat_start, mat_stop)
+    spo_out = spoSeg.run(to_segment[spo_start:spo_stop], spoSeg_params, spoSeg_weights)
+    spo_out_correct_len = extend_seg_output(to_segment, spo_out, spo_start, spo_stop)
+
+    proSeg_tracked, matSeg_tracked, spoSeg_tracked = track_full_lifecycle(masks, mat_out[0], spo_out[0],
+                                                                          [spo_start, spo_stop], [mat_start, mat_stop], len(to_segment),
+                                                                          )
+
+    if interp_intervals:
+        tracked_cells, probs, flows = [deinterpolate(mask_type, interp_locs) for mask_type in [proSeg_tracked, probs, flows]]
+        mat_masks, mat_probs, mat_flows = [deinterpolate(mask_type, interp_locs) for mask_type in [matSeg_tracked, mat_out[1], mat_out[2]]]
+        spo_masks, spo_probs, spo_flows = [deinterpolate(mask_type, interp_locs) for mask_type in [spoSeg_tracked, spo_out[1], spo_out[2]]]
+
+    torch.cuda.empty_cache()
+    del proSeg
+    del spoSeg
+    del matSeg
+
+    return {"cells": (tracked_cells)}
+    
 
 def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interval, movie_length, shock_period):
     tracked_tet_dict = track_tetrads(tetrads, tetrad_interval, movie_length, shock_period)
     tracked_mat_dict = track_mating(mating, mating_interval, shock_period)
 
-    proSeg_corrected_mating = correct_proSeg_with_tetrads(proSeg, tracked_tet_dict)
-    proSeg_tracked_dict = track_correct_artilife(proSeg_corrected_mating, shock_period=shock_period)
+    proSeg_corrected_tetrads = correct_proSeg_with_tetrads(proSeg, tracked_tet_dict)
+    proSeg_tracked_dict = track_correct_artilife(proSeg_corrected_tetrads, shock_period=shock_period)
     mating_corrected = correct_mating(tracked_mat_dict, proSeg_tracked_dict)
-
-    # TODO: finish
+    proSeg_corrected = correct_proSeg_with_mating(mating_corrected, proSeg_tracked_dict)
+    
+    return proSeg_corrected["Mask3"], mating_corrected["Matmasks_py"], tracked_tet_dict["TETmasks_py"]d
