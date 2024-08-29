@@ -156,3 +156,4 @@ def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interv
     proSeg_tracked_dict = track_correct_artilife(proSeg_corrected_mating, shock_period=shock_period)
     mating_corrected = correct_mating(tracked_mat_dict, proSeg_tracked_dict)
 
+    # TODO: finish
