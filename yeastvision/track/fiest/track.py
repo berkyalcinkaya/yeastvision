@@ -3,10 +3,12 @@ import torch
 import time
 import numpy as np
 import logging
-from yeastvision.models.utils import produce_weight_path
+from .utils import _get_budSeg, _get_matSeg, _get_proSeg, _get_spoSeg
+from .mating import track_mating
+from .tetrads import track_tetrads
+from .full_lifecycle_utils import track_correct_artilife
+from .correction import correct_mating, correct_proSeg_with_mating, correct_proSeg_with_tetrads
 from yeastvision.ims.interpolate import interpolate_intervals, get_interp_labels, deinterpolate
-from yeastvision.models.proSeg.model import ProSeg
-from yeastvision.models.budSeg.model import BudSeg
 from yeastvision.track.track import track_proliferating
 from yeastvision.track.lineage import LineageConstruction
 
@@ -128,21 +130,6 @@ def fiest_basic_with_lineage(ims:np.ndarray, interp_intervals:Optional[List[dict
     }
 
 
-def _get_proSeg(proSeg_params, proSeg_weights)->ProSeg: 
-    if not proSeg_params:
-        proSeg_params = ProSeg.hyperparams
-    if not proSeg_weights:
-        proSeg_weights = produce_weight_path("proSeg", "proSeg")
-    return ProSeg(proSeg_params, proSeg_weights), proSeg_params, proSeg_weights
-
-def _get_budSeg(budSeg_params, budSeg_weights)->BudSeg: 
-    if not budSeg_params:
-        budSeg_params = BudSeg.hyperparams
-    if not budSeg_weights:
-        budSeg_weights = produce_weight_path("budSeg", "budSeg")
-    return BudSeg(budSeg_params, budSeg_weights), budSeg_params, budSeg_weights
-
-
 def fiest_full_lifecycle(ims: np.ndarray, interpolation_intervals:Optional[List[dict]]=None, 
                          proSeg_params:Optional[dict]=None, matSeg_params:Optional[dict]=None, 
                          spoSeg_params: Optional[dict]=None):
@@ -159,3 +146,13 @@ def fiest_full_lifecycle(ims: np.ndarray, interpolation_intervals:Optional[List[
     (4) 
     '''
     return
+
+
+def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interval, movie_length, shock_period):
+    tracked_tet_dict = track_tetrads(tetrads, tetrad_interval, movie_length, shock_period)
+    tracked_mat_dict = track_mating(mating, mating_interval, shock_period)
+
+    proSeg_corrected_mating = correct_proSeg_with_tetrads(proSeg, tracked_tet_dict)
+    proSeg_tracked_dict = track_correct_artilife(proSeg_corrected_mating, shock_period=shock_period)
+    mating_corrected = correct_mating(tracked_mat_dict, proSeg_tracked_dict)
+

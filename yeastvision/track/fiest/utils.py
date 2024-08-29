@@ -1,6 +1,40 @@
 import numpy as np
 from skimage.morphology import disk, dilation, opening
 from scipy.ndimage import zoom
+from yeastvision.models.proSeg.model import ProSeg
+from yeastvision.models.budSeg.model import BudSeg
+from yeastvision.models.matSeg.model import MatSeg
+from yeastvision.models.spoSeg.model import SpoSeg
+from yeastvision.models.utils import produce_weight_path
+
+
+def _get_proSeg(proSeg_params, proSeg_weights)->ProSeg: 
+    if not proSeg_params:
+        proSeg_params = ProSeg.hyperparams
+    if not proSeg_weights:
+        proSeg_weights = produce_weight_path("proSeg", "proSeg")
+    return ProSeg(proSeg_params, proSeg_weights), proSeg_params, proSeg_weights
+
+def _get_matSeg(matSeg_params, matSeg_weights)->MatSeg: 
+    if not matSeg_params:
+        budSeg_params = MatSeg.hyperparams
+    if not matSeg_weights:
+        matSeg_weights = produce_weight_path("matSeg", "matSeg")
+    return MatSeg(budSeg_params, matSeg_weights), matSeg_params, matSeg_weights
+
+def _get_spoSeg(spoSeg_params, spoSeg_weights)->SpoSeg: 
+    if not spoSeg_params:
+        spoSeg_params = SpoSeg.hyperparams
+    if not spoSeg_weights:
+        spoSeg_weights = produce_weight_path("spoSeg", "spoSeg")
+    return SpoSeg(spoSeg_params, spoSeg_weights), spoSeg_params, spoSeg_weights
+
+def _get_budSeg(budSeg_params, budSeg_weights)->BudSeg: 
+    if not budSeg_params:
+        budSeg_params = BudSeg.hyperparams
+    if not budSeg_weights:
+        budSeg_weights = produce_weight_path("budSeg", "budSeg")
+    return BudSeg(budSeg_params, budSeg_weights), budSeg_params, budSeg_weights
 
 def remove_artif(I2A,disk_size): # I2A = IS2 % disk radius is 3 for ~500x~1000, 6 for larger images
 # we need a function to define the disk size base in the average cell size

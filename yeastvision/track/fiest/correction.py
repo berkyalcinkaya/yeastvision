@@ -125,7 +125,7 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, tet: dict):
     return Art_MT 
 
 # step 6: remove mating from proSeg
-def correct_proSeg_with_mating(mat, art):
+def correct_mating(mat, art):
     Matmasks = mat['Matmasks']
 
     # Extract variables from loaded data
@@ -265,7 +265,7 @@ def correct_proSeg_with_mating(mat, art):
 
 # step 7: remove matinng events from tet masks
 # art is output of step5
-def correct_spoSeg_with_mating(mat, art):
+def correct_proSeg_with_mating(mat, art):
     all_obj = mat['all_obj']
     #Matmasks = mat['Matmasks']
     cell_data = mat['cell_data']

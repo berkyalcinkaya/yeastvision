@@ -1265,11 +1265,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if doLineage:
             budSegWeightName = fiest_data["budSeg"]["modelWeight"]
             budSegWeightPath = join(MODEL_DIR, "budSeg", budSegWeightName)
-            
             def worker_func(): return fiest_basic_with_lineage(ims, intervals, fiest_data["proSeg"], proSegWeightPath,
                                      fiest_data["budSeg"], budSegWeightPath)     
         else:
             def worker_func(): return fiest_basic(ims, intervals, fiest_data["proSeg"], proSegWeightPath)
+        
         worker = FiestWorker(worker_func, self.experiment_index, channel.id, doLineage)
         self.runLongTask(worker, self.fiestProlifFinished, self.fiestButton)        
     
