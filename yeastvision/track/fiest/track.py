@@ -130,9 +130,9 @@ def fiest_basic_with_lineage(ims:np.ndarray, interp_intervals:Optional[List[dict
     }
 
 
-def fiest_full_lifecycle(ims: np.ndarray, interp_intervals:Optional[List[dict]]=None, 
-                         proSeg_params:Optional[dict]=None, matSeg_params:Optional[dict]=None, 
-                         spoSeg_params: Optional[dict]=None):
+def fiest_full_lifecycle(ims: np.ndarray, interp_intervals:Optional[List[dict]]=None, proSeg_params:Optional[dict]=None, proSeg_weights:Optional[str]=None, 
+                         matSeg_params:Optional[dict]=None, matSeg_weights:Optional[str]=None, spoSeg_params: Optional[dict]=None, spoSeg_weights:Optional[str]=None,
+                         shock_period=Optional[List[int]]):
     '''
     Implementation of Frame Interpolation Enhanced Single-cell Tracking (FIEST) from the paper 'Deep learning-driven 
     imaging of cell division and cell growth across an entire eukaryotic life cycle' for tracking of timeseries movies of
@@ -164,8 +164,8 @@ def fiest_full_lifecycle(ims: np.ndarray, interp_intervals:Optional[List[dict]]=
     spo_out = spoSeg.run(to_segment[spo_start:spo_stop], spoSeg_params, spoSeg_weights)
     spo_out_correct_len = extend_seg_output(to_segment, spo_out, spo_start, spo_stop)
 
-    proSeg_tracked, matSeg_tracked, spoSeg_tracked = track_full_lifecycle(masks, mat_out[0], spo_out[0],
-                                                                          [spo_start, spo_stop], [mat_start, mat_stop], len(to_segment),
+    proSeg_tracked, matSeg_tracked, spoSeg_tracked = track_full_lifecycle(masks, mat_out_correct_len[0], spo_out_correct_len[0],
+                                                                          [spo_start, spo_stop], [mat_start, mat_stop], len(to_segment), 
                                                                           )
 
     if interp_intervals:
@@ -180,14 +180,19 @@ def fiest_full_lifecycle(ims: np.ndarray, interp_intervals:Optional[List[dict]]=
 
     return {"cells": (tracked_cells)}
     
-
-def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interval, movie_length, shock_period):
-    tracked_tet_dict = track_tetrads(tetrads, tetrad_interval, movie_length, shock_period)
-    tracked_mat_dict = track_mating(mating, mating_interval, shock_period)
-
-    proSeg_corrected_tetrads = correct_proSeg_with_tetrads(proSeg, tracked_tet_dict)
-    proSeg_tracked_dict = track_correct_artilife(proSeg_corrected_tetrads, shock_period=shock_period)
-    mating_corrected = correct_mating(tracked_mat_dict, proSeg_tracked_dict)
-    proSeg_corrected = correct_proSeg_with_mating(mating_corrected, proSeg_tracked_dict)
     
-    return proSeg_corrected["Mask3"], mating_corrected["Matmasks_py"], tracked_tet_dict["TETmasks_py"]d
+def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interval, movie_length, shock_period):
+    tracked_tet_dict = track_tetrads(tetrads, tetrad_interval, movie_length, shock_period) # step2
+    tracked_mat_dict = track_mating(mating, mating_interval, shock_period) # step3
+
+    proSeg_corrected_tetrads = correct_proSeg_with_tetrads(proSeg, tracked_tet_dict) # step4
+    
+    # step5 takes a tensor
+    proSeg_tracked_dict = track_correct_artilife(proSeg_corrected_tetrads, shock_period=shock_period) # step5
+    
+    # TODO: transpose back into a list (y,x ) images for step6 and step7
+    
+    mating_corrected = correct_mating(tracked_mat_dict, proSeg_tracked_dict) # step6
+    proSeg_corrected = correct_proSeg_with_mating(mating_corrected, proSeg_tracked_dict) # step7
+    
+    return proSeg_corrected["Mask3"], mating_corrected["Matmasks_py"], tracked_tet_dict["TETmasks_py"]

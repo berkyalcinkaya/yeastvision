@@ -1,4 +1,4 @@
-from yeastvision.track.fiest.utils import cal_allob, cal_celldata, cal_allob1, binar
+from yeastvision.track.fiest.utils import cal_allob, cal_celldata, cal_allob1, binar, resize_image
 import numpy as np
 from skimage.transform import resize
 from skimage.morphology import  erosion, square
@@ -11,34 +11,30 @@ from skimage.morphology import thin
 def correct_proSeg_with_tetrads(art_masks: np.ndarray, tet: dict):
     Art_MT = [art_masks[i] for i in range(len(art_masks))]
 
-    shock_period = tet['shock_period']
-    TETmasks = []
-    for i in range(len(tet['TETmasks'])):
-        tet_masks_refs = tet['TETmasks'][i]
-        for ref in tet_masks_refs:
-            mask = ref
-            TETmasks.append(mask)
-    
-    for iv in range(int(tet['TET_obj'][0][0])):
+    shock_period = tet['shock_period']-1 # why are we subtracting 1 here       
+    TETmasks = tet['TETmasks']# plt.imshow(TETmasks[0][162])
+    TET_obj=tet['TET_obj']
+    TET_obj= TET_obj
+   
+    for iv in range(TET_obj):
         # iv = 0;
-        if tet['TET_exists'][iv, 1] >= shock_period[0] - 1:
-            tp_end = shock_period[1]
+        if tet['TET_exists'][1][iv] >= shock_period[0][0]-1:#!  shock period corrected produce a single integer!!!
+            tp_end = shock_period[0][1]
         else:
-            tp_end = tet['TET_exists'][iv, 1]
+            tp_end = tet['TET_exists'][1][iv] 
 
-        for its in range(int(tet['TET_exists'][iv, 0]) - 1, int(tp_end + 1)):
-            # its = 72;
+        for its in range(tet['TET_exists'][0][iv], tp_end):# minus one added
+            # its = 133;
             A1 = Art_MT[its].astype(np.double)
-            if shock_period and (shock_period[0] <= its <= shock_period[1]):
-                T1 = (TETmasks[int(shock_period[0]) - 1] == iv + 1).astype(np.double)
+            if shock_period[0][0]-1 <= its <= shock_period[0][1]:#!!shock period corrected produce a single integer!!!!!!!!!!!!!!!!!!!!
+                T1 = (TETmasks[0][shock_period[0][0]-1] == iv + 1).astype(np.double)#! TETmasks correctd and shock period corrected produce a single integer[]
                 thresh = 0.6
             else:
-                T1 = (TETmasks[its] == iv + 1).astype(np.double)
-                thresh = 0.95
+                T1 = (TETmasks[0][its] == iv + 1).astype(np.double)#!!!!!!!!!!!!!!!!!!  
+                thresh = 0.95 # plt.imshow(T1)
 
-            # T1 = resize(T1, A1.shape, order=0, preserve_range=True)
-            T1 = resize(T1.T, (A1).shape, order=0, preserve_range=True, anti_aliasing=False).astype(np.float64)
-            # T1 = resize_image(T1, A1.shape).astype(np.float64)
+            T1 = resize_image(T1, A1.shape,).astype(np.float64)
+          #  plt.imshow(T1, aspect='auto',interpolation='nearest')
             # plt.imshow(T1)
             Im1 = T1 > threshold_otsu(T1)
             # plt.imshow(Im1)
@@ -69,31 +65,39 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, tet: dict):
                     Art_MT[its][A1 == it2] = 0
                 Art_MT[its][T1 == 1] = np.max(Art_MT[its]) + 1
 
-    for iv in range(int(tet['TET_obj'][0][0])):
+
+#plt.imshow(Art_MT[148])
+
+
+
+    for iv in range(TET_obj):
         # iv = 0
-        if shock_period and (tet['TET_exists'][iv, 1] > shock_period[1] and tet['TET_exists'][iv, 0] < shock_period[0]):
-            s1 = np.sum(TETmasks[int(shock_period[1])] == iv + 1)
-            for its in range(int(shock_period[1]), int(tet['TET_exists'][iv, 1]) - 1):
+         if tet['TET_exists'][1][iv] > shock_period[0][1] and tet['TET_exists'][0][iv] < shock_period[0][0]:
+            s1 = np.sum(TETmasks[0][shock_period[0][1]+1] == iv+1)#!!!!!!!!!!!!!!!!!!!!!!
+            for its in range(shock_period[0][1]+1, tet['TET_exists'][1][iv]):#!!!!!!!!!!!!!!!!!!!!!!!!
                 # its = 134;
                 A1 = Art_MT[its].astype(np.double)
                 # plt.imshow(A1)
-                T1 = (TETmasks[its] == iv + 1).astype(np.double).T
+                T1 = (TETmasks[0][its] == iv + 1).astype(np.double)
                 # plt.imshow(T1)
                 
-                s2 = np.sum(TETmasks[its] == iv + 1)
-                if its == tet['TET_exists'][iv, 1]:
-                    s3 = np.sum(TETmasks[its] == iv + 1)
+                
+
+                s2 = np.sum(TETmasks[0][its] == iv + 1)
+                if its == tet['TET_exists'][1][iv]:
+                    s3 = np.sum(TETmasks[0][its] == iv + 1)
                 else:
-                    s3 = np.sum(TETmasks[its + 1] == iv + 1)
+                    s3 = np.sum(TETmasks[0][its + 1] == iv + 1)
 
                 if s2 < s1 - 0.1 * s1:
                     if s3 > s2 + 0.1 * s2:
-                        T1 = (TETmasks[its - 1] == iv + 1).astype(np.double)
+                        T1 = (TETmasks[0][its - 1] == iv + 1).astype(np.double)
                     else:
                         break
 
                 s1 = s2
-                T1 = resize(T1, A1.shape, order=0, preserve_range=True)
+                #T1 = resize(T1, A1.shape, order=0, preserve_range=True)
+                T1 = resize_image(T1, A1.shape,).astype(np.float64)
                 # plt.imshow(T1)
                 Im1 = T1 > threshold_otsu(T1)
                 # plt.imshow(Im1)
@@ -122,7 +126,8 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, tet: dict):
                     for it2 in pix11:
                         Art_MT[its][A1 == it2] = 0
                     Art_MT[its][T1 == 1] = np.max(Art_MT[its]) + 1
-    return Art_MT 
+    MAT1=np.transpose(Art_MT,(1,2,0))   # transposed for step5, treat as a tensor 
+    return {"Art_MT": MAT1, "shock_period": shock_period}
 
 # step 6: remove mating from proSeg
 def correct_mating(mat, art):

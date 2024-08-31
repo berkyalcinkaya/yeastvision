@@ -208,16 +208,17 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
     TETmasks = replace_none_with_empty_array(TETmasks)
 
     tet_dict = {
-    'start_py': start,
-    'TET_Size_py': TET_Size,
-    'TET_obj_py': TET_obj,
-    'TET_exists_py': TET_exists,
-    'TETmasks_py': TETmasks,
-    'shock_period_py': shock_period,
-    'thresh_py': thresh,
-    'thresh_next_cell_py': thresh_next_cell,
-    'thresh_percent_py': thresh_percent,
-    'tet_masks_exists_tp_py': tet_masks_exists_tp
+    'start': start,
+    'TET_Size': TET_Size,
+    'TET_obj': TET_obj,
+    'TET_exists': TET_exists,
+    'TETmasks': TETmasks,
+    'shock_period': shock_period,
+    'thresh': thresh,
+    'thresh_next_cell': thresh_next_cell,
+    'thresh_percent': thresh_percent,
+    'tet_masks_exists_tp': tet_masks_exists_tp
     }
-    return tet_dict
+    
+    return start, TET_Size, TET_obj #tet_dict
 

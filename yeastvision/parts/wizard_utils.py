@@ -216,7 +216,7 @@ class ParameterInputPage(QWizardPage):
         
         if self.includeTime:
             data.update({"t_start": int(self.t_start_spinbox.value()), 
-                         "t_stop": int(self.t_stop_spinbox.value())}
+                         "t_stop": int(self.t_stop_spinbox.value())+1}
             )
         for key in self.line_edits:
             data[key] = float(self.line_edits[key].text())

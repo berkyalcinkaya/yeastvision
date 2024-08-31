@@ -8,6 +8,10 @@ from yeastvision.models.spoSeg.model import SpoSeg
 from yeastvision.models.utils import produce_weight_path
 
 
+def resize_image(image, target_shape):
+    zoom_factors = [n / float(o) for n, o in zip(target_shape, image.shape)]
+    return zoom(image, zoom_factors, order=0)
+
 def extend_seg_output(to_segment, output, start, stop):
     correct_len = []
     for i in range(len(output)):
