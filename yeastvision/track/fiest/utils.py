@@ -53,7 +53,7 @@ def remove_artif(I2A,disk_size): # I2A = IS2 % disk radius is 3 for ~500x~1000, 
 # we need a function to define the disk size base in the average cell size
     I2AA=np.copy(I2A) #   plt.imshow(IS2)
     # Applying logical operation and morphological opening
-    I2A1 = binar(I2A);#binar(I2A) plt.imshow(I2A1)     plt.imshow(I2A)
+    I2A1 = binar(I2A)#binar(I2A) plt.imshow(I2A1)     plt.imshow(I2A)
  
 
     # Create a disk-shaped structuring element with radius 3
@@ -89,10 +89,6 @@ def OAM_23121_tp3(M, cel, no_obj1, A):
     tp3[tp3 == cel] = no_obj1 + A
     return tp3
 
-def resize_image(image, target_shape):
-    zoom_factors = [n / float(o) for n, o in zip(target_shape, image.shape)]
-    return zoom(image, zoom_factors, order=0)
-
 def binar(IS1):
     # Copy IS1 to IS1B
     IS1B = np.copy(IS1)
@@ -102,6 +98,19 @@ def binar(IS1):
 
     
     return IS1B
+
+def cal_allob2(ccel, TETC, rang): 
+     # Initialize the all_obj array with zeros
+     all_obj = np.zeros((ccel, len(TETC)))
+
+     for iv in range(ccel):  # Adjusted to 1-based index
+         for its in rang:
+             if TETC[its] is not None: #and np.sum(TETC[0][its]) > 0:  # Check if the array is not None and not empty
+                 all_obj[iv, its] = np.sum(TETC[its] == iv + 1)  # Adjusted for 1-based index logic
+             else:
+                 all_obj[iv, its] = -1
+
+     return all_obj
 
 def cal_celldata(all_obj, ccel):
     cell_data = np.zeros((ccel, 5))
@@ -146,19 +155,6 @@ def cal_allob1(ccel, TETC, rang):
         for its in rang:
             if TETC[0][its] is not None: #and np.sum(TETC[0][its]) > 0:  # Check if the array is not None and not empty
                 all_obj[iv, its] = np.sum(TETC[0][its] == iv + 1)  # Adjusted for 1-based index logic
-            else:
-                all_obj[iv, its] = -1
-
-    return all_obj
-
-def cal_allob2(ccel, TETC, rang):
-    # Initialize the all_obj array with zeros
-    all_obj = np.zeros((ccel, len(TETC)))
-
-    for iv in range(ccel):  # Adjusted to 1-based index
-        for its in rang:
-            if TETC[its] is not None: #and np.sum(TETC[its]) > 0:  # Check if the array is not None and not empty
-                all_obj[iv, its] = np.sum(TETC[its] == iv + 1)  # Adjusted for 1-based index logic
             else:
                 all_obj[iv, its] = -1
 

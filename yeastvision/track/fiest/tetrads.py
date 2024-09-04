@@ -16,7 +16,7 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
     thresh = 80
 
     # tetrad masks are extended to go from index 0 of the movie to the end of the tetrad interval
-    tet_masks = [None] * tetrad_interval[-1] 
+    tet_masks = [None] * tetrad_interval[-1]
     im_shape = spoSeg_output[0].shape
     for i in range(len(tet_masks)): 
         if i >= tetrad_interval[0]:
@@ -137,7 +137,7 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
                 break
         ccel += 1
         rang2 = range(xx, len(tet_masks))
-        print(xx + 1)
+        #print(xx + 1)
 
 
     ccel -= 1  # number of cells tracked
@@ -207,18 +207,18 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
 
     TETmasks = replace_none_with_empty_array(TETmasks)
 
-    tet_dict = {
-    'start': start,
-    'TET_Size': TET_Size,
-    'TET_obj': TET_obj,
-    'TET_exists': TET_exists,
-    'TETmasks': TETmasks,
-    'shock_period': shock_period,
-    'thresh': thresh,
-    'thresh_next_cell': thresh_next_cell,
-    'thresh_percent': thresh_percent,
-    'tet_masks_exists_tp': tet_masks_exists_tp
-    }
+    # tet_dict = {
+    # 'start': start,
+    # 'TET_Size': TET_Size,
+    # 'TET_obj': TET_obj,
+    # 'TET_exists': TET_exists,
+    # 'TETmasks': TETmasks,
+    # 'shock_period': shock_period,
+    # 'thresh': thresh,
+    # 'thresh_next_cell': thresh_next_cell,
+    # 'thresh_percent': thresh_percent,
+    # 'tet_masks_exists_tp': tet_masks_exists_tp
+    # }
     
-    return start, TET_Size, TET_obj #tet_dict
+    return TET_obj, TET_exists, TETmasks
 

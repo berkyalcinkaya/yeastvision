@@ -181,18 +181,23 @@ def fiest_full_lifecycle(ims: np.ndarray, interp_intervals:Optional[List[dict]]=
     return {"cells": (tracked_cells)}
     
     
-def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interval, movie_length, shock_period):
-    tracked_tet_dict = track_tetrads(tetrads, tetrad_interval, movie_length, shock_period) # step2
-    tracked_mat_dict = track_mating(mating, mating_interval, shock_period) # step3
+def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interval, movie_length, shock_period=None):
+    
+    # TODO: MATLAB indexing anywhere?
+    
+    if shock_period is None:
+        shock_period=[0,0]
+    
+    TET_obj, TET_exists, TETmasks = track_tetrads(tetrads, tetrad_interval, movie_length, shock_period) # step2
+    Matmasks, mat_no_obj, cell_data = track_mating(mating, mating_interval, shock_period) # step3
 
-    proSeg_corrected_tetrads = correct_proSeg_with_tetrads(proSeg, tracked_tet_dict) # step4
+    proSeg_corrected_tetrads = correct_proSeg_with_tetrads(proSeg, shock_period, TET_obj, TET_exists, TETmasks) # step4
     
-    # step5 takes a tensor
-    proSeg_tracked_dict = track_correct_artilife(proSeg_corrected_tetrads, shock_period=shock_period) # step5
+    Mask7, art_cell_exists, no_obj = track_correct_artilife(proSeg_corrected_tetrads)
     
-    # TODO: transpose back into a list (y,x ) images for step6 and step7
+    Matmasks, mat_cell_data, mat_no_obj = correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj) # step6
+    correct_proSeg_with_mating(Matmasks, Mask7, art_cell_exists, mat_no_obj, mat_cell_data) # step7
     
-    mating_corrected = correct_mating(tracked_mat_dict, proSeg_tracked_dict) # step6
-    proSeg_corrected = correct_proSeg_with_mating(mating_corrected, proSeg_tracked_dict) # step7
+    # TODO: what to return here
+    # TODO: where are the tracked cells, tetrads, and mating cells?
     
-    return proSeg_corrected["Mask3"], mating_corrected["Matmasks_py"], tracked_tet_dict["TETmasks_py"]
