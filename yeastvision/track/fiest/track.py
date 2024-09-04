@@ -11,6 +11,7 @@ from .correction import correct_mating, correct_proSeg_with_mating, correct_proS
 from yeastvision.ims.interpolate import interpolate_intervals, get_interp_labels, deinterpolate
 from yeastvision.track.track import track_proliferating
 from yeastvision.track.lineage import LineageConstruction
+from .FL import FL
 
 logger = logging.getLogger(__name__)
 
@@ -182,21 +183,21 @@ def fiest_full_lifecycle(ims: np.ndarray, interp_intervals:Optional[List[dict]]=
     
     
 def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interval, movie_length, shock_period=None):
-    
+    FL(proSeg, tetrads, mating, mating_interval, tetrad_interval, len(proSeg), [0,0])
     # TODO: MATLAB indexing anywhere?
     
-    if shock_period is None:
-        shock_period=[0,0]
+    # if shock_period is None:
+    #     shock_period=[0,0]
     
-    TET_obj, TET_exists, TETmasks = track_tetrads(tetrads, tetrad_interval, movie_length, shock_period) # step2
-    Matmasks, mat_no_obj, cell_data = track_mating(mating, mating_interval, shock_period) # step3
+    # TET_obj, TET_exists, TETmasks = track_tetrads(tetrads, tetrad_interval, movie_length, shock_period) # step2
+    # Matmasks, mat_no_obj, cell_data = track_mating(mating, mating_interval, shock_period) # step3
 
-    proSeg_corrected_tetrads = correct_proSeg_with_tetrads(proSeg, shock_period, TET_obj, TET_exists, TETmasks) # step4
+    # proSeg_corrected_tetrads = correct_proSeg_with_tetrads(proSeg, shock_period, TET_obj, TET_exists, TETmasks) # step4
     
-    Mask7, art_cell_exists, no_obj = track_correct_artilife(proSeg_corrected_tetrads)
+    # Mask7, art_cell_exists, no_obj = track_correct_artilife(proSeg_corrected_tetrads)
     
-    Matmasks, mat_cell_data, mat_no_obj = correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj) # step6
-    correct_proSeg_with_mating(Matmasks, Mask7, art_cell_exists, mat_no_obj, mat_cell_data) # step7
+    # Matmasks, mat_cell_data, mat_no_obj = correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj) # step6
+    # correct_proSeg_with_mating(Matmasks, Mask7, art_cell_exists, mat_no_obj, mat_cell_data) # step7
     
     # TODO: what to return here
     # TODO: where are the tracked cells, tetrads, and mating cells?

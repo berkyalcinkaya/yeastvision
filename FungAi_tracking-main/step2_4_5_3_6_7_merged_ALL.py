@@ -43,7 +43,7 @@ from scipy.ndimage import binary_fill_holes
 
 # Define paths and parameters
 pos = 'Pos13_1_B' ### NOT BEING USED IN THE PYTHON SCRIPT BUT IS THERE IN THE MATLAB SCRIPT THAT DOES NOT USE THE ABSOLUTE PATH
-path = f'/Users\oargell\Desktop/Pos13_1_B/'
+path = f'/home/berk/code/yeastvision/test/Pos0_2_full_lifecycle/'
 sav_path = '/Users\oargell\Desktop/'
 
 Arti_v = 11
@@ -56,7 +56,7 @@ thresh_percent = 0.015 # step 2
 thresh_remove_last_mask = 10 # step 2
 thresh_next_cell = 400 # step 2
 thresh = 80 # step 2 
-shock_period = [122, 134] # step 2
+shock_period = [0, 0] # step 2
 
 
 # Load image file names

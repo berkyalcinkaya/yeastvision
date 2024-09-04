@@ -14,6 +14,7 @@ from skimage.transform import resize
 import numpy as np
 import argparse
 import logging
+import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 MASK_KEYWORD = "_masks"
@@ -31,15 +32,16 @@ def sort_masks(mask_files):
     return arts, mats, tets
 
 
-def load_and_pad_timeseries(template, start, stop, files, do_resize=True):
-    masks = np.zeros_like(template)
+def load_and_pad_timeseries(t, start, stop, files, do_resize=True):
+    im_shape = imread(files[0]).shape
+    masks = np.zeros((t, im_shape[0], im_shape[1]))
     
     if do_resize:
         new_shape = masks.shape[1:]
     
     file_counter = 0
     num_missing = 0
-    for i in range(len(template)):
+    for i in range(t):
         if i>=start and i<stop:
             file_idx = i-start-num_missing
             if get_time_point_from_image(files[file_counter]) == i: # zeros are kept otherwise
@@ -61,6 +63,7 @@ def get_time_point_from_image(fname, split_idx=1, split_delim="_"):
 def main(dir):
     ext = os.listdir(dir)[0].split(".")[-1]
     all_files = sorted(glob(join(dir, f"*.{ext}")))
+    print(all_files)
     all_masks, ims = [], []
     
     for file in all_files:
@@ -76,17 +79,18 @@ def main(dir):
     
     arts = np.array([imread(im) for im in art_files])
     
-    logging.info(f"Movie length: {len(ims)} ({arts.shape})")
+    tet_shape = imread(tet_files[0]).shape
+    mat_shape = imread(mat_files[0]).shape
+    t = len(ims)
+    
+    logging.info(f"Movie length: {t} | Shape: {arts.shape}")
     logging.info(f"Artilife: {len(arts)} ims")
-    logging.info(f"Mating: {mat_start} - {mat_stop}, {len(mat_files)} images")
-    logging.info(f"Tetrads: {tet_start} - {tet_stop}, {len(tet_files)} images")
+    logging.info(f"Mating (start - stop): {mat_start} - {mat_stop}, {len(mat_files)} x {mat_shape[0]} x {mat_shape[1]}")
+    logging.info(f"Tetrads (start - stop): {tet_start} - {tet_stop}, {len(tet_files)} x {tet_shape[0]} x {tet_shape[1]}")
     
-    tets = load_and_pad_timeseries(arts, tet_start, tet_stop, tet_files)
-    mats = load_and_pad_timeseries(arts, mat_start, mat_stop, mat_files)
-
-    
-
-    track_full_lifecycle(arts, mats, tets, [tet_start, tet_stop], [mat_start, mat_stop], len(ims), [0,0])
+    tets = load_and_pad_timeseries(t, tet_start, tet_stop, tet_files, do_resize=False)
+    mats = load_and_pad_timeseries(t, mat_start, mat_stop, mat_files, do_resize=False)
+    track_full_lifecycle(arts, mats, tets, [tet_start, tet_stop], [mat_start, mat_stop], len(ims), None)
 
 if __name__ == "__main__":
     logging.info("----FULL LIFECYCLE TRACKING (for pre-generated cell, mating, and tetrad masks)")

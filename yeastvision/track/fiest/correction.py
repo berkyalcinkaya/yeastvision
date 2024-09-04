@@ -9,8 +9,8 @@ from skimage.morphology import thin
 
 # step 4: correct proSeg masks using tracked tetrad masks from step2 (tetrad.py)
 def correct_proSeg_with_tetrads(art_masks: np.ndarray, shock_period, TET_obj, TET_exists, TETmasks):
-    shock_period[0] =  shock_period[0]-1
-    shock_period[1] = shock_period[1]-1
+    #shock_period[0] =  shock_period[0]-1
+    #shock_period[1] = shock_period[1]-1
     Art_MT = [art_masks[i] for i in range(len(art_masks))]
     for iv in range(TET_obj):
         # iv = 0;

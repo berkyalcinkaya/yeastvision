@@ -27,10 +27,8 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
     # Remove shock-induced timepoints, if possible
     if shock_period:
         for start, end in [shock_period]:
-            for i in range(start-1, end):
+            for i in range(start, end):
                 tet_masks[i] = None
-    
-
     start = -1
     for its in range(len(tet_masks)):
         if tet_masks[its] is not None and np.sum(tet_masks[its]) > 0:

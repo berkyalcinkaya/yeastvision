@@ -49,38 +49,39 @@ def _get_budSeg(budSeg_params, budSeg_weights)->BudSeg:
         budSeg_weights = produce_weight_path("budSeg", "budSeg")
     return BudSeg(budSeg_params, budSeg_weights), budSeg_params, budSeg_weights
 
+
 def remove_artif(I2A,disk_size): # I2A = IS2 % disk radius is 3 for ~500x~1000, 6 for larger images
-# we need a function to define the disk size base in the average cell size
-    I2AA=np.copy(I2A) #   plt.imshow(IS2)
-    # Applying logical operation and morphological opening
-    I2A1 = binar(I2A)#binar(I2A) plt.imshow(I2A1)     plt.imshow(I2A)
- 
-
-    # Create a disk-shaped structuring element with radius 3
-    selem = disk(disk_size)
-    # Perform morphological opening
-    I2B = opening(I2A1, selem)
-
-       
-    # Morphological dilation   plt.imshow(I2B)
-    I2C = dilation(I2B, disk(disk_size))  # Adjust the disk size as needed
-
-
-    I3 = I2AA * I2C # plt.imshow(I3)
-
-    # Extract unique objects
-    objs = np.unique(I3)
-    objs = objs[1:len(objs)]
+    # we need a function to define the disk size base in the average cell size
+        I2AA=np.copy(I2A) #   plt.imshow(IS2)
+        # Applying logical operation and morphological opening
+        I2A1 = binar(I2A);#binar(I2A) plt.imshow(I2A1)     plt.imshow(I2A)
     
-    # Initialize an image of zeros with the same size as I2A
-    I4 = np.uint16(np.zeros((I3.shape[0], I3.shape[1])))
-    # Mapping the original image values where they match the unique objects
-    AZ=1
-    for obj in objs:
-        I4[I2A == obj] = AZ
-        AZ=AZ+1
-    
-    return I4
+
+        # Create a disk-shaped structuring element with radius 3
+        selem = disk(disk_size)
+        # Perform morphological opening
+        I2B = opening(I2A1, selem)
+
+        
+        # Morphological dilation   plt.imshow(I2B)
+        I2C = dilation(I2B, disk(disk_size))  # Adjust the disk size as needed
+
+
+        I3 = I2AA * I2C # plt.imshow(I3)
+
+        # Extract unique objects
+        objs = np.unique(I3)
+        objs = objs[1:len(objs)]
+        
+        # Initialize an image of zeros with the same size as I2A
+        I4 = np.uint16(np.zeros((I3.shape[0], I3.shape[1])))
+        # Mapping the original image values where they match the unique objects
+        AZ=1
+        for obj in objs:
+            I4[I2A == obj] = AZ
+            AZ=AZ+1
+        
+        return I4
 
 #Helper Functions
 
@@ -167,5 +168,4 @@ def replace_none_with_empty_array(data):
         return np.array([])
     else:
         return data
-    
     

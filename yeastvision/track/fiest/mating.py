@@ -147,7 +147,7 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
     # Removing the shock-induced points from rang
     rang3 = list(rang)
     for start, end in [shock_period]:
-        for i in range(start-1, end):
+        for i in range(start, end):
             if i in rang3:
                 rang3.remove(i)
 
