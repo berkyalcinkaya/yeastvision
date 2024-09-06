@@ -180,7 +180,6 @@ def fiest_full_lifecycle(ims: np.ndarray, interp_intervals:Optional[List[dict]]=
 
     return {"cells": (tracked_cells)}
     
-
 def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interval, movie_length, shock_period):
     tracked_tet_dict = track_tetrads(tetrads, tetrad_interval, movie_length, shock_period)
     tracked_mat_dict = track_mating(mating, mating_interval, shock_period)
@@ -190,4 +189,4 @@ def track_full_lifecycle(proSeg, mating, tetrads, tetrad_interval, mating_interv
     mating_corrected = correct_mating(tracked_mat_dict, proSeg_tracked_dict)
     proSeg_corrected = correct_proSeg_with_mating(mating_corrected, proSeg_tracked_dict)
     
-    return proSeg_corrected["Mask3"], mating_corrected["Matmasks_py"], tracked_tet_dict["TETmasks_py"]d
+    return proSeg_corrected["Mask3"], mating_corrected["Matmasks_py"], tracked_tet_dict["TETmasks_py"]
