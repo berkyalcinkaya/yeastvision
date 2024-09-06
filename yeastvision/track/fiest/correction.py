@@ -9,12 +9,10 @@ from skimage.morphology import thin
 
 # step 4: correct proSeg masks using tracked tetrad masks from step2 (tetrad.py)
 def correct_proSeg_with_tetrads(art_masks: np.ndarray, shock_period, TET_obj, TET_exists, TETmasks):
-    #shock_period[0] =  shock_period[0]-1
-    #shock_period[1] = shock_period[1]-1
     Art_MT = [art_masks[i] for i in range(len(art_masks))]
-    for iv in range(TET_obj):
+    for iv in range(TET_obj):# TET_obj COMES FROM STEP 2
         # iv = 0;
-        if TET_exists[1][iv] >= shock_period[0]-1:#!  shock period corrected produce a single integer!!!
+        if TET_exists[1][iv] >= shock_period[0]-1:#!  shock period corrected produce a single integer!!!  # TET_exists COMES FROM STEP 2
             tp_end = shock_period[0]
         else:
             tp_end = TET_exists[1][iv] 
@@ -23,14 +21,15 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, shock_period, TET_obj, TE
             # its = 42 ;
             A1 = Art_MT[its].astype(np.double)
             if shock_period[0]-1 <= its <= shock_period[1]:#!!shock period corrected produce a single integer!!!!!!!!!!!!!!!!!!!!
-                T1 = (TETmasks[shock_period[0]-1] == iv + 1).astype(np.double)#! TETmasks correctd and shock period corrected produce a single integer[]
+                T1 = (TETmasks[shock_period[0]-1] == iv + 1).astype(np.double)#! TETmasks correct and shock period corrected produce a single integer[] # TETmasks COMES FROM STEP 2 
                 thresh = 0.6
             else:
                 T1 = (TETmasks[its] == iv + 1).astype(np.double)#!!!!!!!!!!!!!!!!!!  
                 thresh = 0.95 # plt.imshow(T1)
 
-            T1 = resize_image(T1, A1.shape,).astype(np.float64)
-        #  plt.imshow(T1, aspect='auto',interpolation='nearest')
+            if T1.shape != A1.shape:   
+                T1 = resize_image(T1, A1.shape,).astype(np.float64)
+          #  plt.imshow(T1, aspect='auto',interpolation='nearest')
             # plt.imshow(T1)
             Im1 = T1 > threshold_otsu(T1)
             # plt.imshow(Im1)
@@ -39,6 +38,7 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, shock_period, TET_obj, TE
             Im3 = A1 * Im2
             # plt.imshow(Im3)
             
+
             pix11 = []
             pix1 = np.unique(A1[Im3 != 0])
             for it2 in pix1:
@@ -60,9 +60,9 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, shock_period, TET_obj, TE
                     Art_MT[its][A1 == it2] = 0
                 Art_MT[its][T1 == 1] = np.max(Art_MT[its]) + 1
 
-    for iv in range(TET_obj):
+    for iv in range(TET_obj):  # TET_OBJ COMES FROM STEP 2
         # iv = 0
-        if TET_exists[1][iv] > shock_period[1] and TET_exists[0][iv] < shock_period[0]:
+         if TET_exists[1][iv] > shock_period[1] and TET_exists[0][iv] < shock_period[0]:
             s1 = np.sum(TETmasks[shock_period[1]+1] == iv+1)#!!!!!!!!!!!!!!!!!!!!!!
             for its in range(shock_period[1]+1, TET_exists[1][iv]):#!!!!!!!!!!!!!!!!!!!!!!!!
                 # its = 134;
@@ -87,7 +87,9 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, shock_period, TET_obj, TE
 
                 s1 = s2
                 #T1 = resize(T1, A1.shape, order=0, preserve_range=True)
-                T1 = resize_image(T1, A1.shape,).astype(np.float64)
+                
+                if T1.shape != A1.shape:
+                    T1 = resize_image(T1, A1.shape,).astype(np.float64)
                 # plt.imshow(T1)
                 Im1 = T1 > threshold_otsu(T1)
                 # plt.imshow(Im1)
@@ -116,14 +118,16 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, shock_period, TET_obj, TE
                     for it2 in pix11:
                         Art_MT[its][A1 == it2] = 0
                     Art_MT[its][T1 == 1] = np.max(Art_MT[its]) + 1
-    
+   
+    # Art_MT CONTAINS THE SPORE MASKS REPLACED THE PROSEG MASS FOR SPORES
     return Art_MT 
 
 # step 6: remove mating from proSeg
-def correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj):
-    if mat_no_obj  != 0:
-        MTrack = Matmasks
-        art_masks = Mask7 # this is a tensor do not transpose
+def correct_mating(Matmasks, Mask7, mat_no_obj, Mat_cell_data, cell_data):
+
+    if mat_no_obj  != 0: # mat_no_obj COMES FROM STEP 3
+        MTrack = Matmasks # Matmasks COMES FROM STEP 3
+        art_masks = Mask7 # this is a tensor do not transpose # Mask7 COMES FROM STEP 5
     
         mat_artifacts = []
 
@@ -135,7 +139,7 @@ def correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj):
         tp_end = len(art_masks[0][0])# tensor correction, gets last time point
         if len(MTrack) != tp_end: # loop for adding zeros matrixes 
             for its in range(len(MTrack[its]), tp_end):
-                MTrack.append(np.zeros_like(MTrack[int(min(cell_data[:, 0])) - 1], dtype=np.uint16))
+                MTrack.append(np.zeros_like(MTrack[int(min(Mat_cell_data[:, 0])) - 1], dtype=np.uint16)) # final_mat_cell_data COMES FROM STEP 3, 
 
         # Correcting mating tracks
         cor_data = np.zeros((3, mat_no_obj ))
@@ -147,7 +151,7 @@ def correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj):
 
         for iv in range(mat_no_obj ):
             # iv = 0;
-            int_range = range(int(cell_data[iv,0]), int(cell_data[iv,1]))  # Adjusting for 0-based indexing
+            int_range = range(int(Mat_cell_data[iv,0]), int(Mat_cell_data[iv,1]))  # Adjusting for 0-based indexing
             for its in int_range:
                 # its = 240;
                 M = np.uint16(MTrack[its] == iv + 1).T
@@ -172,7 +176,7 @@ def correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj):
 
         for iv in range(mat_no_obj ):
             # iv = 0
-            int_range = range(int(cell_data[iv,0]), int(cell_data[iv,1]))
+            int_range = range(int(Mat_cell_data[iv,0]), int(Mat_cell_data[iv,1]))
             if np.var(morph_data[iv, int_range]) > 0.02:
                 mat_artifacts.append(iv)
 
@@ -182,7 +186,7 @@ def correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj):
         for iv in range(mat_no_obj ):
             outlier = sorted(outlier_tps[iv])
             good = sorted(good_tps[iv])
-            int_range = range(int(cell_data[iv,0]), int(cell_data[iv,1]))
+            int_range = range(int(Mat_cell_data[iv,0]), int(Mat_cell_data[iv,1]))
             while outlier:
                 its = min(outlier)
                 gtp = max([g for g in good if g < its], default=min([g for g in good if g > its], default=its))
@@ -229,7 +233,7 @@ def correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj):
         for iv in range(mat_no_obj ):
             if cell_data[iv,1] != tp_end:
                 count = 0
-                for its in range(int(cell_data[iv,1])+1, tp_end): # its=156 check plus one is needed!!!!!!!!!!!!!
+                for its in range(int(Mat_cell_data[iv,1])+1, tp_end): # its=156 check plus one is needed!!!!!!!!!!!!!
                     A = art_masks[:,:,its]
                     M1 = (MTrack[its - 1] == (iv + 1))
                     M2 = thin(M1, 30)
@@ -248,12 +252,8 @@ def correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj):
                     else:
                         count += 1
                         MTrack[its][MTrack[its - 1] == (iv + 1)] = iv + 1
-                if count / (tp_end - cell_data[iv, 0]) > 0.8:
+                if count / (tp_end -Mat_cell_data[iv, 0]) > 0.8:
                     mat_artifacts.append(iv + 1)
-
-
-
-
 
 
         # Remove cell artifacts and rename
@@ -272,27 +272,39 @@ def correct_mating(Matmasks, Mask7, mat_no_obj, cell_data, no_obj):
             
 
         # Recalculating MAT Data
-    
-        all_obj_new = cal_allob2(mat_no_obj, MTrack, list(range(len(MTrack))))
-        cell_data_new = cal_celldata(all_obj_new, no_obj)
 
-        mat_cell_data = cell_data_new
+        all_obj_new = cal_allob2(mat_no_obj, MTrack, list(range(len(MTrack))))
+        cell_data_new = cal_celldata(all_obj_new, mat_no_obj)# should mat_no_obj
+
+        # THIS VARIABLES WILL BE USED IN STEP 7
+        final_mat_cell_data = cell_data_new 
         mat_all_obj = all_obj_new
         Matmasks = MTrack
-        return Matmasks, mat_cell_data, mat_no_obj
+
+        # sio.savemat(f'{sav_path}{pos}_MAT_16_18_Track1_py.mat', {
+        #     "Matmasks_py": Matmasks,
+        #     "all_obj_py": all_obj,
+        #     "cell_data_py": cell_data,
+        #     "no_obj_py": no_obj,
+        #     "shock_period_py": shock_period,
+        #     "mat_artifacts_py": mat_artifacts
+        # }, do_compression=True)
+
+
+    return Matmasks, final_mat_cell_data, mat_no_obj
 
 
 
 # step 7: Removes the mating events from sposeg tracks based on the overlapping tracked indices 
-def correct_proSeg_with_mating(Matmasks, Mask7, art_cell_exists, mat_no_obj, mat_cell_data):
-    for iv in range(int(mat_no_obj)): # this  no_onj should be for mat_no_obj
+def correct_proSeg_with_mating(Matmasks, Mask7, art_cell_exists, mat_no_obj, final_mat_cell_data):
+    for iv in range(int(mat_no_obj)): # mat_no_obj COMES FROM STEP 6  
         # iv = 3
         indx_remov = []
         final_indx_remov = []
 
-        for its in range(int(mat_cell_data[iv,0]), int(mat_cell_data[iv,1])):
+        for its in range(int(final_mat_cell_data[iv,0]), int(final_mat_cell_data[iv,1])):# final_mat_cell_data COMES FROM STEP 6  
             # its = 167
-            M = Matmasks[its]
+            M = Matmasks[its]#  Matmasks COMES FROM STEP 6  
             
             # sio.savemat(os.path.join(sav_path, 'M2_py.mat'), {
             #     "M2_py": M2
@@ -345,22 +357,31 @@ def correct_proSeg_with_mating(Matmasks, Mask7, art_cell_exists, mat_no_obj, mat
             # plt.imshow(M3, cmap='gray')
             # plt.title('M3')
             # plt.show()
+            
+        
+            
             indx = np.unique(A[M3 != 0])
+            
+            
             if indx.size > 0:
                 for itt2 in indx:
                     if np.sum(M3 == itt2) > 5:
                         indx_remov.append(itt2)
+        
+        
+        
+    
         if len(indx_remov) > 0:
             indx_remov_inter = np.unique(indx_remov)
             final_indx_remov = np.unique(indx_remov)
             for itt1 in indx_remov_inter:
                 # itt1 = 6
                 dist_data = -1 * np.ones(len(Mask7[0][0]))
-                for its1 in range(int(mat_cell_data[iv,0]), int(art_cell_exists[1,int(itt1)-1])):
+                for its1 in range(int(final_mat_cell_data[iv,0]), int(art_cell_exists[1,int(itt1)-1])): # final_mat_cell_data AND art_cell_exists COMES FROM STEPS 6 AND 5                  
                     # its1 = 141
                     if its1 >= art_cell_exists[0,int(itt1)-1]:
-                        M6 = (Mask7[:,:,its1] == itt1)  #  plt.imshow(M6, cmap='gray')
-                        M7 = (Matmasks[its1] == iv + 1) #  plt.imshow(M7, cmap='gray')
+                        M6 = (Mask7[:,:,its1] == itt1)  #  plt.imshow(M6, cmap='gray')# Mask7 COMES FROM STEP 5    
+                        M7 = (Matmasks[its1] == iv + 1) #  plt.imshow(M7, cmap='gray')# Matmasks COMES FROM STEP 6   
                         dist_data[its1] = np.sum(M6 * M7) / np.sum(M6)
                 
                 if np.any(dist_data != -1):
@@ -370,49 +391,8 @@ def correct_proSeg_with_mating(Matmasks, Mask7, art_cell_exists, mat_no_obj, mat
                     if val_avg <= 0.4:
                         final_indx_remov = np.setdiff1d(final_indx_remov, itt1)
             
-            for its in range(int(mat_cell_data[iv,0]), len(Mask7[0][0])):
+            for its in range(int(final_mat_cell_data[iv,0]), len(Mask7[0][0])):# final_mat_cell_data AND Mask7 COMES FROM STEPS 6 AND 5   
                 for itt in final_indx_remov:
                     Mask7[:,:,its][Mask7[:,:,its] == itt] = 0
-   
     
-   
-   # plt.imshow(Mask7[:,:,its], cmap='gray')    
-   
-    
-   
-    
-   
-    
-   
-# shock_period = mat['shock_period']
-# no_obj = art['no_obj']
-# ccell2 = art['ccell2']
-# cell_exists = art['cell_exists']
-# im_no = art['im_no']
-  
-    # sio.savemat(os.path.join(sav_path, f'{pos}_ART_Track1.mat'), {
-    #     "no_obj": no_obj,
-    #     "shock_period": shock_period,
-    #     "Mask7": Mask7,
-    #     "im_no": im_no,
-    #     "ccell2": ccell2,
-    #     "cell_exists": cell_exists
-    # }, do_compression=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return Mask7

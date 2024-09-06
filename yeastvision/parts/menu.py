@@ -22,6 +22,14 @@ def menubar(parent):
     labelObjects = QAction("Label Unique Regions", parent)
     labelObjects.triggered.connect(parent.labelCurrMask)
     editMenu.addAction(labelObjects)
+    
+    measureMenu = mainMenu.addMenu("Measure")
+    measureCells = QAction("Show Measuring Tape")
+    measureCells.triggered.connect(parent.buildMeasureWindow)
+    measureMenu.addAction(measureCells)
+    getAvgDiams = QAction("Get avg diams")
+    getAvgDiams.triggered.connect(parent.measureDiams)
+    measureMenu.addAction(getAvgDiams)
 
     preMenu = mainMenu.addMenu("Preprocess")
     medianFilter = QAction("Median Filter", parent)

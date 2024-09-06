@@ -26,6 +26,7 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
     for start, end in [shock_period]:
         for i in range(start, end):
             mat_masks[i] = None
+    
     start = -1
     for its in range(len(mat_masks)):
         # if mat_masks[its] is not None and np.sum(mat_masks[its]) > 0:
@@ -34,7 +35,7 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
             break
 
     # Tracking all detections
-    print("Tracking All Detections")
+    #print("Tracking All Detections")
     if start != -1:
         rang = range(start, len(mat_masks))
         I2 = mat_masks[start]
@@ -51,13 +52,6 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
     xx = start
     rang2 = rang
     ccel = 1
-
-    # uq = mat_masks[50]
-    # print(np.unique(uq)[0:])
-    # plt.figure()
-    # plt.imshow(np.uint16(uq), cmap='gray')
-    # plt.title('uq')
-    # plt.show()
 
     while xx != -1:
         for im_no in rang2:
@@ -225,12 +219,15 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
                 MATC[0][its][pix] = iv + 1
 
     all_obj = cal_allob(ccel, MATC, rang)
-    cell_data = cal_celldata(all_obj, ccel)
+    Mat_cell_data = cal_celldata(all_obj, ccel) # CHANGED FROM CELL DATA TOfinal_mat_cell_data
 
     #plt.imshow(all_obj, extent=[0, len(rang2), 0, ccel], aspect='auto', interpolation='nearest')
+
     mat_no_obj = ccel # this has to be changed to mat_obj!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     rang3=range(len(MATC[0]))
-    Matmasks = [MATC[0][i] for i in rang3]
+
+    Matmasks = [MATC[0][i] for i in rang3] # MATMASKS CONTAIN ONLY TRACKED MASKS FOR MATING CELLS    
     Matmasks =replace_none_with_empty_array(Matmasks)
+    #     Mat_cell_data, mat_no_obj,
     
-    return Matmasks, mat_no_obj, cell_data
+    return Matmasks, mat_no_obj, Mat_cell_data, cell_data

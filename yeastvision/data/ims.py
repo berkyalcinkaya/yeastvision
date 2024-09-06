@@ -15,7 +15,7 @@ class Experiment():
 
     MASK_KEYWORD = "_mask"
 
-    def __init__(self, dir, num_channels = 1, v = False):
+    def __init__(self, dir, num_channels = 1, ims_only = False, v = False):
         self.id = get_id()
         self.dir = dir
         _, self.name = os.path.split(self.dir)
@@ -37,13 +37,13 @@ class Experiment():
             print("Found", len(mask_npzs), "mask .npz files")
             print(mask_npzs)
             
-        if mask_npzs:
+        if (not ims_only) and mask_npzs:
             self.load_with_mask_npzs(mask_npzs, num_channels)
         else:
             if v:
                 print()
                 print("no mask npzs detected. Attempting to load from directory", self.dir)
-            self.load_from_dir(num_channels, v = v)
+            self.load_from_dir(num_channels, ims_only=ims_only, v = v)
         
         if im_npzs:
             self.load_channels_from_npz_files(im_npzs)
@@ -143,7 +143,7 @@ class Experiment():
     def has_labels(self):
         return self.num_labels>0
 
-    def load_from_dir(self, num_channels, v = False):
+    def load_from_dir(self, num_channels, ims_only=False, v = False):
         channels = [[] for i in range(num_channels)]
         
         files_image_only = sorted(get_image_files(self.dir, remove_masks=True))
@@ -153,6 +153,10 @@ class Experiment():
             raise FileNotFoundError
         
         files = sorted(get_image_files(self.dir))
+        
+        if ims_only:
+            files = files_image_only
+        
         if v:
             print("Found the following image files (anything with _mask remove):")
             print(files_image_only)
@@ -191,18 +195,33 @@ class Experiment():
         if len(files_image_only) == 0:
             print("DIRECTORY WITH ONLY MASKS DETECTED")
             raise FileNotFoundError
+        
         files = sorted(get_image_files(self.dir))
         num_images = len(files_image_only)/num_channels
-        groupsize = num_channels
+        num_labels = int(len(files)/num_images - num_channels)
+        labels = [[] for i  in range(int(num_labels))]
+        groupsize = num_channels+num_labels
         
-        for i in range(0, len(files_image_only), groupsize):
-            group = files_image_only[i:i+groupsize]
+        for i in range(0, len(files), groupsize):
+            group = files[i:i+groupsize]
+            
             channels_in_group = self.get_channnels_from_fname_list(group)
+            labels_group = self.get_masks_from_fname_list(group)
+        
             for channel, channel_in_group in zip(channels, channels_in_group):
                 channel.append(channel_in_group)
+            for label, label_in_group in zip(labels, labels_group):
+                label.append(label_in_group)
         
         for channel in channels:
             self.add_channel(channel, increment_count=False)
+        
+        if num_labels>0:
+            for label in labels:
+                would_be_id = get_id_from_name(sorted(label)[0])
+                if not any([np.load(npz_path)["id"] == would_be_id for npz_path in mask_npzs]):         
+                    self.add_label(files = label, increment_count=True)
+                
         for npz_path in tqdm(mask_npzs):
             self.labels.append(Label(npz_path=npz_path))
             self.num_labels+=1
@@ -231,7 +250,7 @@ class Experiment():
     
     def delete_channel(self, index):
         self.num_channels -= 1
-        self.channels[index].save()
+        self.channels[index].delete()
         del self.channels[index]
     
     def delete_label(self, index):
@@ -381,6 +400,9 @@ class Channel(Files):
     def get_saturation(self, t):
         return self.saturation[t]
     
+    def delete(self):
+        return
+    
 
 class ChannelNoDirectory(Channel):
     def __init__(self, npz_path = None, ims = None, dir = None, name = None, annotations = None):
@@ -431,6 +453,10 @@ class ChannelNoDirectory(Channel):
     def get_file_names(self):
         return [get_file_name(self.path)]
 
+    def delete(self):
+        logger.info(f"Removing channel data file {self.path}")
+        os.remove(self.path)
+    
 class InterpolatedChannel(ChannelNoDirectory):
     '''
     Stores interpolated images and associated information for front-end display and interaction. Also contains the
@@ -549,14 +575,15 @@ class Label(Files):
                 self.init_from_npz()
 
             else:   
-                self.id = get_id()
                 self.name = name           
                 if fnames is not None:
+                    self.id = get_id_from_name(fnames[0])
                     self.files = fnames
                     self.dir = os.path.dirname(self.files[0])
                     raw_arrays = np.array([imread(file) for file in self.files])
                 elif mask_arrays is not None:
                     assert(mask_arrays is not None and dir is not None)
+                    self.id = get_id()
                     self.dir = dir
                     self.files = []
                     raw_arrays = np.array(mask_arrays)            

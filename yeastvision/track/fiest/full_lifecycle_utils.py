@@ -32,7 +32,8 @@ def track_correct_artilife(Art_MT):
     for it0 in mm: # notice IS1 will be updated in the loop it0=0
         #print(f'it0={it0}')
         # Load the future cellpose mask, IS2: IS2 is the current image being re-indexed for tracking
-        IS2 = np.copy(Masks3[it0]).astype('uint16') # plt.imshow(IS2)    
+        IS2 = np.copy(Masks3[it0]).astype('uint16') # plt.imshow(IS2)
+ 
         IS2 = remove_artif(IS2, disk_size) # set disk_size as needed # 5 is ideal to match MATLAB's disk_size=6
         
         IS2C = np.copy(IS2) # plt.imshow(IS2C) # <--- a copy of IS2, gets updated in it1
@@ -97,7 +98,7 @@ def track_correct_artilife(Art_MT):
             IS1 = IS2.copy()
 
     toc = time.time()
-    logger.info(f'Elapsed time is {toc - tic} seconds.')
+    logger.info(f'GENERAL TRACKING: Elapsed time is {toc - tic} seconds.')
 
 
     """
@@ -116,13 +117,6 @@ def track_correct_artilife(Art_MT):
         for i in range(im_no):
             pix = np.sum(Maa[:, :, i])
             all_ob[ccell-1, i] = pix
-
-    # plt.figure()
-    # plt.imshow(all_ob, aspect='auto', cmap='viridis', interpolation="nearest")
-    # plt.title("all_obj")
-    # plt.xlabel("Time")
-    # plt.ylabel("Cells")
-    # plt.show()
 
     """
     Tracks as a tensor
@@ -160,14 +154,6 @@ def track_correct_artilife(Art_MT):
         for ih in range(numbM):
             if Ma[:, :, ih].sum() != 0:
                 tp_im[cel-1, ih] = 1
-
-
-    # plt.figure()
-    # plt.imshow(tp_im, aspect='auto', interpolation="nearest")
-    # plt.title("Cell Presence Over Time")
-    # plt.xlabel("Time")
-    # plt.ylabel("Cells")
-    # plt.show()
 
 
     """
@@ -224,7 +210,7 @@ def track_correct_artilife(Art_MT):
                         Mask3[:, :, itx] = tp3.copy()    
                     no_obj1 += A
     toc = time.time()
-    logger.info(f'Elapsed time is {toc - tic} seconds.')
+    logger.info(f'GENERAL TRACKING: Elapsed time is {toc - tic} seconds.')
 
 
     """
@@ -242,14 +228,6 @@ def track_correct_artilife(Art_MT):
         for ih in range(numbM):
             if Ma[:, :, ih].sum() != 0:
                 tp_im[cel-1, ih] = 1
-
-
-    # plt.figure()
-    # plt.imshow(tp_im, aspect='auto', interpolation="nearest")
-    # plt.title("Cell Presence Over Time")
-    # plt.xlabel("Time")
-    # plt.ylabel("Cells")
-    # plt.show()
 
     """
     Get good cells
@@ -296,13 +274,6 @@ def track_correct_artilife(Art_MT):
             if Ma[:, :, ih].sum() != 0:
                 tp_im[cel-1, ih] = 1
 
-    # plt.figure()
-    # plt.imshow(tp_im, aspect='auto', interpolation="nearest")
-    # plt.title("Cell Presence Over Time")
-    # plt.xlabel("Time")
-    # plt.ylabel("Cells")
-    # plt.show()
-
     #######
     cell_exists0 = np.zeros((2, tp_im.shape[0]))
     for itt2 in range(tp_im.shape[0]):
@@ -327,6 +298,7 @@ def track_correct_artilife(Art_MT):
     cell_exists = cell_exists0[:, sortOrder]
     art_cell_exists = cell_exists
 
+
     # Re-label
     Mask6 = np.zeros_like(Mask5)
         
@@ -348,7 +320,7 @@ def track_correct_artilife(Art_MT):
     for cel in range(1, no_obj1 + 1):
         tp_im[cel - 1, :] = ((Mask7 == cel).sum(axis=(0, 1)) != 0).astype(int)
     toc = time.time()
-    logger.info(f'Elapsed time is {toc - tic} seconds.')
+    logger.info(f'GENERAL TRACKING: Elapsed time is {toc - tic} seconds.')
 
     # plt.figure()
     # plt.imshow(tp_im, aspect='auto', interpolation="nearest")
@@ -363,6 +335,9 @@ def track_correct_artilife(Art_MT):
     im_no = Mask7.shape[2]
     all_ob = np.zeros((no_obj, im_no))
 
+    # plt.imshow(Mask7[:,:,im_no-1])
+    # MASK7 CONTAINS THE TRACKED SPO-CORRECTED PROSEG MASKS, INCLUDING THE MATING EVENTS 
+
 
     tic = time.time()
     for ccell in range(1, no_obj + 1):
@@ -372,11 +347,13 @@ def track_correct_artilife(Art_MT):
             pix = np.sum(Maa[:, :, i])
             all_ob[ccell-1, i] = pix
     toc = time.time()
-    logger.info(f'Elapsed time is {toc - tic} seconds.')
+    logger.info(f'GENERAL TRACKING: Elapsed time is {toc - tic} seconds.')
 
-    # Art_obj = np.unique(Mask7)
-    # Art_no_obj = int(np.max(obj))
-    # Art_im_no = Mask7.shape[2]
-    # Art_all_ob = all_ob
 
-    return Mask7, art_cell_exists, no_obj
+    ## COMES FROM: THESE VARIABLES WILL BE USED IN THE LATER STEPS ALONG WITH MASK7
+    Art_obj = np.unique(Mask7)
+    Art_no_obj = int(np.max(obj))
+    Art_im_no = Mask7.shape[2]
+    Art_all_ob = all_ob
+    
+    return Mask7, art_cell_exists

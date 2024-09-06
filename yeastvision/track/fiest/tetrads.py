@@ -6,7 +6,6 @@ from skimage.morphology import skeletonize, erosion, square
 from skimage.filters import threshold_otsu
 from scipy.stats import mode
 from yeastvision.track.fiest.utils import cal_allob2, cal_allob1, cal_celldata, replace_none_with_empty_array, binar
-    
 
 def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:int, shock_period:Optional[List[int]]=None):
     # define some global variables
@@ -24,18 +23,18 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
         else:
             tet_masks[i] = np.zeros(im_shape, dtype=np.uint16)
     
-    # Remove shock-induced timepoints, if possible
-    if shock_period:
-        for start, end in [shock_period]:
-            for i in range(start, end):
-                tet_masks[i] = None
+    for start, end in [shock_period]:
+        for i in range(start, end):
+            tet_masks[i] = None
+    
+    ###  find timepoint of first TET detection
     start = -1
     for its in range(len(tet_masks)):
         if tet_masks[its] is not None and np.sum(tet_masks[its]) > 0:
             start = its
             break
 
-    # Tracking all detections
+    ### determine the period to track or rang
     if start != -1:
         rang = range(start, len(tet_masks))
         I2 = tet_masks[start]
@@ -44,6 +43,10 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
         rang = range(len(tet_masks))
         I2 = tet_masks[0]
         A = np.zeros_like(tet_masks[0])
+
+
+    # Tracking all detections
+    #  actual tracking loop
 
     IS6 = np.zeros_like(I2)
     TETC = [None] * 2
@@ -142,14 +145,14 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
 
     # Removing the shock-induced points from rang
     rang3 = list(rang)
-    if shock_period:
-        for start, end in [shock_period]:
-            for i in range(start-1, end):
-                if i in rang3:
-                    rang3.remove(i)
-    
+    for start, end in [shock_period]:
+        for i in range(start, end):
+            if i in rang3:
+                rang3.remove(i)
+
     all_obj = cal_allob1(ccel, TETC, rang)
     cell_data = cal_celldata(all_obj, ccel) ## double check values
+
     k = 1
     cell_artifacts = []
     for iv in range(ccel):
@@ -177,7 +180,7 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
     # Correcting the SpoSeg track masks or filling the empty spaces between the first and last appearance
     # Removing artifacts
     all_obj1 = cal_allob1(len(good_cells), TETC, rang)
-    # plt.imshow(all_obj1, extent=[0, x_scale, 0, y_scale], aspect='auto')
+    # plt.imshow(all_obj1, extent=[0, x_scale, 0, y_scale], aspect='auto',interpolation='nearest')
     cell_data1 = cal_celldata(all_obj1, len(good_cells))
 
     for iv in range(len(good_cells)):
@@ -202,21 +205,6 @@ def track_tetrads(spoSeg_output:np.ndarray, tetrad_interval: List, movie_length:
         TET_exists[1, iv] = np.where(TET_Size[iv, :] > 0)[0][-1]  # last occurrence
 
     tet_masks_exists_tp = rang3
-
     TETmasks = replace_none_with_empty_array(TETmasks)
-
-    # tet_dict = {
-    # 'start': start,
-    # 'TET_Size': TET_Size,
-    # 'TET_obj': TET_obj,
-    # 'TET_exists': TET_exists,
-    # 'TETmasks': TETmasks,
-    # 'shock_period': shock_period,
-    # 'thresh': thresh,
-    # 'thresh_next_cell': thresh_next_cell,
-    # 'thresh_percent': thresh_percent,
-    # 'tet_masks_exists_tp': tet_masks_exists_tp
-    # }
-    
     return TET_obj, TET_exists, TETmasks
 
