@@ -14,8 +14,22 @@ import sys
 import os
 from PIL import Image
 import pandas as pd
+import math
 
 YV_DIR = pathlib.Path.home().joinpath(".yeastvision")
+
+def divide_and_round_up(input_tuple: tuple) -> tuple:
+    """
+    Divides each element of the input tuple by 2 and rounds up.
+
+    Parameters:
+    input_tuple (tuple): A tuple containing two integers.
+
+    Returns:
+    tuple: A tuple with each element divided by 2 and rounded up.
+    """
+    return (math.ceil(input_tuple[0] / 2), math.ceil(input_tuple[1] / 2))
+
 
 def resize_image_OAM(image, target_shape):
     zoom_factors = [n / float(o) for n, o in zip(target_shape, image.shape)]

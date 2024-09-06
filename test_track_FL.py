@@ -60,7 +60,7 @@ def get_time_point_from_image(fname, split_idx=1, split_delim="_"):
     return int((os.path.split(fname)[-1]).split(split_delim)[split_idx])
 
                 
-def main(dir):
+def main(dir, info_only):
     ext = os.listdir(dir)[0].split(".")[-1]
     all_files = sorted(glob(join(dir, f"*.{ext}")))
     all_masks, ims = [], []
@@ -87,6 +87,9 @@ def main(dir):
     logging.info(f"Mating (start - stop): {mat_start} - {mat_stop}, {len(mat_files)} x {mat_shape[0]} x {mat_shape[1]}")
     logging.info(f"Tetrads (start - stop): {tet_start} - {tet_stop}, {len(tet_files)} x {tet_shape[0]} x {tet_shape[1]}")
     
+    if info_only:
+        return
+    
     tets = load_and_pad_timeseries(t, tet_start, tet_stop, tet_files, do_resize=False)
     mats = load_and_pad_timeseries(t, mat_start, mat_stop, mat_files, do_resize=False)
     track_full_lifecycle(arts, mats, tets, [tet_start, tet_stop], [mat_start, mat_stop], len(ims), None)
@@ -95,9 +98,12 @@ if __name__ == "__main__":
     logging.info("----FULL LIFECYCLE TRACKING (for pre-generated cell, mating, and tetrad masks)")
     parser = argparse.ArgumentParser(description="Track the full lifecycle of yeast colonies with sporulating and mating cells.")
     parser.add_argument('dir', type=str, help="Directory containing the movie files and segmentation masks.")
+    parser.add_argument('--mat_keyword', required=False, type=str, default="_MAT16")
+    parser.add_argument('--info_only', action="store_true")
     args = parser.parse_args()    
     dir = args.dir
+    MAT_KEYWORD = args.mat_keyword
     if not os.path.exists(dir) or not os.path.isdir(dir):
         raise ValueError(f"{dir} does not exist or is not a directory")
     logging.info(f"Utilizing dir {dir} for masks")
-    main(dir)
+    main(dir, args.info_only)
