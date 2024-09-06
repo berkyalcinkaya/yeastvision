@@ -2,5 +2,4 @@
 "budSeg": ["nucleus", "organelles", "vacuole"],
 "spoSeg": ["spores", "sporulating cells"], 
 "matSeg": ["mating cells"], 
-"filaSeg": ["filamentous organisms"], 
 "flouSeg": ["flourescence signals"]}

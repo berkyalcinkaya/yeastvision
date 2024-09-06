@@ -50,7 +50,7 @@ import functools
 os.environ['QT_LOGGING_RULES'] = '*.warning=false'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 torch.cuda.empty_cache() 
-# warnings.filterwarnings("ignore") TODO: remove this for deployment
+warnings.filterwarnings("ignore") #TODO: remove this for deployment
 
 global logger
 logger, _ = logger_setup()
