@@ -17,6 +17,10 @@ import pandas as pd
 
 YV_DIR = pathlib.Path.home().joinpath(".yeastvision")
 
+def resize_image_OAM(image, target_shape):
+    zoom_factors = [n / float(o) for n, o in zip(target_shape, image.shape)]
+    return zoom(image, zoom_factors, order=0)
+
 def resize_image_scipy(image: np.ndarray, factor: float) -> np.ndarray:
     """
     Resizes an image by a decimal factor using scipy.ndimage.zoom.
