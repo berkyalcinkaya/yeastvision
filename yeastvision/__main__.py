@@ -5,7 +5,7 @@ from yeastvision.parts.workers import FiestWorker, SegmentWorker, TrackWorker, I
 from yeastvision.parts.dialogs import *
 from yeastvision.track.track import track_to_cell, track_proliferating
 from yeastvision.track.data import LineageData, TimeSeriesData
-from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, exportCellData, getHeatMaps, getPotentialHeatMapNames
+from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, average_axis_lengths, exportCellData, getHeatMaps, getPotentialHeatMapNames
 import yeastvision.plot.plot as plot
 from yeastvision.utils import *
 import yeastvision.ims.im_funcs as im_funcs
@@ -21,10 +21,11 @@ import os
 import torch
 import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore
-from PyQt5.QtWidgets import (QApplication, QGroupBox, QPushButton, QMessageBox,
+from PyQt5.QtWidgets import (QApplication, QSplitter, QGroupBox, QPushButton, QMessageBox,
                              QStatusBar, QFileDialog, QSpinBox, QLabel, QWidget, QComboBox, 
-                             QSizePolicy, QGridLayout, QProgressBar)
+                             QSizePolicy, QGridLayout, QProgressBar, QShortcut, QVBoxLayout)
 from PyQt5.QtCore import Qt, QThread
+from PyQt5.QtGui import QKeySequence
 from QSwitchControl import SwitchControl
 import pyqtgraph as pg
 import matplotlib.pyplot as plt
@@ -55,18 +56,16 @@ global logger
 logger, _ = logger_setup()
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, dir = None, dir_num_channels = None):
+    def __init__(self, dir = None, dir_num_channels = None, dir_ims_only=False):
         super(MainWindow, self).__init__()
         pg.setConfigOption('imageAxisOrder', 'row-major')
         self.setWindowTitle("yeastvision")
-        self.setGeometry(100, 100, 900, 1000)
+        self.setGeometry(100, 100, 1200, 1000)
         self.setAcceptDrops(True)
 
-        #self.idealThreadCount  = thread.idealThreadCount()//2
         self.idealThreadCount = 2
-
         self.sessionId = self.getCurrTimeStr()
-
+        
         self.INTERP_MODEL_NAME = "RIFE"
         self.PROB_ID = 1
         self.FLOW_ID = 2
@@ -95,23 +94,71 @@ class MainWindow(QtWidgets.QMainWindow):
                               "background-color: rgb(30,30,30); "
                              "border-color: white;"
                               "color:rgb(80,80,80);}")
+        self.labelstyle = """QLabel{
+                            color: white
+                            } 
+                         QToolTip { 
+                           background-color: black; 
+                           color: white; 
+                           border: black solid 1px
+                           }"""
+        self.statusbarstyle = ("color: white;" "background-color : black")
+        self.boldfont = QtGui.QFont("Arial", 14, QtGui.QFont.Bold)
+        self.medfont = QtGui.QFont("Arial", 12)
+        self.smallfont = QtGui.QFont("Arial", 10)
+        self.headings = ('color: rgb(200,10,10);')
+        self.dropdowns = ("color: white;"
+                        "background-color: rgb(40,40,40);"
+                        "selection-color: white;"
+                        "selection-background-color: rgb(50,100,50);")
+        self.checkstyle = "color: rgb(190,190,190);"
+        
         self.firstMaskLoad = True
-
+        
         self.getModelNames()
         self.importModelClasses()
         self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
 
-        self.cwidget = QWidget(self)
-        self.l = QGridLayout()
-        self.cwidget.setLayout(self.l)
+        # Setting up the central widget and main layout
+        self.cwidget = QtWidgets.QWidget(self)
+        self.mainLayout = QtWidgets.QGridLayout(self.cwidget)
         self.setCentralWidget(self.cwidget)
-        self.l.setSpacing(1)
 
+        # Create a QSplitter to separate left controls and main window
+        self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        self.mainLayout.addWidget(self.splitter, 1, 0, 1, 1)
+
+        # Left panel widget for controls
+        self.leftWidget = QtWidgets.QWidget()
+        self.leftLayout = QtWidgets.QGridLayout(self.leftWidget)
+        self.splitter.addWidget(self.leftWidget)
+
+        # Right panel widget for the image and data selectors
+        self.rightWidget = QtWidgets.QWidget()
+        self.rightLayout = QtWidgets.QVBoxLayout(self.rightWidget)
+        self.splitter.addWidget(self.rightWidget)
+
+        # Create a horizontal layout for data selectors and place it in the right panel
+        self.dataSelectorLayout = QtWidgets.QHBoxLayout()
+        self.build_data_selectors()
+        self.add_spacer_to_data_selectors()
+
+        # Add the data selectors layout to the right layout (above the image)
+        self.rightLayout.addLayout(self.dataSelectorLayout)
+        
+        self.build_data_display()
+
+        # Main viewer (GraphicsLayoutWidget) for the image display
         self.win = pg.GraphicsLayoutWidget()
-        self.mainViewRows = 30
-        self.mainViewCols  = 21
-        self.l.addWidget(self.win, 0,0, self.mainViewRows, self.mainViewCols)
+        self.rightLayout.addWidget(self.win)
+
+        # Make sure the viewer takes up most of the screen
+        self.splitter.setStretchFactor(0, 1)  # Buttons panel stretch
+        self.splitter.setStretchFactor(1, 10)  # Main viewer stretch
         self.make_viewbox()
+        
+        self.hist_off = True
+        self.colors = [(0,0,0,255), (255,255,255,255)]
 
         self.labelX, self.labelY = None, None
         self.currMaskDtype = "uint8"
@@ -121,9 +168,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.workers = []
         
         self.setEmptyDisplay(initial=True)
+        self.build_status_bar()
         self.build_widgets()
-        self.l.setHorizontalSpacing(15)
-        self.l.setVerticalSpacing(15)
+        self.add_spacer_to_left()
+        
+        self.updateDataDisplay()
         
         self.drawType = ""
         self.cellToChange = 0
@@ -177,7 +226,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if dir_num_channels is None:
                 dir_num_channels = 1
             logger.info(f"Loading Experiment Directory from {dir} with {dir_num_channels} channels")
-            self.loadExperiment(dir, num_channels=dir_num_channels)
+            self.loadExperiment(dir, num_channels=dir_num_channels, ims_only=dir_ims_only)
 
     @property
     def maxT(self):
@@ -253,6 +302,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._tIndex = num
         except AttributeError:
             self._tIndex = num
+    
+    def return_focus_to_main_window(self):
+        # Set focus back to the main window's central widget
+        return
+        #self.centralWidget().setFocus()
     
     def get_channel_obj_from_name(self, channel_name):
         channel_idx = self.channelSelect.findText(channel_name)
@@ -342,7 +396,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.imZ = -1
         self.currIm =  np.zeros((512,512), dtype = np.uint8)
         self.imChanged = False
-        self.pg_im.setImage(self.currIm, autoLevels=False, levels = [0,0])
+        self.colors = [(0,0,0,255), (255, 255,255,255)]
+        
+        self.pg_im.clear()
+        self.pg_im.setLookupTable(None) 
+        
+        self.histogram.setLevels(self.saturation[0], self.saturation[1])
+            #self.setHistGradient(self.saturation)
+        #self.saturationSlider.setMaximum(self.imData.channels[self.imZ][:,:,:].max())
+        #self.saturationSlider.resetLevels(self.saturation)
+        self.pg_im.setImage(self.currIm, autoLevels=False, levels = [0,255])
+        
+        self.setHistGradient([0,1])
+        
+        #self.setHistGradient()
 
         if not initial:
             self.channelSelect.clear()
@@ -356,7 +423,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.selectedCells = []
         self.selectedCellContourColors = []
         self.cmap = self.getMaskCmap()
+        
         self.probCmap = self.getProbCmap()
+        #self.pg_im.setLookupTable(self.convertMatplotlibCmapToPg(self.probCmap))
+        
         self.flowCmap = self.getFlowCmap()
         self.maskColors = self.cmap.copy()
         self.maskChanged = False
@@ -383,23 +453,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.computeMaxT()
         self.updateDisplay()
         #self.saveData()
-
-    # def newMasks(self, name = None):
-    #     if not self.maskLoaded:
-    #         self.maskLoaded = True
-    #         self.enableMaskOperations()
-    #     self.maskChanged = True
-
-    #     if name:
-    #         self.labelSelect.addItem(self.getNewLabelName(name))
-    #     else:
-    #         self.labelSelect.addItem("Label " + str(self.maskData.maxZ))
         
-    #     self.maskTypeSelect.checkMaskRemote()
-
-    #     self.cellData.append(None)
-    #     self.newData()
-    
     def addBlankMasks(self):
         if not self.imLoaded:
             self.showError("Load Images First")
@@ -418,7 +472,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view.setCursor(QtCore.Qt.CrossCursor)
         self.brush_size =3
 
-        self.win.addItem(self.view, row = 0, col = 0, rowspan = 20, colspan = 20)
+        self.win.addItem(self.view, row = 0, col = 0, rowspan = 20, colspan = 17)
         self.view.setMenuEnabled(False)
         self.view.setMouseEnabled(x=True, y=True)
 
@@ -428,39 +482,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view.addItem(self.pg_im)
         self.view.addItem(self.pg_mask)
         self.pg_mask.setZValue(10)
-    
-
+        
+        self.histogram = pg.HistogramLUTItem(gradientPosition="left")
+        self.histogram.setImageItem(self.pg_im)
+        self.win.addItem(self.histogram, row=0, col=17, rowspan=20, colspan=3)
+        
     def getCellColors(self,im):
         return np.take(self.maskColors, np.unique(im), 0)
 
-    def build_widgets(self):
-        rowspace = self.mainViewRows+1
-        cspace = 2
-        self.labelstyle = """QLabel{
-                            color: white
-                            } 
-                         QToolTip { 
-                           background-color: black; 
-                           color: white; 
-                           border: black solid 1px
-                           }"""
-        self.statusbarstyle = ("color: white;" "background-color : black")
-        self.boldfont = QtGui.QFont("Arial", 14, QtGui.QFont.Bold)
-        self.medfont = QtGui.QFont("Arial", 12)
-        self.smallfont = QtGui.QFont("Arial", 10)
-        self.headings = ('color: rgb(200,10,10);')
-        self.dropdowns = ("color: white;"
-                        "background-color: rgb(40,40,40);"
-                        "selection-color: white;"
-                        "selection-background-color: rgb(50,100,50);")
-        self.checkstyle = "color: rgb(190,190,190);"
-
+    def build_status_bar(self):
         self.statusBar = QStatusBar()
         self.statusBar.setFont(self.medfont)
         self.statusBar.setStyleSheet(self.statusbarstyle)
         self.setStatusBar(self.statusBar)
 
-        self.gpuDisplayTorch = ReadOnlyCheckBox("gpu - torch  |  ")
+        self.gpuDisplayTorch = ReadOnlyCheckBox(" gpu |  ")
         self.gpuDisplayTorch.setFont(self.smallfont)
         self.gpuDisplayTorch.setStyleSheet(self.checkstyle)
         self.gpuDisplayTorch.setChecked(False)
@@ -484,7 +520,6 @@ class MainWindow(QtWidgets.QMainWindow):
             display.setChecked(False)
         
         self.progressBar = QProgressBar(self)
-
         self.progressBar.setStyleSheet("""
             QProgressBar {
                 border: 2px solid grey;
@@ -507,30 +542,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBarLayout.addWidget(self.progressBar, 0,6,1,1)
         self.statusBar.addWidget(self.statusBarWidget)
         
-        self.dataDisplay = QLabel("")
-        self.dataDisplay.setMinimumWidth(300)
-        # self.dataDisplay.setMaximumWidth(300)
-        self.dataDisplay.setStyleSheet(self.labelstyle)
-        self.dataDisplay.setFont(self.medfont)
-        self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
-        self.updateDataDisplay()
-        self.l.addWidget(self.dataDisplay, rowspace-1,cspace,1,20)
-
+    def build_data_selectors(self):
         self.experimentLabel = QLabel("Experiment:")
         self.experimentLabel.setStyleSheet(self.labelstyle)
         self.experimentLabel.setFont(self.smallfont)
-        self.l.addWidget(self.experimentLabel, 0,1,1,2)
+        self.dataSelectorLayout.addWidget(self.experimentLabel)
+
         self.experimentSelect= QComboBox()
         self.experimentSelect.setStyleSheet(self.dropdowns)
-        self.experimentSelect.setFocusPolicy(QtCore.Qt.NoFocus)
+        #self.experimentSelect.setFocusPolicy(QtCore.Qt.NoFocus)
         self.experimentSelect.setFont(self.medfont)
         self.experimentSelect.currentIndexChanged.connect(self.experimentChange)
-        self.l.addWidget(self.experimentSelect, 0, 3, 1,2)
+        self.dataSelectorLayout.addWidget(self.experimentSelect)
         
         self.channelSelectLabel = QLabel("Channel: ")
         self.channelSelectLabel.setStyleSheet(self.labelstyle)
         self.channelSelectLabel.setFont(self.smallfont)
-        self.l.addWidget(self.channelSelectLabel, 0, self.mainViewCols-9,1,1)
+        self.dataSelectorLayout.addWidget(self.channelSelectLabel)
+        
         self.channelSelect = CustomComboBox(lambda x: self.deleteData(x, channel = True), parent = self, channel = True)
         self.channelSelect.setStyleSheet(self.dropdowns)
         self.channelSelect.setFont(self.medfont)
@@ -538,17 +567,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setEditable(True)
         self.channelSelect.editTextChanged.connect(self.channelSelectEdit)
         self.channelSelect.setEnabled(False)
-        self.l.addWidget(self.channelSelect, 0, self.mainViewCols-8,1, 2)
-        self.l.setAlignment(self.channelSelect, QtCore.Qt.AlignLeft)
+        self.dataSelectorLayout.addWidget(self.channelSelect)
+        
+        self.dataSelectorLayout.setAlignment(self.channelSelect, QtCore.Qt.AlignLeft)
         self.channelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.channelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.channelSelect.setMinimumWidth(200)
+        self.channelSelect.setFixedHeight(30)
+        #self.channelSelect.setFocusPolicy(QtCore.Qt.NoFocus)
         setattr(self.channelSelect, "items", lambda: [self.channelSelect.itemText(i) for i in range(self.channelSelect.count())])
 
         self.labelSelectLabel = QLabel("Label: ")
         self.labelSelectLabel.setStyleSheet(self.labelstyle)
         self.labelSelectLabel.setFont(self.smallfont)
-        self.l.addWidget(self.labelSelectLabel, 0, self.mainViewCols-6,1,1)
+        self.dataSelectorLayout.addWidget(self.labelSelectLabel)
+        
         self.labelSelect = CustomComboBox(lambda x: self.deleteData(x, label = True), parent = self)
         self.labelSelect.setStyleSheet(self.dropdowns)
         self.labelSelect.setFont(self.medfont)
@@ -556,41 +589,90 @@ class MainWindow(QtWidgets.QMainWindow):
         self.labelSelect.setEditable(True)
         self.labelSelect.editTextChanged.connect(self.labelSelectEdit)
         self.labelSelect.setEnabled(False)
-        self.l.addWidget(self.labelSelect, 0, self.mainViewCols-5,1,2)
-        self.l.setAlignment(self.labelSelect, QtCore.Qt.AlignLeft)
+        self.dataSelectorLayout.addWidget(self.labelSelect)
+        
+        self.dataSelectorLayout.setAlignment(self.labelSelect, QtCore.Qt.AlignLeft)
         setattr(self.labelSelect, "items", lambda: [self.labelSelect.itemText(i) for i in range(self.labelSelect.count())])
         self.labelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.labelSelect.setMinimumWidth(200)
         self.labelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        #self.labelSelect.setFocusPolicy(QtCore.Qt.NoFocus)
 
         self.imageTypeLabel = QLabel("image type:")
         self.imageTypeLabel.setStyleSheet(self.labelstyle)
         self.imageTypeLabel.setFont(self.smallfont)
-        self.l.addWidget(self.imageTypeLabel, 0, self.mainViewCols-3, 1, 1)
+        self.dataSelectorLayout.addWidget(self.imageTypeLabel)
+        
         self.imageTypeSelect = QComboBox()
         self.imageTypeSelect.setStyleSheet(self.dropdowns)
         self.imageTypeSelect.setFont(self.medfont)
         self.imageTypeSelect.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.imageTypeSelect.addItems(["image", "probability", "flowsXY"])
+        self.imageTypeSelect.addItems(["image[i]", "probability[p]", "flowsXY[f]"])
         self.imageTypeSelect.setCurrentIndex(0)
         self.imageTypeSelect.setEnabled(True)
-        self.imageTypeSelect.setMinimumWidth(100)
-        self.l.setAlignment(self.imageTypeSelect, QtCore.Qt.AlignLeft)
+        self.imageTypeSelect.setMaximumWidth(100)
+        self.dataSelectorLayout.setAlignment(self.imageTypeSelect, QtCore.Qt.AlignLeft)
         self.imageTypeSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.l.addWidget(self.imageTypeSelect, 0, self.mainViewCols-2, 1, 1)
+        self.dataSelectorLayout.addWidget(self.imageTypeSelect)
+        
         self.imageTypeSelect.setEnabled(True)
         self.set_prob_and_flows_dropdown(False)
         self.imageTypeSelect.currentIndexChanged.connect(self.imageTypeChange)
+        
+                # Assign shortcuts to specific indices
+        self.assignShortcutToIndex("i", 0)  # Ctrl+1 will set the combobox to index 0
+        self.assignShortcutToIndex("p", 1)  # Ctrl+2 will set the combobox to index 1
+        self.assignShortcutToIndex("f", 2)  # Ctrl+3 will set the combobox to index 2
 
+    def add_spacer_to_data_selectors(self):
+        # Add a horizontal stretchable spacer to keep data selectors compact
+        spacer = QtWidgets.QSpacerItem(250, 40, QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Minimum)
+        self.dataSelectorLayout.addItem(spacer)
+    
+    def build_data_display(self):
+        self.dataDisplay = QLabel("")
+        self.dataDisplay.setMinimumWidth(300)
+        # self.dataDisplay.setMaximumWidth(300)
+        self.dataDisplay.setStyleSheet(self.labelstyle)
+        self.dataDisplay.setFont(self.medfont)
+        self.dataDisplay.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignBottom)
+        self.rightLayout.addWidget(self.dataDisplay)
+    
+    def add_horizontal_line(self, row):
+        line = QtWidgets.QFrame()
+        line.setFrameShape(QtWidgets.QFrame.HLine)
+        line.setStyleSheet('color: white')
+        self.leftLayout.addWidget(line, row, 0, 1, 2)
+
+    def add_labeled_widget(self, label, widget, row):
+        self.leftLayout.addWidget(label, row, 0)
+
+        self.leftLayout.addWidget(widget, row, 1)
+
+    def add_two_buttons(self, button1, button2, row):
+        self.leftLayout.addWidget(button1, row, 0)
+        self.leftLayout.addWidget(button2, row, 1)
+
+    def add_spacer_to_left(self):
+        # Add a stretchable spacer at the bottom to prevent widgets from spreading out
+        spacer = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        self.leftLayout.addItem(spacer)
+    
+    def build_widgets(self):
+        row = 1
+        
+        fixed_spacer = QtWidgets.QSpacerItem(20, 50, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        self.leftLayout.addItem(fixed_spacer)
+        
         label = QLabel('Drawing:')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
         label.setFont(self.boldfont)
-        self.l.addWidget(label, rowspace,1,1,5)
+        self.leftLayout.addWidget(label, row, 0, 1, 2)
+        row+=1
 
         label = QLabel("Brush Type:")
         label.setStyleSheet(self.labelstyle)
         label.setFont(self.medfont)
-        self.l.addWidget(label,rowspace+1,1,1,2)
         self.brushTypeSelect = QComboBox()
         self.brushTypeSelect.addItems(["Eraser", "Brush", "Outline"])
         self.brushTypeSelect.setCurrentIndex(-1)
@@ -602,13 +684,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.brushTypeSelect.setEnabled(False)
         self.brushTypeSelect.setFixedWidth(90)
         self.brushTypeSelect.setEnabled(False)
-        self.l.addWidget(self.brushTypeSelect, rowspace+1,3,1,1)
+        self.add_labeled_widget(label, self.brushTypeSelect, row)
+        row+=1
 
-        
         label = QLabel("Brush Size")
         label.setStyleSheet(self.labelstyle)
         label.setFont(self.medfont)
-        self.l.addWidget(label, rowspace+2,1,1,2)
         self.brush_size = 3
         self.brushSelect = QSpinBox()
         self.brushSelect.setMinimum(1)
@@ -620,16 +701,17 @@ class MainWindow(QtWidgets.QMainWindow):
         edit = self.brushSelect.lineEdit()
         edit.setFocusPolicy(QtCore.Qt.NoFocus)
         self.brushSelect.setEnabled(False)
-        self.l.addWidget(self.brushSelect, rowspace+2,3,1,1)
-
-        line = QVLine()
-        line.setStyleSheet('color:white;')
-        self.l.addWidget(line, rowspace,4,6,1)
+        self.add_labeled_widget(label, self.brushSelect, row)
+        row+=1
+        
+        self.add_horizontal_line(row)
+        row+=1
 
         label = QLabel('Tracking')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
         label.setFont(self.boldfont)
-        self.l.addWidget(label, rowspace,5,1,4)
+        self.leftLayout.addWidget(label, row, 0, 1, 2)
+        row += 1
 
         self.fiestButton = QPushButton('track with FIEST')
         self.fiestButton.setStyleSheet(self.styleInactive)
@@ -637,8 +719,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fiestButton.clicked.connect(self.fiestButtonClick)
         self.fiestButton.setEnabled(False)
         self.fiestButton.setToolTip("Frame Interpolation Enhanced Tracking")
-        self.l.addWidget(self.fiestButton, rowspace+1, 5,1,4)
-
+        
+        self.trackButton = QPushButton('basic track')
+        #self.trackButton.setFixedWidth(90)
+        #self.trackButton.setFixedHeight(20)
+        self.trackButton.setStyleSheet(self.styleInactive)
+        self.trackButton.setFont(self.medfont)
+        self.trackButton.clicked.connect(self.trackButtonClick)
+        self.trackButton.setEnabled(False)
+        self.trackButton.setToolTip("Track current cell labels")
+        
+        self.add_two_buttons(self.fiestButton, self.trackButton, row)
+        row+=1
+        
         self.lineageButton = QPushButton("construct lineages")
         self.lineageButton.setStyleSheet(self.styleInactive)
         #self.lineageButton.setFixedWidth(90)
@@ -649,17 +742,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showMotherDaughters = False
         self.showLineages = False
         self.lineageButton.clicked.connect(self.getLineages)
-        self.l.addWidget(self.lineageButton, rowspace+2, 5,1,4)
-
-        self.trackButton = QPushButton('basic track')
-        #self.trackButton.setFixedWidth(90)
-        #self.trackButton.setFixedHeight(20)
-        self.trackButton.setStyleSheet(self.styleInactive)
-        self.trackButton.setFont(self.medfont)
-        self.trackButton.clicked.connect(self.trackButtonClick)
-        self.trackButton.setEnabled(False)
-        self.trackButton.setToolTip("Track current cell labels")
-        self.l.addWidget(self.trackButton, rowspace+3, 5,1,2)
 
         self.trackObjButton = QPushButton('track label to cell')
         #self.trackObjButton.setFixedWidth(90)
@@ -669,39 +751,34 @@ class MainWindow(QtWidgets.QMainWindow):
         self.trackObjButton.clicked.connect(self.trackObjButtonClick)
         self.trackObjButton.setEnabled(False)
         self.trackObjButton.setToolTip("Track current non-cytoplasmic label to a cellular label")
-        self.l.addWidget(self.trackObjButton, rowspace+3, 7,1,2)
+        
+        self.add_two_buttons(self.lineageButton, self.trackObjButton, row)
+        row+=1
 
         self.interpolateButton = QPushButton("interpolate movie")
         self.interpolateButton.setStyleSheet(self.styleInactive)
         self.interpolateButton.setFont(self.medfont)
         self.interpolateButton.setEnabled(False)
         self.interpolateButton.clicked.connect(self.interpolateButtonClicked)
-        self.l.addWidget(self.interpolateButton, rowspace+4, 5,1,2)
 
         self.interpRemoveButton = QPushButton("de-interpolate")
         self.interpRemoveButton.setStyleSheet(self.styleInactive)
         self.interpRemoveButton.setFont(self.medfont)
         self.interpRemoveButton.setEnabled(False)
         self.interpRemoveButton.clicked.connect(self.interpRemoveButtonClicked)
-        self.l.addWidget(self.interpRemoveButton, rowspace+4, 7,1,2)
-
-        line = QVLine()
-        line.setStyleSheet('color:white;')
-        self.l.addWidget(line, rowspace,9,6,1)
+        
+        self.add_two_buttons(self.interpolateButton, self.interpRemoveButton, row)
+        row+=1
+        
+        self.add_horizontal_line(row)
+        row+=1
     
         label = QLabel('Segmentation')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
         label.setFont(self.boldfont)
-        self.l.addWidget(label, rowspace,10,1,5)
+        self.leftLayout.addWidget(label, row, 0, 1, 2)
+        row+=1
         
-        #----------UNETS-----------
-        #self.artiButton = QPushButton(u'artilife full lifecycle')
-        #self.artiButton.setEnabled(False)
-        #self.artiButton.setFont(self.medfont)
-        #self.artiButton.clicked.connect(self.computeArtilifeModel)
-        #self.artiButton.setStyleSheet(self.styleInactive)
-        #self.l.addWidget(self.artiButton, rowspace+1, 10, 1,5, Qt.AlignTop)
-
         self.GB = QGroupBox("Unets")
         self.GB.setStyleSheet("QGroupBox { border: 1px solid white; color:white; padding: 10px 0px;}")
         self.GBLayout = QGridLayout()
@@ -710,51 +787,40 @@ class MainWindow(QtWidgets.QMainWindow):
     
         self.modelChoose = QComboBox()
         self.modelChoose.addItems(sorted(self.modelNames, key = lambda x: x[0]))
-            #self.modelChoose.setItemChecked(i, False)
-        #self.modelChoose.setFixedWidth(180)
         self.modelChoose.setStyleSheet(self.dropdowns)
         self.modelChoose.setFont(self.medfont)
         self.modelChoose.setFocusPolicy(QtCore.Qt.NoFocus)
         self.modelChoose.setCurrentIndex(-1)
         self.modelChoose.setFixedWidth(180)
-        self.GBLayout.addWidget(self.modelChoose, 0,0,1,7)
+        self.GBLayout.addWidget(self.modelChoose, 0,0,1,1)
 
         self.modelButton = QPushButton(u'run model')
         self.modelButton.clicked.connect(self.computeModels)
-        self.GBLayout.addWidget(self.modelButton, 0,7,1,2)
+        self.GBLayout.addWidget(self.modelButton, 0,1,1,1)
         self.modelButton.setEnabled(False)
         self.modelButton.setStyleSheet(self.styleInactive)
-        self.l.addWidget(self.GB, rowspace+1,10,3,5, Qt.AlignTop | Qt.AlignHCenter)
+        self.leftLayout.addWidget(self.GB, row, 0, 2, 2, Qt.AlignTop | Qt.AlignHCenter)
+        row+=2
 
-
-        #------Flourescence Segmentation -----------pp-p-
-        # self.segButton = QPushButton(u'blob detection')
-        # self.segButton.setEnabled(False)
-        # self.segButton.clicked.connect(self.doFlou)
-        # self.segButton.setStyleSheet(self.styleInactive)
-        # self.l.addWidget(self.segButton, rowspace+4,10,3,5, Qt.AlignTop)
-
-        #----------------------------------s-------------
-
-        line = QVLine()
-        line.setStyleSheet('color:white;')
-        self.l.addWidget(line, rowspace,15,6,1)
-
+        self.add_horizontal_line(row)
+        row+=1
+        
         label = QLabel('Display')#[\u2191 \u2193]')
         label.setStyleSheet(self.headings)
         label.setFont(self.boldfont)
-        self.l.addWidget(label, rowspace,16,1,5)
+        self.leftLayout.addWidget(label, row, 0, 1, 2)
+        row+=1
 
         # "Show Contours" switch
         contourLabel = QLabel("cell contours")
         contourLabel.setStyleSheet(self.labelstyle)
         contourLabel.setFont(self.medfont)
-        self.l.addWidget(contourLabel, rowspace + 1, 16, 1, 1)
         self.contourButton = SwitchControl()
         self.contourButton.setStyleSheet(self.checkstyle)
         self.contourButton.stateChanged.connect(self.toggleContours)
         self.contourButton.setEnabled(False)
-        self.l.addWidget(self.contourButton, rowspace + 1, 17, 1, 1)
+        self.add_labeled_widget(contourLabel, self.contourButton, row)
+        row+=1
 
         # # "Show Plot Window" switch
         # plotLabel = QLabel("plot window")
@@ -770,12 +836,12 @@ class MainWindow(QtWidgets.QMainWindow):
         maskLabel = QLabel("masks")
         maskLabel.setStyleSheet(self.labelstyle)
         maskLabel.setFont(self.medfont)
-        self.l.addWidget(maskLabel, rowspace + 2, 16, 1, 1)
         self.maskOnCheck = SwitchControl()
         self.maskOnCheck.setStyleSheet(self.checkstyle)
         self.maskOnCheck.setEnabled(False)
         self.maskOnCheck.stateChanged.connect(self.toggleMask)
-        self.l.addWidget(self.maskOnCheck, rowspace + 2, 17, 1, 1)
+        self.add_labeled_widget(maskLabel, self.maskOnCheck, row)
+        row+=1
 
         # # "Probability" switch
         # probLabel = QLabel("pixel probability")
@@ -792,46 +858,52 @@ class MainWindow(QtWidgets.QMainWindow):
         motherDaughtersLabel = QLabel("mother-daughters")
         motherDaughtersLabel.setStyleSheet(self.labelstyle)
         motherDaughtersLabel.setFont(self.medfont)
-        self.l.addWidget(motherDaughtersLabel, rowspace + 1, 18, 1, 1)
         self.showMotherDaughtersButton = SwitchControl()
         self.showMotherDaughtersButton.setStyleSheet(self.checkstyle)
         self.showMotherDaughtersButton.setEnabled(False)
         self.showMotherDaughtersButton.stateChanged.connect(self.toggleMotherDaughters)
-        self.l.addWidget(self.showMotherDaughtersButton, rowspace + 1, 19, 1, 1)
+        self.add_labeled_widget(motherDaughtersLabel, self.showMotherDaughtersButton, row)
+        row+=1
 
         # "cell nums" switch
         cellNumLabel = QLabel("cell numbers")
         cellNumLabel.setStyleSheet(self.labelstyle)
         cellNumLabel.setFont(self.medfont)
-        self.l.addWidget(cellNumLabel, rowspace + 3, 16, 1, 1)
         self.cellNumButton = SwitchControl()
         self.cellNumButton.setStyleSheet(self.checkstyle)
         self.cellNumButton.setEnabled(False)
         self.cellNumButton.stateChanged.connect(self.toggleCellNums)
-        self.l.addWidget(self.cellNumButton, rowspace + 3, 17, 1, 1)
+        self.add_labeled_widget(cellNumLabel, self.cellNumButton, row)
+        row+=1
 
         # "lineages" switch
         lineageLabel = QLabel("lineages")
         lineageLabel.setStyleSheet(self.labelstyle)
         lineageLabel.setFont(self.medfont)
-        self.l.addWidget(lineageLabel, rowspace + 2, 18, 1, 1)
         self.showLineageButton = SwitchControl()
         self.showLineageButton.setStyleSheet(self.checkstyle)
         self.showLineageButton.setEnabled(False)
         self.showLineageButton.stateChanged.connect(self.toggleLineages)
-        self.l.addWidget(self.showLineageButton, rowspace + 2, 19, 1, 1)
+        self.add_labeled_widget(lineageLabel, self.showLineageButton, row)
+        row+=1
 
         # "lineage tree" switch
         treeLabel = QLabel("lineage tree")
         treeLabel.setStyleSheet(self.labelstyle)
         treeLabel.setFont(self.medfont)
-        self.l.addWidget(treeLabel, rowspace + 3, 18, 1, 1)
         self.showTreeButton = SwitchControl()
         self.showTreeButton.setStyleSheet(self.checkstyle)
         self.showTreeButton.setEnabled(False)
         self.showTreeButton.stateChanged.connect(self.toggleLineageTreeWindow)
-        self.l.addWidget(self.showTreeButton, rowspace + 3, 19, 1, 1)
+        self.add_labeled_widget(treeLabel, self.showTreeButton, row)
 
+        # for i in range(self.mainViewRows):
+        #     self.l.setRowStretch(i, 10)
+
+        # self.l.setColumnStretch(20,2)
+        # self.l.setColumnStretch(0,2)
+        # self.l.setContentsMargins(0,0,0,0)
+        # self.l.setSpacing(0)
 
 
         # self.contourButton = QCheckBox("Show Contours")
@@ -909,13 +981,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.saturationSlider.setFocusPolicy(QtCore.Qt.NoFocus)
         # self.saturationSlider.setEnabled(False)
         # self.l.addWidget(self.saturationSlider, rowspace+4, 22,1,3)
-        for i in range(self.mainViewRows):
-            self.l.setRowStretch(i, 10)
+        # for i in range(self.mainViewRows):
+        #     self.l.setRowStretch(i, 10)
 
-        self.l.setColumnStretch(20,2)
-        self.l.setColumnStretch(0,2)
-        self.l.setContentsMargins(0,0,0,0)
-        self.l.setSpacing(0)
+        # self.l.setColumnStretch(20,2)
+        # self.l.setColumnStretch(0,2)
+        # self.l.setContentsMargins(0,0,0,0)
+        # self.l.setSpacing(0)
 
     def set_prob_and_flows_dropdown(self, b):
         self.imageTypeSelect.model().item(1).setEnabled(b)
@@ -944,7 +1016,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lineageButton.setEnabled(True)
         self.lineageButton.setStyleSheet(self.styleUnpressed)
     
-
+        
+    def assignShortcutToIndex(self, key_sequence, index):
+        """Assign a single key shortcut to select a specific index in the QComboBox."""
+        shortcut = QShortcut(QKeySequence(key_sequence), self)
+        shortcut.activated.connect(lambda: self.setImTypeSelectIndexIfEnabled(index))
+        
+    def setImTypeSelectIndexIfEnabled(self, index):
+        """Set the combobox index only if the item is enabled."""
+        if self.imageTypeSelect.model().item(index).isEnabled():
+            self.imageTypeSelect.setCurrentIndex(index)
+        else:
+            print(f"Index {index} is disabled and cannot be selected.")
 
     def disableMaskOperations(self):
         self.brushSelect.setEnabled(False)
@@ -1087,7 +1170,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.imChanged = True
             self.updateDisplay()
-    
+
+        self.return_focus_to_main_window()
+        
     def channelSelectRemote(self):
         index = self.imZ
         self.channelSelect.setCurrentIndex(index)
@@ -1106,6 +1191,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.maskZ = index
                 self.maskChanged = True
                 self.updateDisplay()
+                self.imageTypeSelect.setCurrentIndex(0)
+                self.checkProbability()
+        self.return_focus_to_main_window()
     
     def labelSelectRemote(self):
         index = self.maskZ
@@ -1228,7 +1316,31 @@ class MainWindow(QtWidgets.QMainWindow):
         wizard = FiestFullLifeCycleWizard(self, valid_channels, seg_model_options, mat_model_options, 
                                           spore_model_options)
         if wizard.exec():
-            print(wizard.getData())
+            self.startFiestFLWorker(wizard.getData())
+    
+    def startFiestFLWorker(self, fiest_data):
+        channel = self.experiment().channels[fiest_data["channelIndex"]]
+        ims = channel.ims
+        intervals = fiest_data["intervals"]
+        
+        proSegWeightName = fiest_data["proSeg"]["modelWeight"]
+        proSegWeightPath = join(MODEL_DIR, "proSeg", proSegWeightName)
+        
+        spoSegWeightName = fiest_data["spoSeg"]["modelWeight"]
+        spoSegWeightPath = join(MODEL_DIR, "spoSeg", spoSegWeightName)
+        spore_intervals = [fiest_data["spoSeg"]["t_start"], fiest_data["spoSeg"]["t_stop"]]
+        
+        matSegWeightName = fiest_data["matSeg"]["modelWeight"]
+        matSegWeightPath = join(MODEL_DIR, "matSeg", matSegWeightName)
+        mat_intervals = [fiest_data["matSeg"]["t_start"], fiest_data["matSeg"]["t_stop"]]
+        
+        def worker_func(): return fiest_full_lifecycle(ims,intervals, fiest_data["proSeg"], proSegWeightPath, 
+                                                       fiest_data["matSeg"], matSegWeightPath, fiest_data["spoSeg"], 
+                                                       spoSegWeightPath, shock_period=None, mat_start=mat_intervals[0],
+                                                       mat_stop=mat_intervals[1], spo_start=spore_intervals[0], spo_stop = spore_intervals[1]
+                                                       )
+        worker = FiestWorker(worker_func, self.experiment_index, channel.id, False)
+        self.runLongTask(worker, self.fiestFLFinished, self.fiestButton)
         
     def fiestProliferating(self):
         SEG_MODEL_TYPE = "proSeg"
@@ -1252,10 +1364,9 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         wizard = FiestWizard(self, valid_channels, seg_model_options, bud_model_options)
         if wizard.exec():
-            self.startFiestWizard(wizard.getData())
+            self.startFiestWorker(wizard.getData())
     
-    def startFiestWizard(self, fiest_data):
-        print(fiest_data)
+    def startFiestWorker(self, fiest_data):
         channel = self.experiment().channels[fiest_data["channelIndex"]]
         ims = channel.ims
         intervals = fiest_data["intervals"]
@@ -1273,6 +1384,16 @@ class MainWindow(QtWidgets.QMainWindow):
         worker = FiestWorker(worker_func, self.experiment_index, channel.id, doLineage)
         self.runLongTask(worker, self.fiestProlifFinished, self.fiestButton)        
     
+    def fiestFLFinished(self, fiest_output, exp_idx, channel_id, lineage):
+        im_name = self.getChannelNameFromId(channel_id, exp_idx=exp_idx)
+        proSeg_output_name = f"{im_name}_fiest-general"
+        matSeg_output_name = f"{im_name}_fiest-mating"
+        spoSeg_output_name = f"{im_name}_fiest-tetrads"
+        
+        self.loadMasks(fiest_output["cells"], exp_idx=exp_idx, name=proSeg_output_name)
+        self.loadMasks(fiest_output["spores"], exp_idx=exp_idx, name=spoSeg_output_name)
+        self.loadMasks(fiest_output["mating"], exp_idx=exp_idx, name=matSeg_output_name)
+        
     def fiestProlifFinished(self, fiest_output, exp_idx, channel_id, lineage):
         im_name = self.getChannelNameFromId(channel_id, exp_idx=exp_idx)
         proSeg_name = f"{im_name}_fiest"
@@ -1282,9 +1403,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.experiments[exp_idx].labels[-1].celldata = LineageData(new_label_obj.id, new_label_obj.get_labels(),
                                                                         daughters=fiest_output["lineages"][0],
                                                                         mothers=fiest_output["lineages"][1])
+            self.experiments[exp_idx].labels[-1].save()
             self.loadMasks(fiest_output["buds"], exp_idx=exp_idx, name=f"{im_name}_buds_fiest")
         else:
             self.loadMasks(fiest_output, exp_idx=exp_idx, name=proSeg_name)
+
+    def saveAllChannels(self, exp_idx=None):
+        if exp_idx is None:
+            exp_idx = self.experiment_index
+        
+        for label in self.experiments[exp_idx].labels:
+            label.save()
+            
         
     def getChannelNameFromId(self, id, exp_idx=None):
         return self.getChannelFromId(id, exp_idx=exp_idx).name
@@ -1396,7 +1526,7 @@ class MainWindow(QtWidgets.QMainWindow):
             cellI = self.labelSelect.findText(data["cells"])
             necks = self.experiment().get_label("labels", idx = neckI)
             cells = self.experiment().get_label("labels", idx = cellI)
-            cell_id = self.experiment().channels[cellI].id
+            cell_id = self.experiment().labels[cellI].id
         else:
             return
   
@@ -1502,12 +1632,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pg_mask.image = self.maskColors[self.currMask]  
         self.pg_mask.updateImage()
 
-    
     def addCellNumsToCurrIm(self):
         vals, xtemp, ytemp = self.getCellCenters(self.currMask)
         image = self.pg_mask.image
         for i in range(0,len(xtemp)):
-            image = cv2.putText(image, str(vals[i]), (xtemp[i], ytemp[i]), cv2.FONT_HERSHEY_SIMPLEX, 0.30, (255,255,255,255), 1)
+            image = cv2.putText(image, str(vals[i]), (xtemp[i], ytemp[i]), cv2.FONT_HERSHEY_SIMPLEX, 0.23, (255,255,255,255), 1)
         self.pg_mask.image = image
         self.pg_mask.updateImage()
     
@@ -1526,6 +1655,19 @@ class MainWindow(QtWidgets.QMainWindow):
         data = data.to_numpy()
         self.lineageWindow = plot.LineageTreeWindow(self, data, selected_cells=self.selectedCells)
 
+    def measureDiams(self):
+        if not self.maskLoaded:
+            self.showError("No Masks Loaded. Draw or Segment First")
+            return
+        avg_maj, avg_minor = average_axis_lengths(self.currMask)
+        self.showTimedPopup(f"Avg major axis length (pixels): {avg_maj}\n Avg minor axis length (pixels): {avg_minor}")
+    
+    def buildMeasureWindow(self):
+        if self.measure_window is not None:
+            self.measure_window = MeasureWindow(self.currIm, self)
+        else:
+            self.showError("Measuring Window already open")
+    
     def buildTSPlotWindow(self):
         win = PlotWindowCustomizeTimeSeries(self)
 
@@ -1668,9 +1810,15 @@ class MainWindow(QtWidgets.QMainWindow):
             dataString += f"x={str(x)}, y={str(y)}, value={str(val)}"
 
         if self.imLoaded:
-            dataString += f'\n{self.channel().get_files(self.tIndex)}'
-
-            dataString += f" | IMAGE: {self.channel().get_string(self.tIndex)}, T: {self.tIndex}/{self.channel().max_t()}"
+            if not self.prob_or_flow_on():
+                dataString += f'\n{self.channel().get_files(self.tIndex)}'
+                dataString += f" | IMAGE: {self.channel().get_string(self.tIndex)}, T: {self.tIndex}/{self.channel().max_t()}"
+            else:
+                if self.prob_on():
+                    dataString += " | PROBABILITY IMAGE"
+                else:
+                    dataString += "| PIXEL FLOW MAGNITUDE IMAGE"
+            
             
             if self.maskLoaded:
                 dataString += f"  |  MASK: {self.label().get_string(self.tIndex)}, T: {self.tIndex}/{self.label().max_t()}"
@@ -1720,6 +1868,17 @@ class MainWindow(QtWidgets.QMainWindow):
         #exit()
         colors[:,-1] = colors[:,-1]//2
         return colors
+    
+    def convertMatplotlibCmapToPg(self, cmap):
+        """
+        Convert a matplotlib colormap to a pyqtgraph ColorMap.
+        This function generates a pyqtgraph.ColorMap using the given RGBA values.
+        """
+        pos = np.linspace(0, 1, len(cmap))  # Position of each color stop (between 0 and 1)
+        colors = cmap[:, :3] / 255.0  # Normalize the RGB values to 0-1 range (ignore alpha)
+        
+        # Create and return the pyqtgraph ColorMap
+        return pg.ColorMap(pos, colors)
     
     def getProbCmap(self):
         cmap = plt.get_cmap("Reds", 256)
@@ -1822,29 +1981,36 @@ class MainWindow(QtWidgets.QMainWindow):
         dir = QFileDialog.getExistingDirectory(self, "Choose Experiment Directory")
         self.loadExperiment(dir)
     
-    def loadExperiment(self,file, num_channels = None):
+    def loadExperiment(self,file, num_channels = None, ims_only=False):
+        
+        self.statusBar.showMessage(f"Loading Experiment from {file}. See terminal for progress")
+        
         if file.endswith("/") or file.endswith('\\'):
             file = file[:-1]      
         if num_channels is None:                   
-            dlg = GeneralParamDialog({"num_channels":1}, [int], "number of channels", self)
+            dlg = GeneralParamDialog({"num_channels":1, "exclude_mask_keyword": False}, [int, bool], "number of channels/keep masks", self)
             if dlg.exec():
-                num_channels = int(dlg.getData()["num_channels"])
+                data = dlg.getData()
+                num_channels = int(data["num_channels"])
+                ims_only = bool(data["exclude_mask_keyword"])
             else:
                 return
         self.experiment_index+=1
         
-        try:
-            new_experiment = Experiment(file, num_channels=num_channels)
-        except:
-            self.showError(f"Error laoding {file} as an experiment: directories must cannot contain only masks.")
-            self.experiment_index-=1
-            return
+
+        new_experiment = Experiment(file, num_channels=num_channels, ims_only=ims_only)
+        # except:
+        #     self.showError(f"Error laoding {file} as an experiment: directories must cannot contain only masks.")
+        #     self.experiment_index-=1
+        #     return
         
         self.experiments.append(new_experiment)
         self.experimentSelect.addItem(new_experiment.name)
         self.experimentSelect.setCurrentIndex(self.experiment_index)
         self.showExperimentMessage(new_experiment)
         self.checkInterpolation()
+        
+        self.statusBar.clearMessage()
     
     def showExperimentMessage(self, newExp):
         channels = ", ".join(newExp.get_channel_names())
@@ -1951,10 +2117,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.deselectCell(selectedCell)
                 self.deleteCell(selectedCell)
         
-        if event.key() == QtCore.Qt.Key_Y:
-            self.cellToChange+=1
-            self.maskColors[self.cellToChange,:] = [255,255,255,255]
-            self.maskChanged  = True
+        # if event.key() == QtCore.Qt.Key_Y:
+        #     self.cellToChange+=1
+        #     self.maskColors[self.cellToChange,:] = [255,255,255,255]
+        #     self.maskChanged  = True
         
         if event.key() == QtCore.Qt.Key_B:
             self.changeBrushTypeComboBox("Brush")
@@ -1964,7 +2130,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.brushTypeSelect.setCurrentIndex(-1)
         if event.key() == QtCore.Qt.Key_O:
             self.changeBrushTypeComboBox("Outline")
-
+        
+        if event.key() == QtCore.Qt.Key_R:
+            self.configureHistogram()
+            self.drawIm()
+            self.drawMask()
 
         if event.key() == QtCore.Qt.Key_Period:
             self.brushSelect.setValue(self.brushSelect.value()+1)
@@ -2034,9 +2204,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.drawIm()
     
     def imageTypeChange(self):
+        if self.prob_or_flow_on():
+            self.channelSelect.setEnabled(False)
+        else:
+            self.channelSelect.setEnabled(True)
+        self.configureHistogram()
         if not self.emptying:
             self.drawIm()
-
+    
+    def configureHistogram(self):
+        if self.prob_or_flow_on():
+            self.colors = [(0,0,0,200), (250,10,10,200)]
+        else:
+            self.colors = [(0,0,0,255), (255,255,255,255)]
+    
+    def resetImageView(self):
+        self.configureHistogram()
+        self.drawIm()
+        
     def hideMask(self):
         self.maskOn = False
         self.drawMask()
@@ -2088,6 +2273,21 @@ class MainWindow(QtWidgets.QMainWindow):
         potentialDaughters = self.label().celldata.daughters[cellNum-1]
         daughters = list(np.where(potentialDaughters)[0]+1)
         return daughters
+    
+    def getCellLineage(self, cellNum):
+        lineage = []
+        curr_gen = [cellNum]
+        while True:
+            next_gen = []
+            for cell in curr_gen:
+                daughters = self.getDaughters(cell)
+                next_gen += daughters
+            if next_gen:
+                lineage += next_gen
+                curr_gen = next_gen
+            else:
+                break
+        return lineage
         
     def drawContours(self):
         contour = self.getCurrContours().copy()
@@ -2133,10 +2333,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.tIndex > self.channel().max_t():
             return np.zeros((512,512))
         if self.prob_on():
-            im =  self.probCmap[self.experiment().get_label("probability", idx = self.maskZ, t = self.tIndex)].astype(np.uint8)
+            im =  self.experiment().get_label("probability", idx = self.maskZ, t = self.tIndex).astype(np.float32)/255
             return im
         elif self.flow_on():
-            im =  self.flowCmap[self.experiment().get_label("flows", idx = self.maskZ, t = self.tIndex)].astype(np.uint8)
+            im = self.experiment().get_label("flows", idx = self.maskZ, t = self.tIndex).astype(np.float32)/255
             return im
         else:
             return self.experiments[self.experiment_index].get_channel(idx = self.imZ, t = self.tIndex)
@@ -2184,20 +2384,33 @@ class MainWindow(QtWidgets.QMainWindow):
             self.updateDataDisplay(x=x,y=y,val=val)
             self.tChanged = False
     
+    def setHistGradient(self, tickLocs):
+        gradient_editor = self.histogram.gradient
+
+        # Set the gradient with specific ticks (positions and colors)
+        gradient_editor.restoreState({
+            'mode': 'rgb',  # You can choose other modes like 'hsv'
+            'ticks': [(float(tickLoc), color) for tickLoc, color in zip(tickLocs, self.colors)]
+        })
+    
     def drawIm(self): 
         self.saturation = self.computeSaturation()
         self.currIm = self.getCurrIm()
         self.currImDtype = str(self.currIm.dtype)
         if self.prob_or_flow_on():
-            self.pg_im.setImage(self.currIm, autoLevels = False, levels = [0,255])
+            self.pg_im.setImage(self.currIm, autoLevels = False, levels = [0,1])
+            self.histogram.setLevels(0,1)
+            
         else:
             self.pg_im.setImage(self.currIm, autoLevels = False)
             self.pg_im.setLevels(self.saturation)
+            self.histogram.setLevels(self.saturation[0], self.saturation[1])
+            #self.setHistGradient(self.saturation)
         #self.saturationSlider.setMaximum(self.imData.channels[self.imZ][:,:,:].max())
         #self.saturationSlider.resetLevels(self.saturation)
+        self.setHistGradient([0,1])
         self.channelSelectRemote()
         self.imChanged  = False
-
         self.updateDataDisplay()
         
     def resetAutoSaturation(self):
@@ -2217,7 +2430,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def selectCellFromNum(self, cellNum):
         if self.showLineages:
             self.deselectAllCells()
-            for num in self.getDaughters(cellNum)+[cellNum]:
+            for num in self.getCellLineage(cellNum):
                 self.selectedCells.append(num)
                 self.selectedCellContourColors.append([255,0,0,255])
                 self.maskColors[num,:] = np.array(self.goldColor, dtype = np.uint8)
@@ -3147,7 +3360,7 @@ def main():
 
     parser.add_argument("--test", action="store_true",
                         help="Use the test directory. No arguments needed. \
-                        Example: -test")
+                        Example: --test")
     parser.add_argument("--dir", type=str, 
                         help="Specify the directory to use. Must be an existing directory. \
                         Example: --dir /path/to/directory",
@@ -3156,10 +3369,12 @@ def main():
                         help="Specify the number of channels in --dir. Must be an integer (defaults to 1). Only used is --dir is specified.  \
                         Example: --num_channels 10",
                         required=False)
+    parser.add_argument("--ims_only", action="store_true", help="Exclude files with the keyword <mask> anywhere in the filepath. Example: --ims_only")
     args = parser.parse_args()
     dir = None
     test_dir = TEST_MOVIE_DIR
     num_channels = 1
+    ims_only = args.ims_only
 
     if args.test:
         dir = test_dir
@@ -3184,7 +3399,7 @@ def main():
     app_icon.addFile(icon_path, QtCore.QSize(64, 64))
     app_icon.addFile(icon_path, QtCore.QSize(256, 256))
     app.setWindowIcon(app_icon)
-    window = MainWindow(dir = dir, dir_num_channels=num_channels)
+    window = MainWindow(dir = dir, dir_num_channels=num_channels, dir_ims_only=ims_only)
     window.show()
     app.exec_()      
 

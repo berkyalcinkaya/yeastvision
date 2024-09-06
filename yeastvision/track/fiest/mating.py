@@ -21,13 +21,12 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
             mat_masks[i] = np.zeros(im_shape, dtype=np.uint16)
     
 
-        # Remove shock-induced timepoints
-    if shock_period:
-        mat_masks_original = mat_masks.copy()
-        for start, end in [shock_period]:
-            for i in range(start-1, end):
-                mat_masks[i] = None
-
+    # Remove shock-induced timepoints
+    mat_masks_original = mat_masks.copy()
+    for start, end in [shock_period]:
+        for i in range(start, end):
+            mat_masks[i] = None
+    
     start = -1
     for its in range(len(mat_masks)):
         # if mat_masks[its] is not None and np.sum(mat_masks[its]) > 0:
@@ -36,7 +35,7 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
             break
 
     # Tracking all detections
-    print("Tracking All Detections")
+    #print("Tracking All Detections")
     if start != -1:
         rang = range(start, len(mat_masks))
         I2 = mat_masks[start]
@@ -53,13 +52,6 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
     xx = start
     rang2 = rang
     ccel = 1
-
-    # uq = mat_masks[50]
-    # print(np.unique(uq)[0:])
-    # plt.figure()
-    # plt.imshow(np.uint16(uq), cmap='gray')
-    # plt.title('uq')
-    # plt.show()
 
     while xx != -1:
         for im_no in rang2:
@@ -138,33 +130,45 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
         ccel += 1
         rang2 = range(xx, len(mat_masks))
 
-        print(xx + 1)
+        #print(xx + 1)
+
+
+
+
     ccel -= 1  # number of cells tracked
+
 
     # Removing the shock-induced points from rang
     rang3 = list(rang)
-    if shock_period:
-        for start, end in [shock_period]:
-            for i in range(start-1, end):
-                if i in rang3:
-                    rang3.remove(i)
+    for start, end in [shock_period]:
+        for i in range(start, end):
+            if i in rang3:
+                rang3.remove(i)
+
     # Correction Code
     all_obj = cal_allob(ccel, MATC, rang)
     cell_data = cal_celldata(all_obj, ccel)
 
+
     #plt.imshow(all_obj, extent=[0, len(rang2), 0, ccel], aspect='auto', interpolation='nearest')
 
-    if shock_period is not None:
-        for iv in range(ccel):
-            if np.any(all_obj[iv, min(rang):shock_period[-1]] > 0):
-                if all_obj[iv, shock_period[-1] + 1] != 0:
-                    for its in range(shock_period[-1] + 1, rang[-1] + 1):
-                        if all_obj[iv, its] != -1:
-                            pix = np.where(MATC[0][its] == iv + 1)
-                            MATC[0][its][pix] = 0
-                            all_obj[iv, its] = np.sum(MATC[0][its] == iv + 1)
+
+
+    # sio.savemat('st3_allob.mat', {
+    #     "all_obj_py": all_obj
+    # })
+
+    for iv in range(ccel):
+        if np.any(all_obj[iv, min(rang):shock_period[-1]] > 0):
+            if all_obj[iv, shock_period[-1] + 1] != 0:
+                for its in range(shock_period[-1] + 1, rang[-1] + 1):
+                    if all_obj[iv, its] != -1:
+                        pix = np.where(MATC[0][its] == iv + 1)
+                        MATC[0][its][pix] = 0
+                        all_obj[iv, its] = np.sum(MATC[0][its] == iv + 1)
 
     cell_data = cal_celldata(all_obj, ccel)
+
     k = 1
     cell_artifacts = []
     for iv in range(ccel):
@@ -173,6 +177,7 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
             k += 1
 
     all_ccel = list(range(1, ccel + 1))
+
     if cell_artifacts:
         cell_artifacts = list(set(cell_artifacts))
         for iv in cell_artifacts:
@@ -214,24 +219,15 @@ def track_mating(matSeg_output:np.ndarray, mating_interval:List[int], shock_peri
                 MATC[0][its][pix] = iv + 1
 
     all_obj = cal_allob(ccel, MATC, rang)
-    cell_data = cal_celldata(all_obj, ccel)
+    Mat_cell_data = cal_celldata(all_obj, ccel) # CHANGED FROM CELL DATA TOfinal_mat_cell_data
 
     #plt.imshow(all_obj, extent=[0, len(rang2), 0, ccel], aspect='auto', interpolation='nearest')
 
-    no_obj = ccel
-    # in matlab the array size is 777 filled with values after 240th index, try increasing?
+    mat_no_obj = ccel # this has to be changed to mat_obj!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     rang3=range(len(MATC[0]))
-    Matmasks = [MATC[0][i] for i in rang3]; 
-    Matmasks =replace_none_with_empty_array(Matmasks)
 
-    return {
-    "Matmasks": Matmasks,
-    "no_obj": no_obj,
-    "all_obj": all_obj,
-    "cell_data": cell_data,
-    "rang": rang,
-    "rang3": rang3,
-    "shock_period": shock_period,
-    "mat_masks_original": mat_masks_original,
-    "start": start
-}
+    Matmasks = [MATC[0][i] for i in rang3] # MATMASKS CONTAIN ONLY TRACKED MASKS FOR MATING CELLS    
+    Matmasks =replace_none_with_empty_array(Matmasks)
+    #     Mat_cell_data, mat_no_obj,
+    
+    return Matmasks, mat_no_obj, Mat_cell_data, cell_data

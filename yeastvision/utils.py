@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.ndimage import zoom
+import numpy as np
 from skimage.morphology import disk, binary_erosion, binary_dilation
 import torch
 from skimage.measure import label
@@ -14,6 +16,26 @@ from PIL import Image
 import pandas as pd
 
 YV_DIR = pathlib.Path.home().joinpath(".yeastvision")
+
+def resize_image_scipy(image: np.ndarray, factor: float) -> np.ndarray:
+    """
+    Resizes an image by a decimal factor using scipy.ndimage.zoom.
+
+    Parameters:
+    image (np.ndarray): The input image to resize.
+    factor (float): The scaling factor. Values less than 1 reduce the image size, 
+                    while values greater than 1 increase the size.
+
+    Returns:
+    np.ndarray: The resized image.
+    """
+    if factor <= 0:
+        raise ValueError("Factor must be greater than 0.")
+    
+    # Use zoom to resize the image
+    resized_image = zoom(image, zoom=factor, order=3)  # order=3 for cubic interpolation
+    
+    return resized_image
 
 def get_longest_interval(intervals):
         longest = (0, 0)

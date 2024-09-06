@@ -3,6 +3,66 @@ from PyQt5.QtGui import QPainter, QIcon, QPixmap, QIntValidator
 from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame,
                             QStyledItemDelegate, QListView, QLineEdit)
 from PyQt5.QtCore import Qt, QRect
+import numpy as np
+from PyQt5 import QtWidgets
+import pyqtgraph as pg
+from pyqtgraph import GraphicsLayoutWidget
+from PyQt5.QtCore import Qt
+
+class MeasureWindow(QtWidgets.QWidget):
+    def __init__(self, img_data, parent=None):
+        super().__init__(parent=parent)
+        
+        # Set up the auxiliary window layout
+        self.setWindowTitle("Measure Window")
+        self.resize(800, 600)
+        
+        # Create the layout for this window
+        self.layout = QtWidgets.QVBoxLayout(self)
+        
+        # Create a QLabel to display the length of the line
+        self.length_label = QtWidgets.QLabel("Length: 0 px", self)
+        self.length_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.layout.addWidget(self.length_label)
+        
+        # Create a pyqtgraph widget to display the image
+        self.pg_widget = GraphicsLayoutWidget()
+        self.layout.addWidget(self.pg_widget)
+        
+        # Add a ViewBox to display the image
+        self.view_box = self.pg_widget.addViewBox()
+        self.view_box.setAspectLocked(True)  # Keep the aspect ratio of the image
+        
+        # Create ImageItem and display the image
+        self.image_item = pg.ImageItem(img_data)
+        self.view_box.addItem(self.image_item)
+        
+        # Create a Line ROI for measuring distances
+        self.line_roi = pg.LineSegmentROI([[100, 100], [200, 200]], pen='r')
+        self.view_box.addItem(self.line_roi)
+        
+        # Connect the Line ROI's change event to update the displayed length
+        self.line_roi.sigRegionChangeFinished.connect(self.update_length)
+        
+        # Initial update of the line length
+        self.update_length()
+    
+    def update_length(self):
+        """Update the length of the line and display it on the QLabel."""
+        p1, p2 = self.line_roi.getSceneHandlePositions()
+        p1 = p1[1]
+        p2 = p2[1]
+        
+        # Calculate the length of the line in pixels
+        length = np.sqrt((p2.x() - p1.x())**2 + (p2.y() - p1.y())**2)
+        
+        # Update the QLabel with the line length
+        self.length_label.setText(f"Length: {length:.2f} px")
+    
+    def closeEvent(self, event):
+        if self.parent:
+            self.parent.measure_window = None  # Clear the reference to this window in the parent
+        event.accept()  # Accept the event to close the window
 
 class NumericLineEdit(QLineEdit):
     def __init__(self, default_value="", parent=None):

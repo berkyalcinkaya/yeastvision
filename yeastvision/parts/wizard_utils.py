@@ -143,14 +143,23 @@ class ParameterInputPage(QWizardPage):
 
         # Create QLineEdits for each parameter
         self.line_edits = {}
+        self.check_boxes = {}
         for key, value in params_dict.items():
             h_layout = QHBoxLayout()
             label = QLabel(f"{key}:")
-            line_edit = NumericLineEdit(str(value))
-            self.line_edits[key] = line_edit
-            h_layout.addWidget(label)
-            h_layout.addWidget(line_edit)
-            self.param_layout.addLayout(h_layout)
+            if isinstance(value, bool):
+                checkbox = QCheckBox(self)
+                checkbox.setCheckState(value)
+                self.check_boxes[key] = checkbox
+                h_layout.addWidget(label)
+                h_layout.addWidget(checkbox)
+                self.param_layout.addLayout(h_layout)
+            else:
+                line_edit = NumericLineEdit(str(value))
+                self.line_edits[key] = line_edit
+                h_layout.addWidget(label)
+                h_layout.addWidget(line_edit)
+                self.param_layout.addLayout(h_layout)
 
         if self.includeTime:
             # Create spin boxes for t_start and t_stop
@@ -201,7 +210,7 @@ class ParameterInputPage(QWizardPage):
         # Retrieve the channel index
         channel_index = self.field("channelIndex")
         self.channel_obj = self.channels[channel_index]
-        max_t = self.channel_obj.max_t()
+        max_t = self.channel_obj.max_t()+1
         
         if self.includeTime:
             self.t_start_spinbox.setMaximum(max_t)
@@ -220,5 +229,7 @@ class ParameterInputPage(QWizardPage):
             )
         for key in self.line_edits:
             data[key] = float(self.line_edits[key].text())
+        for key in self.check_boxes:
+            data[key] = bool(self.check_boxes[key].isChecked())
         return data
 

@@ -1,10 +1,37 @@
 from skimage.measure import regionprops, regionprops_table
 from skimage.measure import shannon_entropy as shentr
+from skimage.measure import label
 import numpy as np
 import pandas as pd
 from yeastvision.utils import normalize_im
 from tqdm import tqdm
 from typing import List
+
+def average_axis_lengths(object_array):
+    """
+    Given a 2D NumPy array with labeled objects, compute the average axis_major_length
+    and axis_minor_length for all objects.
+    
+    Parameters:
+    object_array (np.ndarray): A 2D NumPy array where each object is labeled with a unique integer.
+    
+    Returns:
+    tuple: A tuple containing the average major axis length and average minor axis length.
+    """
+    
+    # Get region properties for each labeled object
+    labeled_objects = label(object_array)
+    regions = regionprops(labeled_objects)
+    
+    # Collect the major and minor axis lengths for each object
+    major_lengths = [region.axis_major_length for region in regions]
+    minor_lengths = [region.axis_minor_length for region in regions]
+    
+    # Calculate the average major and minor axis lengths
+    avg_major_length = np.mean(major_lengths) if major_lengths else 0
+    avg_minor_length = np.mean(minor_lengths) if minor_lengths else 0
+    
+    return avg_major_length, avg_minor_length
 
 def getBirthFrame(trackedMasks, cellVal):
     return np.min((np.nonzero(trackedMasks == cellVal))[0])
