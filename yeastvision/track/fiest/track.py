@@ -3,7 +3,7 @@ import torch
 import time
 import numpy as np
 import logging
-from .utils import _get_budSeg, _get_matSeg, _get_proSeg, _get_spoSeg, extend_seg_output, fill_empty_arrays, resize_image, synchronize_indices
+from .utils import _get_budSeg, _get_matSeg, _get_proSeg, _get_spoSeg, extend_seg_output, fill_empty_arrays, resize_image, save_images_to_directory, synchronize_indices
 from .mating import track_mating
 from .tetrads import track_tetrads
 from .full_lifecycle_utils import track_correct_artilife
@@ -120,7 +120,7 @@ def fiest_basic_with_lineage(ims:np.ndarray, interp_intervals:Optional[List[dict
     
     if interp_intervals:
         masks, probs, flows = [deinterpolate(mask_type, interp_locs) for mask_type in [masks, probs, flows]]
-        bud, bud_probs, bud_flows = [deinterpolate(mask_type, interp_locs) for mask_type in [buds, bud_probs, bud_flows]]
+        buds, bud_probs, bud_flows = [deinterpolate(mask_type, interp_locs) for mask_type in [buds, bud_probs, bud_flows]]
     
     torch.cuda.empty_cache()
     del proSeg
@@ -271,6 +271,8 @@ def track_full_lifecycle(proSeg:Union[np.ndarray, List[np.ndarray]], mating: Uni
     
     logger.info("STEP 2/6: Track Mating Cells")
     Matmasks, mat_no_obj, Mat_cell_data, cell_data = track_mating(mating, mating_interval, shock_period) # step3
+    save_images_to_directory(Matmasks, "/home/berk/code/yeastvision/test/step3")
+    
     
     logger.info("STEP 3: Correct General Masks")
     proSeg_corrected_tetrads = correct_proSeg_with_tetrads(proSeg, shock_period, TET_obj, TET_exists, TETmasks) # step4
@@ -280,6 +282,7 @@ def track_full_lifecycle(proSeg:Union[np.ndarray, List[np.ndarray]], mating: Uni
     
     logger.info("STEP 5/6: Correct Mating Cells")
     Matmasks, final_mat_cell_data, mat_no_obj = correct_mating(Matmasks, Mask7, mat_no_obj, Mat_cell_data, cell_data) # step6
+    save_images_to_directory(Matmasks, "/home/berk/code/yeastvision/test/step6")
     
     logger.info("STEP 6/6: Correct General Masks again")
     final_art_masks = correct_proSeg_with_mating(Matmasks, Mask7, art_cell_exists, mat_no_obj, final_mat_cell_data) # step7

@@ -24,10 +24,10 @@ def menubar(parent):
     editMenu.addAction(labelObjects)
     
     measureMenu = mainMenu.addMenu("Measure")
-    measureCells = QAction("Show Measuring Tape")
+    measureCells = QAction("Show Measuring Tape", parent)
     measureCells.triggered.connect(parent.buildMeasureWindow)
     measureMenu.addAction(measureCells)
-    getAvgDiams = QAction("Get avg diams")
+    getAvgDiams = QAction("Get avg diams", parent)
     getAvgDiams.triggered.connect(parent.measureDiams)
     measureMenu.addAction(getAvgDiams)
 

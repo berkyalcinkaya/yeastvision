@@ -6,6 +6,75 @@ from yeastvision.models.budSeg.model import BudSeg
 from yeastvision.models.matSeg.model import MatSeg
 from yeastvision.models.spoSeg.model import SpoSeg
 from yeastvision.models.utils import produce_weight_path
+import os
+import numpy as np
+import cv2
+
+import os
+import numpy as np
+import cv2
+
+def save_images_to_directory(images, save_dir, timepoint_dim=0, file_prefix="img"):
+    """
+    Saves a set of NumPy arrays representing images to a directory with a naming convention
+    that ensures the images are sorted alphabetically by timepoint.
+
+    If any image is None or an empty array, a zero array of the same shape as the previous timepoint is saved.
+    If the first image is None or empty, a default 100x100 zero array is saved.
+
+    Parameters:
+    - images: A list of 2D NumPy arrays or a 3D NumPy array where one dimension represents timepoints.
+    - save_dir: The directory where the images will be saved.
+    - timepoint_dim: The dimension representing timepoints (0 for first dimension, -1 for last dimension).
+    - file_prefix: A prefix for the filenames (default: "img").
+    
+    Output:
+    - Saved images in the directory with filenames formatted to ensure correct alphabetic sorting.
+    """
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    # Handle the case where a list of arrays is provided
+    if isinstance(images, list):
+        num_timepoints = len(images)
+        img_list = images
+    else:
+        # If a 3D numpy array is provided, adjust the timepoints according to the timepoint_dim
+        num_timepoints = images.shape[timepoint_dim]
+        if timepoint_dim == 0:
+            img_list = [images[t, :, :] for t in range(num_timepoints)]
+        elif timepoint_dim == -1:
+            img_list = [images[:, :, t] for t in range(num_timepoints)]
+        else:
+            raise ValueError("Invalid timepoint_dim. Supported values are 0 or -1.")
+
+    # Initialize the previous image for fallback in case of None or empty images
+    prev_img = None
+
+    for t, img in enumerate(img_list):
+        if img is None or img.size == 0 or not img.shape:
+            if prev_img is not None:
+                # Use a zero array of the same shape as the previous timepoint
+                img = np.zeros_like(prev_img)
+            else:
+                # For the first timepoint, use a default 100x100 zero array
+                img = np.zeros((100, 100), dtype=np.uint8)
+        
+        # Update the previous image
+        prev_img = img
+
+        # Zero-padding the file name to ensure correct sorting
+        filename = f"{file_prefix}_{str(t).zfill(5)}.png"  # e.g., img_00001.png
+        filepath = os.path.join(save_dir, filename)
+
+        # Save the image using OpenCV
+        cv2.imwrite(filepath, img)
+
+# Example usage:
+# Assuming 'images' is a 3D numpy array with timepoints along dimension 0
+# save_images_to_directory(images, "output_directory", timepoint_dim=0, file_prefix="timepoint")
+
+
 
 def synchronize_indices(movie1: np.ndarray, movie2: np.ndarray) -> np.ndarray:
     """

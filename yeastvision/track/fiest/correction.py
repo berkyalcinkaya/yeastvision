@@ -29,6 +29,8 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, shock_period, TET_obj, TE
 
             if T1.shape != A1.shape:   
                 T1 = resize_image(T1, A1.shape,).astype(np.float64)
+            else:
+                T1 = T1.astype(np.float32)
           #  plt.imshow(T1, aspect='auto',interpolation='nearest')
             # plt.imshow(T1)
             Im1 = T1 > threshold_otsu(T1)
@@ -90,6 +92,8 @@ def correct_proSeg_with_tetrads(art_masks: np.ndarray, shock_period, TET_obj, TE
                 
                 if T1.shape != A1.shape:
                     T1 = resize_image(T1, A1.shape,).astype(np.float64)
+                else:
+                    T1 = T1.astype(np.float64)
                 # plt.imshow(T1)
                 Im1 = T1 > threshold_otsu(T1)
                 # plt.imshow(Im1)
@@ -134,7 +138,8 @@ def correct_mating(Matmasks, Mask7, mat_no_obj, Mat_cell_data, cell_data):
         # Resize MTrack to match ART masks
         for its in range(len(MTrack)):
             if MTrack[its].size > 2:
-                MTrack[its] = resize(MTrack[its], art_masks[:,:,its].shape, order=0, preserve_range=True, anti_aliasing=False)# art_masks[:,:,its] added to correct for tensor to list format
+                if MTrack[its].shape != art_masks[:,:,its].shape:
+                    MTrack[its] = resize(MTrack[its], art_masks[:,:,its].shape, order=0, preserve_range=True, anti_aliasing=False)# art_masks[:,:,its] added to correct for tensor to list format
 
         tp_end = len(art_masks[0][0])# tensor correction, gets last time point
         if len(MTrack) != tp_end: # loop for adding zeros matrixes 

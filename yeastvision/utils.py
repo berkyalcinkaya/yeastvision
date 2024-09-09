@@ -304,9 +304,9 @@ def rescaleByFactor(factor, ims):
     print(newrow, newcol)
     return rescaleBySize((newrow, newcol), ims)
 
-def rescaleBySize(newshape, ims):
+def rescaleBySize(newshape, ims, interpolation=cv2.INTER_CUBIC):
     row, col = newshape
-    return [resize(im, (col,row), interpolation=cv2.INTER_CUBIC) for im in ims]
+    return [resize(im, (col,row), interpolation=interpolation) for im in ims]
 
 def binarize_relabel(mask):
     return label(binarize(mask))

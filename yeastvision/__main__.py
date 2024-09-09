@@ -114,6 +114,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.checkstyle = "color: rgb(190,190,190);"
         
         self.firstMaskLoad = True
+        self.measure_window = None
         
         self.getModelNames()
         self.importModelClasses()
@@ -1663,8 +1664,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.showTimedPopup(f"Avg major axis length (pixels): {avg_maj}\n Avg minor axis length (pixels): {avg_minor}")
     
     def buildMeasureWindow(self):
-        if self.measure_window is not None:
+        if self.measure_window is None:
             self.measure_window = MeasureWindow(self.currIm, self)
+            self.measure_window.show()
         else:
             self.showError("Measuring Window already open")
     

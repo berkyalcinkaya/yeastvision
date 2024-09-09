@@ -11,7 +11,9 @@ from PyQt5.QtCore import Qt
 
 class MeasureWindow(QtWidgets.QWidget):
     def __init__(self, img_data, parent=None):
-        super().__init__(parent=parent)
+        super().__init__()
+        
+        self.parent=parent
         
         # Set up the auxiliary window layout
         self.setWindowTitle("Measure Window")

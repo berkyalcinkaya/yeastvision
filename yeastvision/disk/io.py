@@ -42,12 +42,13 @@ def loadCustomModel(parent):
             validName = True
             break
     if not validName:
-        dialog = ComboBoxDialog(list(itertools.chain.from_iterable(CUSTOM_MODEL_TYPES.keys())),
+        choices = list(itertools.chain.from_iterable(CUSTOM_MODEL_TYPES.values()))
+        dialog = ComboBoxDialog(choices,
                                 "Model Type: ", 
                                 "Specify Custom Model Type. Pick the most applicable",
                                 parent=parent)
         if dialog.exec_() == QDialog.Accepted:
-            selectedModelType = dialog.getSelection().replace(" ", "_")
+            selectedModelType = dialog.getSelection()
             if selectedModelType:
                 modelType = custom_model_type_search(selectedModelType)
         else:
