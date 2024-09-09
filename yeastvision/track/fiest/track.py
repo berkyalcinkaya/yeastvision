@@ -6,7 +6,7 @@ import logging
 from .utils import _get_budSeg, _get_matSeg, _get_proSeg, _get_spoSeg, extend_seg_output, fill_empty_arrays, resize_image, save_images_to_directory, synchronize_indices
 from .mating import track_mating
 from .tetrads import track_tetrads
-from .full_lifecycle_utils import track_correct_artilife
+from .full_lifecycle_utils import track_general_masks
 from .correction import correct_mating, correct_proSeg_with_mating, correct_proSeg_with_tetrads
 from yeastvision.ims.interpolate import interpolate_intervals, get_interp_labels, deinterpolate
 from yeastvision.track.track import track_proliferating
@@ -52,7 +52,7 @@ def fiest_basic(ims:np.ndarray, interp_intervals:Optional[List[dict]], proSeg_pa
     proSeg, proSeg_params, proSeg_weights = _get_proSeg(proSeg_params, proSeg_weights)
     
     masks, probs, flows = proSeg.run(to_segment, proSeg_params, proSeg_weights)
-    masks = track_proliferating(masks)
+    masks = track_general_masks(masks, transpose_out=True)
     
     if interp_intervals:
         masks, probs, flows = [deinterpolate(mask_type, interp_locs) for mask_type in [masks, probs, flows]]
@@ -111,7 +111,8 @@ def fiest_basic_with_lineage(ims:np.ndarray, interp_intervals:Optional[List[dict
     budSeg, budSeg_params, budSeg_weights = _get_budSeg(budSeg_params, budSeg_weights)
     
     masks, probs, flows = proSeg.run(to_segment, proSeg_params, proSeg_weights)
-    masks = track_proliferating(masks)
+    masks = track_general_masks(masks, transpose_out=True)
+
     
     buds, bud_probs, bud_flows = budSeg.run(to_segment, budSeg_params, budSeg_weights)
     
@@ -278,7 +279,7 @@ def track_full_lifecycle(proSeg:Union[np.ndarray, List[np.ndarray]], mating: Uni
     proSeg_corrected_tetrads = correct_proSeg_with_tetrads(proSeg, shock_period, TET_obj, TET_exists, TETmasks) # step4
     
     logger.info("STEP 4/6: Track General Masks ")
-    Mask7, art_cell_exists = track_correct_artilife(proSeg_corrected_tetrads) # step 5
+    Mask7, art_cell_exists = track_general_masks(proSeg_corrected_tetrads) # step 5
     
     logger.info("STEP 5/6: Correct Mating Cells")
     Matmasks, final_mat_cell_data, mat_no_obj = correct_mating(Matmasks, Mask7, mat_no_obj, Mat_cell_data, cell_data) # step6

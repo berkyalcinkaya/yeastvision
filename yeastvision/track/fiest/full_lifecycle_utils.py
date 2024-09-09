@@ -11,8 +11,19 @@ logger = logging.getLogger(__name__)
 ##### one of the steps of the fiest full lifecycle tracking code
 ##### TODO: port this to main tracking module
 ## corresponds to step5 of the pipeline
-def track_correct_artilife(Art_MT):
-    disk_size = 6
+def track_general_masks(Art_MT, disk_size = 6, transpose_out=False):
+    '''
+    Tracking alogrithm for budding yeast with built-in track corrections. Iterative frame-assignmentper object asssumes frame-to-frame overlap. For fast
+    growing colonies or cells that move significantly between frames, explore using interpolation before calling this function (see yeastvision.track.fiest.track for the FIEST algorithm or 
+    yeastvision.ims.interpolate for fine tuned control of interpolation)
+    
+    Args: 
+        Art-MT (np.ndarray or list of np.ndarray) - 
+        disk_size (int, default 6)
+        
+    Returns:
+        np.ndarray - '''
+    logger.info("---General Tracking of Sar")
     Masks3 = Art_MT
         
     im_no1 = 0
@@ -356,4 +367,6 @@ def track_correct_artilife(Art_MT):
     Art_im_no = Mask7.shape[2]
     Art_all_ob = all_ob
     
+    if transpose_out:
+        return np.transpose(Mask7, (2, 0, 1)).astype(np.uint16)  
     return Mask7, art_cell_exists

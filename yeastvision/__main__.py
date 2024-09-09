@@ -3,6 +3,7 @@ from yeastvision.parts.canvas import ImageDraw, ViewBoxNoRightDrag
 from yeastvision.parts.guiparts import *
 from yeastvision.parts.workers import FiestWorker, SegmentWorker, TrackWorker, InterpolationWorker
 from yeastvision.parts.dialogs import *
+from yeastvision.track.fiest.full_lifecycle_utils import track_general_masks
 from yeastvision.track.track import track_to_cell, track_proliferating
 from yeastvision.track.data import LineageData, TimeSeriesData
 from yeastvision.track.cell import LABEL_PROPS, IM_PROPS, EXTRA_IM_PROPS, average_axis_lengths, exportCellData, getHeatMaps, getPotentialHeatMapNames
@@ -1420,6 +1421,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def getChannelNameFromId(self, id, exp_idx=None):
         return self.getChannelFromId(id, exp_idx=exp_idx).name
     
+    def getMaskNameFromId(self, id, exp_idx=None):
+        return self.getMaskFromId(id, exp_idx=exp_idx).name
+    
         
     def getChannelFromId(self, id, exp_idx=None):
         if exp_idx is None:
@@ -1429,6 +1433,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 return channel
         raise ValueError(f"No channel with id {id} exists")
     
+    def getMaskFromId(self, id, exp_idx=None):
+        if exp_idx is None:
+            exp_idx = self.experiment_index
+        for label in self.experiments[exp_idx].labels:
+            if label.id == id:
+                return label
+        raise ValueError(f"No label with id {id} exists")
+    
     def trackButtonClick(self):
         if self.label().max_t() == 0:
             self.showError("Error: More than one frame must be present to track")
@@ -1436,7 +1448,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         idxToTrack = self.maskZ
         cells = self.getCurrMaskSet()
-        task = track_proliferating
+        task = track_general_masks
         worker = TrackWorker(task, cells, idxToTrack, self.experiment_index)     
     
         self.runLongTask(worker,self.trackFinished, self.trackButton)
@@ -1465,6 +1477,7 @@ class MainWindow(QtWidgets.QMainWindow):
         viableImNames = [obj.name for obj in viable_channel_objs]
 
         if mask_obj.has_cell_data():
+            print("has cell data")
             mask_obj.celldata.update_cell_data(masks, channels = viableIms, channel_names = viableImNames)
         else:
             mask_obj.celldata = TimeSeriesData(mask_obj.id, masks, channels = viableIms, channel_names=viableImNames)
@@ -1491,8 +1504,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return False
         if not isinstance(i,int):
             i = self.maskZ
-        return (isinstance(self.experiment().labels[i], TimeSeriesData) and 
-                        self.experiment().labels[i].has_cell_data())
+        return self.experiment().labels[i].has_cell_data()
     
     def hasLineageData(self, i = None):
         if not i:
@@ -1509,7 +1521,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return self.label().celldata
     
     def getTimeSeriesDataName(self, tsObj):
-        return self.getChannelNameFromId(tsObj.mask_id)
+        return self.getMaskNameFromId(tsObj.mask_id)
 
     def getCellDataAbbrev(self):
         if not self.maskLoaded:
@@ -2432,7 +2444,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def selectCellFromNum(self, cellNum):
         if self.showLineages:
             self.deselectAllCells()
-            for num in self.getCellLineage(cellNum):
+            for num in (self.getCellLineage(cellNum)+[cellNum]):
                 self.selectedCells.append(num)
                 self.selectedCellContourColors.append([255,0,0,255])
                 self.maskColors[num,:] = np.array(self.goldColor, dtype = np.uint8)

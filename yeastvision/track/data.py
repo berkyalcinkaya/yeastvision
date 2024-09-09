@@ -82,6 +82,7 @@ class TimeSeriesData():
     def update_cell_data(self, labels, channels = None, channel_names = None):
         self._set_label_props(labels)
         self.life_data = getLifeData(labels)
+
         self.cell_data = getCellData(labels, channels, channel_names)
         self.channel_names = channel_names
         self.update_props()
