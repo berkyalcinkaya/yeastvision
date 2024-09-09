@@ -72,7 +72,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.goldColor = [255,215,0,255]
 
-        self.setStyleSheet("QMainWindow {background-color: rgb(24,25,26);}")
+        self.setStyleSheet("QMainWindow {background-color: rgb(30,31,32);}")
         self.stylePressed = ("QPushButton {Text-align: left; "
                              "background-color: rgb(200,10,10); "
                              "border-color: white;"
@@ -103,9 +103,9 @@ class MainWindow(QtWidgets.QMainWindow):
                            border: black solid 1px
                            }"""
         self.statusbarstyle = ("color: white;" "background-color : black")
-        self.boldfont = QtGui.QFont("Arial", 14, QtGui.QFont.Bold)
-        self.medfont = QtGui.QFont("Arial", 12)
-        self.smallfont = QtGui.QFont("Arial", 10)
+        self.boldfont = QtGui.QFont("Arial", 15, QtGui.QFont.Bold)
+        self.medfont = QtGui.QFont("Arial", 13)
+        self.smallfont = QtGui.QFont("Arial", 11)
         self.headings = ('color: rgb(200,10,10);')
         self.dropdowns = ("color: white;"
                         "background-color: rgb(40,40,40);"
@@ -513,7 +513,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cpuCoreDisplay.setStyleSheet(self.labelstyle)
         self.updateThreadDisplay()
 
-        self.hasLineageBox = ReadOnlyCheckBox("lineage data")
+        self.hasLineageBox = ReadOnlyCheckBox("lineage data  |  ")
         self.hasCellDataBox = ReadOnlyCheckBox("cell data")
         for display in [self.hasLineageBox,self.hasCellDataBox]:
             display.setFont(self.smallfont)
@@ -574,7 +574,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.channelSelect.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.channelSelect.setMinimumWidth(200)
-        self.channelSelect.setFixedHeight(30)
+        self.channelSelect.setFixedHeight(20)
         #self.channelSelect.setFocusPolicy(QtCore.Qt.NoFocus)
         setattr(self.channelSelect, "items", lambda: [self.channelSelect.itemText(i) for i in range(self.channelSelect.count())])
 
