@@ -19,7 +19,7 @@ def is_RGB(ims):
 
 def getBuiltInModelTypes():
     '''Retrieves the builtin model names'''
-    models = [model for model in os.listdir(MODEL_DIR) if os.path.isdir(join(MODEL_DIR, model)) and model != "__pycache__" and len(getModelsByType(model))>0]
+    models = [model for model in os.listdir(MODEL_DIR) if os.path.isdir(join(MODEL_DIR, model)) and model != "__pycache__"]
     return models
 
 def getModelsByType(model_type):
