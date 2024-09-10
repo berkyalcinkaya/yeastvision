@@ -22,7 +22,7 @@
 
 
 ## Enhance time-series resolution with generative AI
-![Genereative AI]("/home/berk/code/yeastvision/yeastvision/docs/figs/interp.gif")
+<img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/interp.gif" width="2000" height="600" />
 
 ## The interface: segment, track, and analyze  
 <img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/gui.png" title="yeastvision GUI window">
