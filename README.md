@@ -4,7 +4,7 @@
 
 <img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/logo.png" height="200" align="right" vspace=0 hspace = 0>
 
-### A GUI-based framework for deep-learning enabled segmentation, tracking, time-series analysis of the full Saccharomyces cerevisiae lifecycle 
+### A GUI-based framework for deep-learning enabled segmentation, tracking, time-series analysis of the full Saccharomyces cerevisiae lifecycle
 
 #### Read the paper [Deep learning-driven imaging of cell division and cell growth across an entire eukaryotic life cycle](https://www.biorxiv.org/content/10.1101/2024.04.25.591211v1)
 
@@ -20,14 +20,15 @@
 [![GitHub stars](https://img.shields.io/github/stars/berkyalcinkaya/yeastvision?style=social)](https://github.com/berkyalcinkaya/yeastvision/)
 [![GitHub forks](https://img.shields.io/github/forks/berkyalcinkaya/yeastvision?style=social)](https://github.com/berkyalcinkaya/yeastvision/)
 
-<img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/lifecycle_general.png" title="Saccharomyces cerevisiae full lifecycle">
-<em>Yeastvision tracks a single yeast cell throughout all life cycle stages</em>
 
-<br/>
+## Enhance time-series resolution with generative AI
+![Genereative AI]("/home/berk/code/yeastvision/yeastvision/docs/figs/interp.gif")
 
-<img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/gui.png" height = 500 title="yeastvision GUI window" align=right vspace=30>
+## The interface: segment, track, and analyze  
+<img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/gui.png" title="yeastvision GUI window">
 
-### Key Features
+
+## Key Features
 
 - *FIEST Tracking Algorithm*: Enhance time-series resolution up to 16x using a generative video interpolation model[[1]](#1), used to enhance cell-tracking and lineage reconstruction 
 - Load, analyze, and segment multiple experiments containing numerous phase/flourescent channels
