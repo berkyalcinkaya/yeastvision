@@ -2870,14 +2870,19 @@ class MainWindow(QtWidgets.QMainWindow):
         return new_name
     
     def getNewChannelName(self, potentialName):
-        allNames = self.getAllItems(self.channelSelect)
-        if not allNames:
-            return potentialName
-        n = (np.char.find(np.array(allNames), potentialName)+1).sum()
-        if n>0:
-            return f"{potentialName}-n"
-        else:
-            return potentialName
+        allNames = self.getAllItems(self.channelelect)  # Retrieves all current names from labelSelect
+        
+        if not allNames or potentialName not in allNames:
+            return potentialName  # Return the potential name if there are no existing names or it's not a duplicate
+
+        # The potential name exists, increment a suffix until a unique name is found
+        suffix = 1
+        new_name = f"{potentialName}-{suffix}"
+        while new_name in allNames:
+            suffix += 1
+            new_name = f"{potentialName}-{suffix}"
+
+        return new_name
     
     def runLongTask(self, worker, finished, button):
         if len(self.threads)+1>self.idealThreadCount:
@@ -2946,7 +2951,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 "t":self.tIndex}
 
     def interpolateButtonClicked(self):
-        dlg = InterpolationDialog(self)
+        dlg = InterpolationDialog(parent=self)
         if dlg.exec():
             channel_name, intervals = dlg.get_data()
             if not intervals:
@@ -2966,7 +2971,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def interpolationFinished(self, ims, exp_idx, name, annotations, intervals, original_len, new_intervals):
         experiment = self.experiments[exp_idx]
         new_channel = InterpolatedChannel(intervals=intervals, ims = ims, dir = experiment.dir, 
-                                          name = name, annotations=annotations,
+                                          name = self.getNewChannelName(name), annotations=annotations,
                                           original_len=original_len, new_intervals=new_intervals)
         experiment.add_channel_object(new_channel)
         self.experiment_index = exp_idx
@@ -2998,7 +3003,8 @@ class MainWindow(QtWidgets.QMainWindow):
         curr_im = self.channel()
         annotations = self.add_annotations(curr_im, annotation_name)
         newIms = im_funcs.do_adapt_hist(self.getCurrImSet())
-        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = self.getNewChannelName(curr_im.name+f"-{annotation_name}"), 
+                    annotations = annotations )
 
     def doGaussian(self):
         dlg = GeneralParamDialog({"sigma": 1}, [float], "Enter Params for Gaussian Blur", self)
@@ -3010,7 +3016,8 @@ class MainWindow(QtWidgets.QMainWindow):
         annotation_name = "gaussian"
         annotations = self.add_annotations(curr_im, annotation_name)
         newIms = im_funcs.do_gaussian(curr_im.ims, sigma)
-        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations)
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = self.getNewChannelName(curr_im.name+f"-{annotation_name}"), 
+                    annotations = annotations)
 
     def doMedian(self):
         dlg = GeneralParamDialog({"kernel_size": 3}, [int], "Size of(Symmetric) Kernel for Median Blur", self)
@@ -3022,7 +3029,8 @@ class MainWindow(QtWidgets.QMainWindow):
         annotation_name = "median"
         annotations = self.add_annotations(curr_im, annotation_name)
         newIms = im_funcs.do_median(curr_im.ims, kernel_size)
-        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = self.getNewChannelName(curr_im.name+f"-{annotation_name}"), 
+                    annotations = annotations )
 
     def add_annotations(self, curr_im, annotation_name):
         if isinstance(curr_im, ChannelNoDirectory):
@@ -3040,7 +3048,8 @@ class MainWindow(QtWidgets.QMainWindow):
         newSize = str(newIms[0].shape)
         annotation_name = f"rescaled_to_{newSize}"
         annotations = self.add_annotations(curr_im, annotation_name)
-        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = self.getNewChannelName(curr_im.name+f"-{annotation_name}"), 
+                    annotations = annotations )
 
     def rescaleFromUser(self, ims):
         row, col = ims[0].shape
@@ -3066,7 +3075,8 @@ class MainWindow(QtWidgets.QMainWindow):
         annotation_name = "z-normalized"
         annotations = self.add_annotations(curr_im, annotation_name)
         newIms = im_funcs.z_normalize_images(self.getCurrImSet())
-        self.newIms(ims = newIms, dir = self.experiment().dir, name = curr_im.name+f"-{annotation_name}", annotations = annotations )
+        self.newIms(ims = newIms, dir = self.experiment().dir, name = self.getNewChannelName(curr_im.name+f"-{annotation_name}"), 
+                    annotations = annotations )
     
     def deactivateButton(self, button):
         button.setEnabled(False)
@@ -3356,7 +3366,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.interpolateButton.setEnabled(True)
         self.interpolateButton.setStyleSheet(self.styleUnpressed)
 
-    
+
     def disableInterpRemove(self):
         self.interpRemoveButton.setEnabled(False)
         self.interpRemoveButton.setStyleSheet(self.styleInactive)

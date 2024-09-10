@@ -23,7 +23,7 @@ def track_general_masks(Art_MT, disk_size = 6, transpose_out=False):
         
     Returns:
         np.ndarray - '''
-    logger.info("---General Tracking of Sar")
+    logger.info("----- General tracking of Saccharomyces cerevisiae using mask overlap----")
     Masks3 = Art_MT
         
     im_no1 = 0

@@ -44,7 +44,7 @@ class TrackWorker(QtCore.QObject):
         if self.obj is not None:
             out =  self.trackfunc(self.obj, self.cells)
         else:
-            out = self.trackfunc(self.cells)
+            out = self.trackfunc(self.cells, transpose_out=True)
         self.finished.emit(self.z, self.exp_idx, out)
 
 class InterpolationWorker(QtCore.QObject):

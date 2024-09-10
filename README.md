@@ -34,7 +34,7 @@
 - Load, analyze, and segment multiple experiments containing numerous phase/flourescent channels
 - Segment cytoplasm, vacuoles, buds, mating, and sporulating yeast cells
 - Extract and plot time-series data in the GUI
-<br/><br/><br/><br/><br/><br/><br/>
+<br/><br/><br/>
 # Installation
 
 ## Local installation (< 2 minutes)
