@@ -116,6 +116,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.firstMaskLoad = True
         self.measure_window = None
+        self.multi_label_window = None
         
         self.getModelNames()
         self.importModelClasses()
@@ -311,11 +312,17 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.centralWidget().setFocus()
     
     def get_channel_obj_from_name(self, channel_name):
-        channel_idx = self.channelSelect.findText(channel_name)
-        if channel_idx == -1:
-            raise ValueError(f"{channel_name} does not exist in channelSelect")
-        return self.experiment().channels[channel_idx]
-
+        for channel in self.experiment().channels:
+            if channel.name == channel_name:
+                return channel
+        raise ValueError(f"{channel_name} does not exist in channelSelect")
+    
+    def get_label_obj_from_name(self, label_name):
+        for label in self.experiment().labels:
+            if label.name == label_name:
+                return label
+        raise ValueError(f"{label_name} does not exist in channelSelect")
+    
     def flow_on(self):
         return self.imageTypeSelect.currentIndex() == self.FLOW_ID
     
@@ -2070,6 +2077,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channelSelect.clear()
 
     def newIms(self, ims = None, files = None, dir = None, name = None, annotations = None):
+        name = self.getNewChannelName(name)
         if files is not None:
             self.experiment().add_channel(files)
         else:
@@ -2375,7 +2383,29 @@ class MainWindow(QtWidgets.QMainWindow):
     def bootUp(self):
         self.pg_im.setImage(self.currIm, autoLevels=False, levels = [0,0])
         self.pg_mask.setImage(self.currMask, autolevels  =False, levels =[0,0], lut = self.maskColors)
-
+    
+    
+    def multi_label_display(self):
+        if self.multi_label_window is not None:
+            self.showError("A multi-label window is already open")
+            return
+        
+        label_params = {label.name: True for label in self.experiment().labels}
+        label_types = [bool for _ in range(len(label_params))]
+        dlg = GeneralParamDialog(label_params, label_types, "Select Multiple Labels to View at Once", self, channelSelects=["channel"])
+        
+        if dlg.exec():
+            data = dlg.getData()
+            channel = self.get_channel_obj_from_name(data["channel"])
+            labels = []
+            for label_name in label_params.keys():
+                if data[label_name]:
+                    labels.append(self.get_label_obj_from_name(label_name))
+            self.multi_label_window = MultiLabelWindow(channel.id, [label.id for label in labels], 
+                                                       self.experiment_index, parent=self)
+            self.multi_label_window.update()
+            self.multi_label_window.show()
+        
     def updateDisplay(self):
         if self.imChanged:
             self.drawIm()
@@ -2397,6 +2427,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.updateDataDisplay(x=x,y=y,val=val)
             self.tChanged = False
+            
+            if self.multi_label_window:
+                self.multi_label_window.update()
     
     def setHistGradient(self, tickLocs):
         gradient_editor = self.histogram.gradient
@@ -2870,7 +2903,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return new_name
     
     def getNewChannelName(self, potentialName):
-        allNames = self.getAllItems(self.channelelect)  # Retrieves all current names from labelSelect
+        allNames = self.getAllItems(self.channelSelect)  # Retrieves all current names from labelSelect
         
         if not allNames or potentialName not in allNames:
             return potentialName  # Return the potential name if there are no existing names or it's not a duplicate

@@ -573,8 +573,6 @@ class GeneralParamDialog(QDialog):
         spinData = {k:v.value() for k,v in self.spinBoxData.items()}
         return dropDownData | lineEditData | boolData | spinData
 
-
-
 class ModelParamDialog(GeneralParamDialog):
     def __init__(self, hyperparamDict, paramtypes, modelName, parent = None):
         if parent.experiment().has_labels() and modelName != "artilife":

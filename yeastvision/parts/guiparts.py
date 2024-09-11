@@ -1,13 +1,116 @@
 from PyQt5 import QtCore
 from PyQt5.QtGui import QPainter, QIcon, QPixmap, QIntValidator
 from PyQt5.QtWidgets import (QApplication,QSlider, QStyle, QStyleOptionSlider, QPushButton,QCheckBox, QComboBox, QFrame,
-                            QStyledItemDelegate, QListView, QLineEdit)
+                            QStyledItemDelegate, QListView, QLineEdit, QMainWindow, QWidget, QGridLayout, QLabel)
 from PyQt5.QtCore import Qt, QRect
 import numpy as np
 from PyQt5 import QtWidgets
 import pyqtgraph as pg
 from pyqtgraph import GraphicsLayoutWidget
-from PyQt5.QtCore import Qt
+
+class MultiLabelWindow(QWidget):
+    def __init__(self, channel_id, mask_ids, exp_idx=None, parent=None):
+        super().__init__()
+        self.exp_idx = exp_idx
+        self.mask_ids = mask_ids
+        self.channel_id = channel_id
+        self.num_masks = len(mask_ids)
+        self.image_panels = []
+        self.mask_panels = []  # Separate panels for masks
+        self.parent = parent
+        
+        self.exp = self.parent.experiments[self.exp_idx]
+        self.channel = self.parent.getChannelFromId(self.channel_id, exp_idx=self.exp_idx)
+        
+        # Set up the layout
+        self.layout = QGridLayout()
+        self.setLayout(self.layout)
+
+        # Determine layout based on num_masks
+        if self.num_masks <= 3:
+            # Single row with num_masks columns
+            for i in range(self.num_masks):
+                self._create_panel(i, 0, i)
+        else:
+            # Multiple rows, two columns, account for odd numbers
+            for i in range(self.num_masks):
+                row = i // 2
+                col = i % 2
+                self._create_panel(i, row, col)
+
+    def _create_panel(self, i, row, col):
+        image_panel = pg.ImageItem()
+        mask_panel = pg.ImageItem()  # Separate mask panel
+        self.image_panels.append(image_panel)
+        self.mask_panels.append(mask_panel)
+
+        # Create the title label
+        mask_obj = self.parent.getMaskFromId(self.mask_ids[i], exp_idx=self.exp_idx)
+        title = QLabel(f"<b>{mask_obj.name}</b>")
+        title.setAlignment(Qt.AlignCenter)
+
+        view = pg.GraphicsLayoutWidget()
+        vb = view.addViewBox()
+
+        # Add the image panel first
+        vb.addItem(image_panel)
+        # Add the mask panel on top of the image
+        vb.addItem(mask_panel)
+
+        # Add the title above the view
+        self.layout.addWidget(title, row * 2, col)  # Titles occupy separate rows
+        # Add the view containing the image and mask panels
+        self.layout.addWidget(view, row * 2 + 1, col)
+
+    def get_channel_im(self):
+        if self.parent.tIndex > self.channel.max_t():
+            return np.zeros((512, 512))
+        else:
+            return self.exp.get_channel(id=self.channel_id, t=self.parent.tIndex)
+    
+    def get_mask_ims(self):
+        masks = []
+        for mask_id in self.mask_ids:
+            if not self.exp.has_labels():
+                mask = np.zeros(self.exp.shape()[:2], dtype=np.uint8)
+            mask_obj = self.parent.getMaskFromId(mask_id, exp_idx=self.exp_idx)
+            if self.parent.tIndex > mask_obj.max_t():
+                mask = np.zeros(self.exp.shape()[:2], dtype=np.uint8)
+            
+            mask = self.exp.get_label("labels", id=mask_id, t=self.parent.tIndex)
+            #print(mask_obj.name, mask.shape, np.unique(mask))
+            masks.append(mask)
+        return masks
+
+    def update(self):
+        # Display the image in all panels, and the masks in their respective panels
+        image = self.get_channel_im()
+        mask_list = self.get_mask_ims()
+        for i in range(self.num_masks):
+            if i < len(mask_list):
+                mask = mask_list[i]
+            else:
+                # Fill with zeros if not enough masks are provided
+                mask = np.zeros(image.shape[:2] + (4,), dtype=np.uint8)  # Assume RGBA mask
+
+            mask_colored = self.parent.cmap[mask]  # Assuming you are using a colormap for the mask
+
+            # Update the image panel with the original image
+            self.image_panels[i].setImage(image, autoLevels=True)
+            # Update the mask panel with the RGBA mask
+            self.mask_panels[i].setImage(mask_colored, autoLevels=False, levels=[0, 255])
+
+    def closeEvent(self, event):
+        if self.parent:
+            self.parent.multi_label_window = None  # Clear the reference to this window in the parent
+        event.accept()  # Accept the event to close the window
+
+    def keyPressEvent(self, event):
+        # Forward the key press event to the parent (MainWindow)
+        if self.parent:
+            self.parent.keyPressEvent(event)  # Delegate the event to the parent
+        else:
+            super().keyPressEvent(event)
 
 class MeasureWindow(QtWidgets.QWidget):
     def __init__(self, img_data, parent=None):

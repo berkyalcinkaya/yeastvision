@@ -94,14 +94,18 @@ class Experiment():
         else:
             return np.zeros(shape, dtype = np.uint8)
     
-    def get_label(self, mask_type, name = None, idx = None, t = None):
+    def get_label(self, mask_type, id=None, name = None, idx = None, t = None):
         if not self.has_labels():
             return self.get_dummy_labels(full = t is None)
         else:
             if mask_type!= self.mask_type:
                 self.set_mask_type(mask_type)
-            if name:
+            
+            if id is not None:
+                idx = self.get_mask_index_from_id(id)
+            elif name:
                 idx = self.get_mask_index_from_name(name)
+            
             if t is not None:
                 return self.labels[idx].data[t,:,:]
             else:
@@ -113,14 +117,23 @@ class Experiment():
                 return channel
         raise IndexError
 
+
+    def get_channel_by_id(self, id):
+        for channel in self.channels:
+            if channel.id == id:
+                return channel
+        raise IndexError
+
     def get_label_by_name(self,name):
         for label in self.labels:
             if label.name == name:
                 return label
         raise IndexError
     
-    def get_channel(self, name = None, idx = None, t = None):
-        if name:
+    def get_channel(self, id=None, name = None, idx = None, t = None):
+        if id is not None:
+            channel = self.get_channel_by_id(id)
+        elif name:
             channel = self.get_channel_by_name(name)
         else:
             channel = self.channels[idx]
@@ -132,6 +145,13 @@ class Experiment():
     def get_mask_index_from_name(self, name):
         for i,label in enumerate(self.labels):
             if label.name == name:
+                return i
+        raise IndexError
+
+
+    def get_mask_index_from_id(self, id):
+        for i,label in enumerate(self.labels):
+            if label.id == id:
                 return i
         raise IndexError
 

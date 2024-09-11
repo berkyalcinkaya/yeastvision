@@ -23,6 +23,13 @@ def menubar(parent):
     labelObjects.triggered.connect(parent.labelCurrMask)
     editMenu.addAction(labelObjects)
     
+
+    displayMenu = mainMenu.addMenu("Display")
+    multiLabel= QAction("Multi-label window", parent)
+    multiLabel.triggered.connect(parent.multi_label_display)
+    displayMenu.addAction(multiLabel)
+
+    
     measureMenu = mainMenu.addMenu("Measure")
     measureCells = QAction("Show Measuring Tape", parent)
     measureCells.triggered.connect(parent.buildMeasureWindow)

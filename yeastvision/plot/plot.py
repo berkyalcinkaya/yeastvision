@@ -39,7 +39,7 @@ class HeatmapCanvas(FigureCanvas):
             while i < stop:
                 heatmap[i+1:(i+1) + (interp_factor-1)] = interp
                 i = (i+1) + (interp_factor-1)
-        print("Heatmap values:", heatmap)  # Debugging line to check heatmap values
+        #print("Heatmap values:", heatmap)  # Debugging line to check heatmap values
 
         # Create a modern-looking colormap
         colors = [
