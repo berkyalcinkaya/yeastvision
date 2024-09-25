@@ -57,7 +57,7 @@ packages = [
 
 setup(
     name = "yeastvision",
-    version = "0.1.53",
+    version = "0.1.54",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
