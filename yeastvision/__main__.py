@@ -3435,7 +3435,7 @@ def main():
 
     if args.test:
         dir = test_dir
-        if not os.path.exists(TEST_MOVIE_DIR):
+        if not os.path.exists(TEST_MOVIE_DIR) or glob.glob(join(TEST_MOVIE_DIR, "*.tif")) == []:
             logger.info(f"Installing Test Images from {TEST_MOVIE_URL}")
             install_test_ims()
         num_channels = 2

@@ -42,18 +42,18 @@ def install_rife():
 def install_test_ims():
     src = TEST_MOVIE_DIR
 
-    if not os.path.exists(TEST_MOVIE_DIR):
-        os.makedirs(src)
+    os.makedirs(src, exist_ok=True)
 
     for i in tqdm(range(TEST_MOVIE_NUM_IMS)):
         for extension in TEST_MOVIE_ITEMS:
-            im_name = f"{TEST_MOVIE_IM_FORMAT.replace('x', str(i))}_{extension}.tif"
+            im_name = f"{TEST_MOVIE_IM_FORMAT.replace('x', str(i).zfill(2))}_{extension}.tif"
             im_url = f"{TEST_MOVIE_URL}/{im_name}?raw=True"
 
             response = requests.get(im_url)
             response.raise_for_status()
 
             outpath = os.path.join(src, im_name)
+            print(outpath)
             with open(outpath, "wb") as file:
                 file.write(response.content)
 
