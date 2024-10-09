@@ -51,7 +51,6 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
     # remove github only text from long description
     long_description = long_description.replace(github_only_text, "")
-    print(long_description)
 
 packages = [
             "yeastvision","yeastvision.data",  "yeastvision.plot", 

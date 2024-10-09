@@ -10,7 +10,7 @@ RIFE_URL = f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{RI
 def MODEL_URL(model_name): return f"https://github.com/berkyalcinkaya/yeastvision/blob/main/weights/{model_name}?raw=True"
 TEST_MOVIE_URL = "https://github.com/berkyalcinkaya/yeastvision/blob/main/data/sample_movie_1"
 TEST_MOVIE_NUM_IMS = 10
-TEST_MOVIE_ITEMS = ["cdc", "phase", "mask1"]
+TEST_MOVIE_ITEMS = ["channel2_cdc", "channel1_phase", "mask1"]
 TEST_MOVIE_IM_FORMAT = "im00x"
 TEST_MOVIE_DIR = os.path.join(os.path.dirname(yeastvision.__path__[0]), "data/sample_movie_1")
 
