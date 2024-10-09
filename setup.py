@@ -44,13 +44,14 @@ except:
 
 github_only_text  = '''
 ## Enhance time-series resolution with generative AI
-<img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/interp.gif?raw=True" width="2000" height="600" />"
+<img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/interp.gif?raw=True" width="2000" height="600" />
 '''
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
     # remove github only text from long description
     long_description = long_description.replace(github_only_text, "")
+    print(long_description)
 
 packages = [
             "yeastvision","yeastvision.data",  "yeastvision.plot", 
@@ -66,7 +67,7 @@ packages = [
 
 setup(
     name = "yeastvision",
-    version = "0.1.60",
+    version = "0.1.62",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
