@@ -43,7 +43,7 @@ def install_test_ims():
     src = TEST_MOVIE_DIR
 
     if not os.path.exists(TEST_MOVIE_DIR):
-        os.mkdir(src)
+        os.makedirs(src)
 
     for i in tqdm(range(TEST_MOVIE_NUM_IMS)):
         for extension in TEST_MOVIE_ITEMS:
