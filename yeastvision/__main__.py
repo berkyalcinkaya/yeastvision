@@ -2559,14 +2559,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelChoose.addItems(sorted(self.modelNames, key = lambda x: x[0]))
         self.WEIGHTS_LOADED_STATUS = self.get_weights_loaded_status()
     
-
-
     def importModelClass(self, modelName):
         module = importlib.import_module(self.getPkgString(modelName))
         modelClass = getattr(module, capitalize_first_letter(modelName))
         return modelClass
 
     def importModelClasses(self):
+        '''Imports all model classes from the models package. Each built-in model type has a class that is imported and stoerd'''
         self.model_classes = {}
         for model in getBuiltInModelTypes():
             self.model_classes[model] = self.importModelClass(model)

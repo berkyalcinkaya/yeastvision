@@ -53,7 +53,6 @@ def install_test_ims():
             response.raise_for_status()
 
             outpath = os.path.join(src, im_name)
-            print(outpath)
             with open(outpath, "wb") as file:
                 file.write(response.content)
 

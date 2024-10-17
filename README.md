@@ -70,8 +70,7 @@ See [Troubleshooting: Common Problems](##troubleshooting:-common-problems) for p
 ### Using yeastvision with Nvidia GPU: PyTorch Configurations
 
 To use your NVIDIA GPU with python, you will first need to install a [NVIDIA driver](https://www.nvidia.com/Download/index.aspx?lang=en-us) for
-your GPU. Once downloaded, ensure that your
-GPU is detected by running `nvidia-smi` in the terminal.
+your GPU. Once downloaded, ensure that your GPU is detected by running `nvidia-smi` in the terminal. Note that version that is displayed.
 
 `yeastvision` relies on `pytorch` for implementation of the deep-learning models, which we will need to configure for gpu usage. Ensure your yeastvision conda environment is active for the following commands.
 
@@ -80,9 +79,11 @@ First, we need to remove the CPU version of torch and torchvision:
 pip uninstall torch; pip uninstall torchvision
 ~~~
 
-Now install `torch` and `torchvision` for CUDA version 11.3. Ensure that your nvidia drivers are up to date for version 11.3 by running `nvidia-smi` and check that a version 11.3 or greater is displayed in the top right corner of the output table.
+Now install `torch` and `torchvision` for your CUDA version and OS. You can find your system's version on the top right corner of the output table of `nvidia-smi` in the terminal. Follow the official PyTorch instructions (here)[https://pytorch.org/get-started/locally/]. For CUDA versions lower than 11.8, see (here)[https://pytorch.org/get-started/previous-versions/]. Please note that these instructions often give commands that include `torchaudio`, but this package is not required for `yeastvision`. 
+
+Example command (CUDA 11.8, Linux)
 ~~~
-conda install pytorch==1.12.0 torchvision==0.13.0 cudatoolkit=11.3 -c pytorch
+conda install pytorch torchvision pytorch-cuda=11.8 -c pytorch -c nvidia
 ~~~~
 
 After install you can check `conda list` for `pytorch`, and its version info should have `cuXX.X`, not `cpu`.
