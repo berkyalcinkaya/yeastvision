@@ -16,6 +16,7 @@ import argparse
 import logging
 import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import time
 
 MASK_KEYWORD = "_masks"
 ART_KEYWORD = "_ART_"
@@ -95,6 +96,9 @@ def main(dir, info_only):
     track_full_lifecycle(arts, mats, tets, [tet_start, tet_stop], [mat_start, mat_stop], len(ims), None)
 
 if __name__ == "__main__":
+    # start timeer
+
+
     logging.info("----FULL LIFECYCLE TRACKING (for pre-generated cell, mating, and tetrad masks)")
     parser = argparse.ArgumentParser(description="Track the full lifecycle of yeast colonies with sporulating and mating cells.")
     parser.add_argument('dir', type=str, help="Directory containing the movie files and segmentation masks.")
@@ -106,4 +110,8 @@ if __name__ == "__main__":
     if not os.path.exists(dir) or not os.path.isdir(dir):
         raise ValueError(f"{dir} does not exist or is not a directory")
     logging.info(f"Utilizing dir {dir} for masks")
+    start = time.time()
     main(dir, args.info_only)
+    end = time.time()
+    logging.info(f"Total time: {end-start}")
+    logging.info("----END FULL LIFECYCLE TRACKING----")

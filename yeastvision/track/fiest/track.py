@@ -272,7 +272,7 @@ def track_full_lifecycle(proSeg:Union[np.ndarray, List[np.ndarray]], mating: Uni
     
     logger.info("STEP 2/6: Track Mating Cells")
     Matmasks, mat_no_obj, Mat_cell_data, cell_data = track_mating(mating, mating_interval, shock_period) # step3
-    save_images_to_directory(Matmasks, "/home/berk/code/yeastvision/test/step3")
+    #save_images_to_directory(Matmasks, "/home/berk/code/yeastvision/test/step3")
     
     
     logger.info("STEP 3: Correct General Masks")
@@ -283,7 +283,7 @@ def track_full_lifecycle(proSeg:Union[np.ndarray, List[np.ndarray]], mating: Uni
     
     logger.info("STEP 5/6: Correct Mating Cells")
     Matmasks, final_mat_cell_data, mat_no_obj = correct_mating(Matmasks, Mask7, mat_no_obj, Mat_cell_data, cell_data) # step6
-    save_images_to_directory(Matmasks, "/home/berk/code/yeastvision/test/step6")
+    #save_images_to_directory(Matmasks, "/home/berk/code/yeastvision/test/step6")
     
     logger.info("STEP 6/6: Correct General Masks again")
     final_art_masks = correct_proSeg_with_mating(Matmasks, Mask7, art_cell_exists, mat_no_obj, final_mat_cell_data) # step7
