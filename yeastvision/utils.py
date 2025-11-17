@@ -185,10 +185,9 @@ def overlay_masks_on_image(phase_img, masks, is_contour, alpha=100):
     return result_array
 
 def write_images_to_dir(path, ims, flags = None, annotation = None, extension = ".tif", ):
-    dir = os.path.dirname(path)
     if os.path.exists(path):
         return
-    os.mkdir(path)
+    os.makedirs(path, exist_ok=True)
     if "." not in extension:
         extension = "." + extension
     num_digits = len(str(len(ims)))
@@ -196,13 +195,12 @@ def write_images_to_dir(path, ims, flags = None, annotation = None, extension = 
         base_name = f"{str(i+1).zfill(num_digits)}"
         if flags is not None and flags[i] and annotation is not None:
             base_name += f"_{annotation}"
-        new_file_name = f"{base_name}{os.path.splitext(im)[1]}"
+        new_file_name = f"{base_name}{extension}"
         new_file_path = os.path.join(path, new_file_name)
         skimage.io.imsave(new_file_path, im)
 
 def save_image(path, im, extension  = ".tif"):
     pass
-
 
 def overlay_images(phase_img, mask_img, colorized_mask):
     # Convert numpy arrays to PIL images
