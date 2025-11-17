@@ -1,3 +1,4 @@
+demo/
 *.vscode
 models/
 *.jpg
@@ -20,3 +21,4 @@ yeastvision/models/flouSeg/flouSeg
 yeastvision/models/filaSeg/filaSeg
 data/sample_movie_old
 *.npz
+
