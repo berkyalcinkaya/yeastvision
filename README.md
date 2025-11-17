@@ -20,8 +20,10 @@
 [![GitHub stars](https://img.shields.io/github/stars/berkyalcinkaya/yeastvision?style=social)](https://github.com/berkyalcinkaya/yeastvision/)
 [![GitHub forks](https://img.shields.io/github/forks/berkyalcinkaya/yeastvision?style=social)](https://github.com/berkyalcinkaya/yeastvision/)
 
+## Watch the Demo
+[![Yeastvision Demo](https://img.youtube.com/vi/CUZYunHKr0w/0.jpg)](https://www.youtube.com/watch?v=CUZYunHKr0w)
 
-## Enhance time-series resolution with generative AI
+## Feature: Enhance time-series resolution with generative AI
 <img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/interp.gif?raw=True" width="2000" height="600" />
 
 ## The interface: segment, track, and analyze  
