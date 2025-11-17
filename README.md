@@ -8,7 +8,7 @@
 
 #### Read the paper [Deep learning-driven imaging of cell division and cell growth across an entire eukaryotic life cycle](https://www.biorxiv.org/content/10.1101/2024.04.25.591211v1)
 
-##### Developed at the [Miranda Laboratory](https://cals.ncsu.edu/plant-and-microbial-biology/people/oargell/) at NCSU with the support of NIH-NIGMS R00GM135487 and the National Institute for Theory and Mathematics in Biology (NITMB)
+##### Developed at the [Miranda Laboratory](https://cals.ncsu.edu/plant-and-microbial-biology/people/oargell/) at NCSU with the support of NIH-NIGMS R00GM135487 and the National Institute for Theory and Mathematics in Biology (NITMB). This research was supported in part by grants from the NSF (DMS-2235451) and Simons Foundation (MPS-NITMB-00005320) to the NSF-Simons National Institute for Theory and Mathematics in Biology (NITMB).
 
 [![PyPI version](https://badge.fury.io/py/yeastvision.svg)](https://badge.fury.io/py/yeastvision)
 [![Downloads](https://pepy.tech/badge/yeastvision)](https://pepy.tech/project/yeastvision)
