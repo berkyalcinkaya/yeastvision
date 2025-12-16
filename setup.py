@@ -43,7 +43,7 @@ except:
 
 
 github_only_text  = '''
-## Enhance time-series resolution with generative AI
+## Feature: Enhance time-series resolution with generative AI
 <img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/interp.gif?raw=True" width="2000" height="600" />
 '''
 
@@ -66,7 +66,7 @@ packages = [
 
 setup(
     name = "yeastvision",
-    version = "0.1.69",
+    version = "0.1.70",
     description = "Deep learning-enabled image analysis of the full yeast life cycle",
     author = "Berk Yalcinkaya",
     url = "https://github.com/berkyalcinkaya/yeastvision",
