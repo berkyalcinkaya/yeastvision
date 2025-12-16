@@ -21,7 +21,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/berkyalcinkaya/yeastvision?style=social)](https://github.com/berkyalcinkaya/yeastvision/)
 
 ## Watch the Demo
-[![Yeastvision Demo](https://img.youtube.com/vi/CUZYunHKr0w/0.jpg)](https://www.youtube.com/watch?v=CUZYunHKr0w)
+[![Yeastvision Demo](https://img.youtube.com/vi/K-OpFB1bwaI/0.jpg)](https://www.youtube.com/watch?v=K-OpFB1bwaI)
 
 ## Feature: Enhance time-series resolution with generative AI
 <img src="https://raw.githubusercontent.com/berkyalcinkaya/yeastvision/main/yeastvision/docs/figs/interp.gif?raw=True" width="2000" height="600" />
